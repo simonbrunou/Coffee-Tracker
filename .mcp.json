@@ -4,7 +4,8 @@
       "type": "stdio",
       "command": "npx",
       "args": [
-        "shadcn@latest",
+        "-y",
+        "shadcn@4.10.0",
         "mcp"
       ],
       "env": {}
@@ -16,16 +17,15 @@
         "run",
         "-i",
         "--rm",
-        "--network",
-        "host",
+        "--add-host=host.docker.internal:host-gateway",
         "-e",
         "DATABASE_URI",
-        "crystaldba/postgres-mcp",
+        "crystaldba/postgres-mcp@sha256:dbbd346860d29f1543e991f30f3284bf4ab5f096d049ecc3426528f20b1b6e6b",
         "--access-mode",
         "restricted"
       ],
       "env": {
-        "DATABASE_URI": "postgresql://postgres:postgres@localhost:5432/coffee_tracker"
+        "DATABASE_URI": "postgresql://postgres:postgres@host.docker.internal:5432/coffee_tracker"
       }
     }
   }
