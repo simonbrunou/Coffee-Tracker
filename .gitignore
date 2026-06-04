@@ -1,0 +1,31 @@
+# --- Machine-local / secrets (never commit) ---
+.claude/settings.local.json
+.env
+.env*.local
+*.local.env
+
+# --- Node / Next.js (for the upcoming app) ---
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- OS / editor junk ---
+.DS_Store
+Thumbs.db
+*.swp
+
+# NOTE: the following ARE intentionally committed for cross-machine portability:
+#   .agents/skills/          vendored agent skills (no re-fetch needed on clone)
+#   skills-lock.json         skill version lockfile
+#   .mcp.json                shadcn + postgres MCP server config
+#   .claude/settings.json    enables the typescript-lsp plugin
