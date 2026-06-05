@@ -51,6 +51,7 @@ export function BeanDetail({
   const bean = D.bean(beanId);
   const [following, setFollowing] = useState(false);
   if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
+  const isOwner = bean.ownerId != null && bean.ownerId === D.currentUserId;
   const roaster = D.roaster(bean.roasterId);
   const roasterName = roaster?.name ?? bean.roasterName ?? "My roaster";
   const reviews = D.TASTINGS.filter((t) => t.beanId === beanId);
@@ -177,9 +178,11 @@ export function BeanDetail({
             ) : null}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-            <Button onClick={() => onAdd(bean.id)}>
-              <Icon name="drop" size={18} color="currentColor" /> Log a brew
-            </Button>
+            {isOwner && (
+              <Button onClick={() => onAdd(bean.id)}>
+                <Icon name="drop" size={18} color="currentColor" /> Log a brew
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setFollowing((f) => !f)}
@@ -250,17 +253,21 @@ export function BeanDetail({
         {reviews.length} brew{reviews.length !== 1 ? "s" : ""} logged
       </h2>
       {reviews.length === 0 ? (
-        <Button
-          variant="outline"
-          onClick={() => onAdd(bean.id)}
-          className="h-auto w-full flex-col gap-2 border-2 border-dashed border-[var(--line)] bg-transparent text-[var(--mocha)]"
-          style={{ padding: "28px 20px", borderRadius: "var(--r-lg)" }}
-        >
-          <Icon name="drop" size={26} color="var(--caramel)" />
-          <span style={{ fontSize: 14.5, fontWeight: 600, color: "var(--coffee)" }}>
-            No brews yet — log your first cup from this bag
-          </span>
-        </Button>
+        isOwner ? (
+          <Button
+            variant="outline"
+            onClick={() => onAdd(bean.id)}
+            className="h-auto w-full flex-col gap-2 border-2 border-dashed border-[var(--line)] bg-transparent text-[var(--mocha)]"
+            style={{ padding: "28px 20px", borderRadius: "var(--r-lg)" }}
+          >
+            <Icon name="drop" size={26} color="var(--caramel)" />
+            <span style={{ fontSize: 14.5, fontWeight: 600, color: "var(--coffee)" }}>
+              No brews yet — log your first cup from this bag
+            </span>
+          </Button>
+        ) : (
+          <p style={{ fontSize: 14, color: "var(--mocha)" }}>No brews logged yet.</p>
+        )
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {reviews.map((t, i) => (

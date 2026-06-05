@@ -16,10 +16,12 @@ export async function logBrew(input: LogBrewInput): Promise<Tasting> {
   const { rows } = await query<Tasting>(
     `insert into tastings
        (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments, time)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 'now')
+     select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 'now'
+     from beans where id = $3 and user_id = $2
      returning ${TASTING_COLS}`,
     [id, userId, input.beanId, rating, input.brew, input.dose, input.ratio, input.temp, input.note],
   );
+  if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
   return rows[0];
 }
 
