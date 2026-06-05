@@ -1,7 +1,7 @@
 # M1 — Data Integrity & Core Write Path — Design
 
 **Date:** 2026-06-05
-**Status:** Proposed (design); pending user approval → implementation plan
+**Status:** Implemented (2026-06-05). All 11 plan tasks complete on `feat/m1-data-integrity`; verified live via the spike (which caught 3 latent bugs the mocked unit tests missed: a `$1` type error, bigint→string count concat, and a brew-allowlist mismatch). 66 unit tests + `tsc` + production build green; useOptimistic re-base, edit/delete brew & bag, and honest submit states confirmed in a real browser session.
 **Branch:** `feat/m1-data-integrity` (to be created off `main`)
 **Council review:** ratified by a model-diverse council (architect/correctness — Opus; implementation/testability — Sonnet; contrarian/red-team — Opus). The council materially amended the original plan (see "What the council changed"). Amendments folded in below.
 
