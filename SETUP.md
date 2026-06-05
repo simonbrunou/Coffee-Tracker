@@ -31,3 +31,36 @@ Restart Claude Code afterward so the plugins load.
 - MCP **approvals** are always per-machine (security).
 
 > Excluded as off-stack for this React/Next.js + Postgres project: the `svelte` / `sveltekit-structure` and `pgmicro-postgres-sqlite` / `discord` tooling. Add them manually if ever needed.
+
+## Authentication
+
+Cortado uses [Auth.js v5](https://authjs.dev) (the `next-auth@beta` package). Before running the app you need a few env vars in `.env.local` (never committed — add it to your `.gitignore` if it isn't already):
+
+| Variable | Purpose |
+|----------|---------|
+| `AUTH_SECRET` | Signing / encryption secret for sessions and JWTs. **Required.** |
+| `AUTH_GOOGLE_ID` | Google OAuth client ID. |
+| `AUTH_GOOGLE_SECRET` | Google OAuth client secret. |
+| `AUTH_GITHUB_ID` | GitHub OAuth App client ID. |
+| `AUTH_GITHUB_SECRET` | GitHub OAuth App client secret. |
+| `AUTH_URL` | Full origin URL (`https://your-host/`). Leave unset for localhost (`trustHost` is enabled). |
+
+See `.env.example` at the repo root for a copy-paste template.
+
+### Generating `AUTH_SECRET`
+
+```bash
+npx auth secret        # writes AUTH_SECRET= to .env.local automatically
+# — or —
+openssl rand -base64 33
+```
+
+### Registering OAuth providers
+
+**Google** — [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services → Credentials → Create OAuth client:
+- Authorized redirect URI: `<origin>/api/auth/callback/google`
+
+**GitHub** — [github.com/settings/developers](https://github.com/settings/developers) → New OAuth App:
+- Authorization callback URL: `<origin>/api/auth/callback/github`
+
+For local dev, `<origin>` is `http://localhost:3000`. Real secrets go in `.env.local` only — do **not** commit them.

@@ -14,10 +14,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "next": "15.5.4",
+    "next-auth": "^5.0.0-beta.31",
     "next-themes": "^0.4.6",
     "pg": "^8.13.1",
     "radix-ui": "^1.4.3",
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.1.0",
