@@ -3,8 +3,12 @@
    Mounted once in the root layout so the shared client state (beans, brews,
    likes, the log sheet) survives client-side route navigation. Route pages
    render into {children} and read handlers/state via useShell(). */
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+
+// useLayoutEffect on the client (runs before paint / before the browser's
+// scroll-clamp event), useEffect on the server to avoid the SSR warning.
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { DataProvider } from "./data-context";
@@ -28,10 +32,6 @@ interface ShellApi {
   openRoaster: (id: string) => void;
   openBrew: (beanId?: string) => void;
   openAddBag: () => void;
-  feedFilter: string;
-  setFeedFilter: (f: string) => void;
-  query: string;
-  setQuery: (q: string) => void;
 }
 
 const ShellContext = createContext<ShellApi | null>(null);
@@ -48,8 +48,6 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const [beans, setBeans] = useState<Bean[]>(initialData.beans);
   const [tastings, setTastings] = useState<Tasting[]>(initialData.tastings);
   const [likes, setLikes] = useState<Set<string>>(() => new Set(initialData.likedIds));
-  const [feedFilter, setFeedFilter] = useState("Following");
-  const [query, setQuery] = useState("");
   const [log, setLog] = useState<{ open: boolean; mode: "brew" | "bag"; preset: string | null }>({
     open: false,
     mode: "brew",
@@ -58,10 +56,43 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
 
   const router = useRouter();
   const pathname = usePathname();
+
+  // ---- Scroll restoration for the single persistent scroll container ----
+  // The <main> scroll container lives in this provider and survives route
+  // changes, so we save its position per route and restore it on Back/Forward
+  // (popstate); a forward push resets to the top.
   const scrollRef = useRef<HTMLElement>(null);
-  // reset scroll on route change (the scroll container persists across routes)
+  const scrollPositions = useRef<Map<string, number>>(new Map());
+  const currentRouteKey = useRef(pathname);
+  const isPopNav = useRef(false);
   useEffect(() => {
-    scrollRef.current?.scrollTo(0, 0);
+    const onPop = () => {
+      isPopNav.current = true;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => scrollPositions.current.set(currentRouteKey.current, el.scrollTop);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+  // Layout effect so currentRouteKey switches to the new route BEFORE the
+  // browser dispatches the scroll-clamp event from the content swap — otherwise
+  // that event would save the clamped value under the route we just left.
+  useIsoLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = scrollPositions.current.get(pathname);
+    if (isPopNav.current && saved != null) el.scrollTop = saved;
+    else {
+      el.scrollTop = 0;
+      scrollPositions.current.set(pathname, 0);
+    }
+    isPopNav.current = false;
+    currentRouteKey.current = pathname;
   }, [pathname]);
 
   // dark-mode toggle (next-themes); guard against hydration mismatch
@@ -152,10 +183,6 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     openRoaster,
     openBrew,
     openAddBag,
-    feedFilter,
-    setFeedFilter,
-    query,
-    setQuery,
   };
 
   return (
