@@ -36,6 +36,15 @@ describe("validateLogBrew", () => {
     if (r.ok) expect(r.value.note.length).toBeLessThanOrEqual(1000);
     else throw new Error("should pass with truncation");
   });
+  // Regression: the allowlist must match the UI's BREW_METHODS exactly, or the
+  // picker's "Moka Pot"/"Kalita" silently coerce to "V60" (caught by the spike).
+  it("preserves full canonical method names (Moka Pot, Kalita)", () => {
+    for (const m of ["Moka Pot", "Kalita", "French Press"]) {
+      const r = validateLogBrew({ ...ok, brew: m });
+      if (r.ok) expect(r.value.brew).toBe(m);
+      else throw new Error(`${m} should be a valid brew method`);
+    }
+  });
 });
 
 describe("validateAddBag", () => {

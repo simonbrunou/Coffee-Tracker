@@ -1,4 +1,5 @@
 import type { AddBagInput, LogBrewInput, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import { BREW_METHODS } from "@/lib/seed-data";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -26,7 +27,7 @@ export function normalizeTemp(v: unknown): string {
   return n != null && n > 0 ? `${n}°C` : SENTINEL;
 }
 
-const BREW_ALLOW = ["V60", "Espresso", "AeroPress", "Chemex", "French Press", "Moka", "Cold Brew"];
+const BREW_ALLOW = BREW_METHODS; // single source of truth — matches the UI brew picker
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 

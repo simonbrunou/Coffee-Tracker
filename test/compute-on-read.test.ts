@@ -33,4 +33,15 @@ describe("compute-on-read counts", () => {
   it("getLikedTastingIds is removed", () => {
     expect(src).not.toContain("getLikedTastingIds");
   });
+  // Regressions caught by the live-DB spike: pg returns bigint count(*) as a
+  // STRING, so counts must be cast to int (else `likes + 1` string-concats to "01");
+  // and a bare `$1 is not null` has no inferable type, so the param needs ::text.
+  it("casts count aggregates to int (pg returns bigint as string)", () => {
+    expect(body("getBeans")).toMatch(/coalesce\(r\.ratings, 0\)::int/);
+    expect(body("getUsers")).toMatch(/coalesce\(t\.tastings, 0\)::int/);
+    expect(body("getTastings")).toMatch(/coalesce\(l\.likes, 0\)::int/);
+  });
+  it("casts the current-user param to text for null-safety", () => {
+    expect(body("getTastings")).toMatch(/\$1::text is not null/);
+  });
 });

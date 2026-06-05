@@ -28,7 +28,7 @@ export async function getRoasters(): Promise<Roaster[]> {
 export async function getUsers(): Promise<User[]> {
   const { rows } = await query<User>(
     `select u.id, u.name, u.handle, u.avatar,
-            coalesce(t.tastings, 0) as tastings,
+            coalesce(t.tastings, 0)::int as tastings,
             u.followers, u.following, u.bio
      from users u
      left join (select user_id, count(*) as tastings from tastings group by user_id) t
@@ -45,7 +45,7 @@ export async function getBeans(currentUserId: string | null): Promise<Bean[]> {
        origin, process, roast, altitude, varietal,
        price::float8 as price,
        coalesce(r.avg_rating, 0)::float8 as "avgRating",
-       coalesce(r.ratings, 0)            as ratings,
+       coalesce(r.ratings, 0)::int       as ratings,
        color, flavors, description as "desc", farm, varieties,
        sca_score::float8 as "scaScore", user_id as "ownerId",
        coalesce(owned and user_id = $1, false)        as "owned",
@@ -68,9 +68,9 @@ export async function getTastings(currentUserId: string | null): Promise<Tasting
     `select
        t.id, t.user_id as "userId", t.bean_id as "beanId", t.rating, t.brew,
        t.dose, t.ratio, t.temp, t.note,
-       coalesce(l.likes, 0) as likes, t.comments, t.time,
+       coalesce(l.likes, 0)::int as likes, t.comments, t.time,
        t.created_at as "createdAt",
-       ($1 is not null and exists (
+       ($1::text is not null and exists (
          select 1 from likes lm where lm.tasting_id = t.id and lm.user_id = $1
        )) as "likedByMe"
      from tastings t
