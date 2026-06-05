@@ -77,7 +77,9 @@ create table beans (
   bag_weight   text,
   purchased    text,
   remaining    numeric,                        -- fraction left 0–1; null if not on shelf
-  created_at   timestamptz not null default now()
+  user_id      text references users(id) on delete cascade,  -- owner; null only for a future shared catalog
+  created_at   timestamptz not null default now(),
+  constraint beans_owned_has_owner check (not owned or user_id is not null)
 );
 
 create table tastings (
@@ -93,7 +95,6 @@ create table tastings (
   likes      int  not null default 0,
   comments   int  not null default 0,
   time       text not null default 'now',     -- relative age label
-  mine       boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -104,7 +105,7 @@ create table likes (
   primary key (user_id, tasting_id)
 );
 
-create index beans_owned_idx       on beans (owned);
+create index beans_user_owned_idx  on beans (user_id, owned);
 create index beans_roaster_idx     on beans (roaster_id);
 create index beans_created_idx     on beans (created_at desc);
 create index tastings_created_idx  on tastings (created_at desc);
