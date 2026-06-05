@@ -35,8 +35,10 @@ domain `users` table as the single source of identity.
 - **Deploy target:** **publicly hosted, multi-user.** This keeps the full
   hardening set in scope — rate-limiting, the dummy-hash timing defense, and
   Vitest are all v1, not gold-plating (decided after a proportionality review).
-  The one item still deferred is per-user JWT revocation (`sessionVersion`) —
-  see "Out of scope," which states the residual risk now that it's public.
+- **Per-user revocation:** **write-path `sessionVersion` is in v1** (§6.11) — the
+  council showed the check is cheap when placed at the auth boundary
+  (`requireUserId`), not the `jwt` hot path. Only **read-path** revocation is
+  deferred (see "Out of scope").
 
 ## Threat model / why "separate accounts, no email linking"
 
@@ -65,6 +67,7 @@ Additions to `users`:
 | `email_verified` | `timestamptz null` | Reserved; not enforced in v1. |
 | `image` | `text null` | OAuth avatar URL (distinct from `avatar` tint). |
 | `password_hash` | `text null` | Only credential users have one. |
+| `session_version` | `int not null default 0` | Bumped to revoke a user's JWTs (§ revocation). |
 | `created_at` | `timestamptz not null default now()` | |
 
 - **Partial unique index (explicitly named):** `create unique index
@@ -166,21 +169,29 @@ async jwt({ token, account, profile, user }) {
   A stale `uid` (deleted user) surfaces as a `23503` on the next write and is
   handled there (account deletion is out of scope; see deferred).
 
-- **Credentials `authorize(creds)`**: `select id, password_hash from users where
-  lower(email) = lower($1) and password_hash is not null`. **Always run a bcrypt
-  compare** — if no row is found, compare against a **dummy hash** so the timing
-  is identical (otherwise the early return is a user-enumeration timing oracle).
-  On success return `{ id, ... }` (→ `token.uid = user.id`); on any failure
-  return **`null`** (Auth.js renders `CredentialsSignin` — a single uniform
-  error; never throw provider-specific detail).
+- **Credentials `authorize(creds)`**: `select id, password_hash, session_version
+  from users where lower(email) = lower($1) and password_hash is not null`.
+  **Always run a bcrypt compare** — if no row is found, compare against a **dummy
+  hash** so the timing is identical (otherwise the early return is a
+  user-enumeration timing oracle). On success return `{ id, sessionVersion }`; on
+  any failure return **`null`** (Auth.js renders `CredentialsSignin` — a single
+  uniform error; never throw provider-specific detail).
 
-- `session` callback: `session.user.id = token.uid`.
+- **Stamp `token.sv` at sign-in:** in the `jwt` first-call branch, set
+  `token.sv` alongside `token.uid` — from `user.sessionVersion` (credentials) or
+  the value returned by `resolveOrCreateOAuthUser` (OAuth; new rows = 0). Used by
+  the write-path revocation check (§ revocation / §3). Not re-read in the `jwt`
+  callback (that keeps the first-call guard DB-free).
 
-- **Type augmentation** (required or `session.user.id`/`token.uid` won't
-  typecheck):
+- `session` callback: `session.user.id = token.uid`; expose `token.sv` as
+  `session.sessionVersion`.
+
+- **Type augmentation** (required or the custom claims won't typecheck):
   ```ts
-  declare module "next-auth" { interface Session { user: { id: string } & DefaultSession["user"] } }
-  declare module "next-auth/jwt" { interface JWT { uid: string } }
+  declare module "next-auth" {
+    interface Session { user: { id: string } & DefaultSession["user"]; sessionVersion: number }
+  }
+  declare module "next-auth/jwt" { interface JWT { uid: string; sv: number } }
   ```
 
 - **`signIn()` call shapes** (the most error-prone wiring): OAuth buttons →
@@ -244,7 +255,13 @@ password accounts are created by a dedicated **server action** (not
 
 - New `lib/auth.ts` (server-only helpers):
   - `getCurrentUserId(): Promise<string | null>` → `(await auth())?.user?.id ?? null`
-  - `requireUserId(): Promise<string>` → throws if null.
+  - `requireUserId(): Promise<string>` → throws if null, **and enforces
+    revocation**: one indexed `select session_version from users where id=$1`,
+    compared to the session's `sessionVersion`; mismatch (or no row) → treat as
+    unauthenticated (throw). This is the write-path revocation gate — one PK
+    lookup per mutation, **zero** added cost on read/navigation (the `jwt`
+    first-call guard is untouched). Reads are **not** revocation-checked in v1
+    (browse is public anyway; see deferred for read-path revocation).
 - `lib/db.ts`: add `withTransaction(fn)` / `getClient()` (a real transaction
   primitive does not exist today — only autocommit `query()`).
 - `lib/queries.ts`: `getAppData()` reads the session.
@@ -354,7 +371,11 @@ Mandatory in v1:
 7. **`trustHost: true` / pinned `AUTH_URL`** in prod; rely on Auth.js's default
    `httpOnly`/`SameSite=Lax`/`Secure`-prefix cookies + built-in CSRF knowingly
    (§2).
-8. **Rate-limiting (publicly hosted — required, fully specified):** `lib/rate-
+8. **Session `maxAge` (quantified — the load-bearing exposure bound):**
+   `session: { strategy: "jwt", maxAge: 1800 }` (30-min rolling). Caps how long a
+   stolen/stale token survives on any path not covered by per-user revocation,
+   and is the fallback for whatever revocation is deferred (see "Out of scope").
+9. **Rate-limiting (publicly hosted — required, fully specified):** `lib/rate-
    limit.ts` exporting `checkRateLimit(key): boolean`.
    - **Store:** module-level `Map<string, { count: number; resetAt: number }>`
      (in-memory, **per-instance** — documented limitation; swap to Postgres/KV
@@ -368,10 +389,20 @@ Mandatory in v1:
      later." }` (login) or the signup `{ error }` shape — no bcrypt run, no DB
      hit. Called at the **top** of `registerUser` and inside Credentials
      `authorize()` before the DB lookup.
-8b. **Projection guard:** the §1 `getUsers` column-list assertion is the
+10. **Projection guard:** the §1 `getUsers` column-list assertion is the
    structural defense against `email`/`password_hash` drift — preferred over a
    separate `PublicUser` type (the explicit column list already *is* the
    projection; the test prevents it widening).
+11. **Per-user revocation (write-path, in v1):** `users.session_version` stamped
+   into the JWT (`token.sv`) at sign-in and re-checked in `requireUserId()` (§3).
+   Bumping `session_version` (`update users set session_version =
+   session_version + 1 where id=$1`) instantly invalidates that user's existing
+   tokens for all **write** actions. v1 ships the mechanism + the check; the
+   triggers wire to it as built — a "log out everywhere" / disable-account
+   control, a future password-reset action (which bumps in the same statement),
+   and immediate incident response via a manual bump. Cost: one `int` column +
+   ~3 lines of token plumbing + one PK lookup per mutation. Read-path revocation
+   is deferred (see "Out of scope").
 
 ### 7. Dependencies
 
@@ -409,7 +440,8 @@ outside a Next bundle). Unit-test the pure logic:
 - `resolveOrCreateOAuthUser` (mock the `pg` client): reuse on existing
   `(provider, providerAccountId)`, create otherwise.
 - `registerUser`: validation rejects, `23505` → "email taken", success path.
-- `requireUserId` gating (mock `auth()` → null session throws).
+- `requireUserId` gating (mock `auth()` → null session throws; **and a
+  `session_version` mismatch throws** — the write-path revocation check).
 
 Integration test (optional, against Docker Postgres): credentials
 signup → login.
@@ -430,19 +462,24 @@ signup → login.
    actions.ts`), `lib/rate-limit.ts`, the `jwt` resolve-or-create upsert
    (first-call guard, plain `BEGIN`/`COMMIT`, up-front handle), `session`
    callback, `bcryptjs`, Vitest + unit tests. `requireUserId` becomes real here.
+   **Once the base is stable, add the write-path `sessionVersion` check** (§6.11)
+   to `requireUserId` + stamp `token.sv` — last, so it layers onto a working,
+   tested auth core rather than complicating its bring-up.
 3. **Auth UI** — `/login`, `/signup` (wired to `signIn`/`registerUser`),
    sign-out, already-authenticated redirects; `SETUP.md` / `.env.example` /
    `README.md` updates.
 
 ## Out of scope / deferred (future hardening)
 
-- **JWT revocation** via a `sessionVersion` claim checked against `users`.
-  **Residual risk (stated honestly — this is now a multi-user app, not
-  single-owner):** there is no way to log out one compromised/abused account; a
-  stolen JWT is valid until expiry, a password reset does **not** invalidate
-  existing sessions, and rotating `AUTH_SECRET` is an all-users logout. Accepted
-  for v1; revisit if the user base grows. Use a short session `maxAge` to bound
-  exposure.
+- **Read-path JWT revocation.** v1 ships **write-path** revocation (§6.11): a
+  revoked session is blocked from all mutations immediately. What's deferred is
+  enforcing revocation on **reads** — a revoked user can still load authenticated
+  read state (their own likes/journal view) until the token's `maxAge` (≤30 min)
+  elapses. Closing this means adding the `session_version` check to `getAppData`
+  (one extra parallel PK lookup per render — cheap, since `getAppData` already
+  fans out 5 queries). **Residual risk:** read-only, bounded by `maxAge`; no
+  write can be performed by a revoked session. Acceptable for v1; add the
+  `getAppData` check if read-side leakage becomes a concern.
 - **Account deletion** is out of scope; note that deleting a `users` row while a
   JWT is live yields a raw FK `23503` on the next write (`tastings.user_id` has
   no cascade) — handle when deletion is built.
