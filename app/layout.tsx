@@ -37,10 +37,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4ece1" },
-    { media: "(prefers-color-scheme: dark)", color: "#1b1610" },
-  ],
+  // theme-color is set client-side in AppProvider to follow the in-app theme toggle
 };
 
 export default async function RootLayout({

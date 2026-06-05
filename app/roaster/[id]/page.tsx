@@ -7,5 +7,11 @@ export default function RoasterPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const s = useShell();
-  return <RoasterDetail roasterId={id} onBack={() => router.back()} onOpenBean={s.openBean} />;
+  return (
+    <RoasterDetail
+      roasterId={id}
+      onBack={() => (window.history.length > 1 ? router.back() : router.push("/discover"))}
+      onOpenBean={s.openBean}
+    />
+  );
 }

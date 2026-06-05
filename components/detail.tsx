@@ -8,6 +8,28 @@ import { Button } from "@/components/ui/button";
 import { flavorColor } from "@/lib/seed-data";
 import type { Bean } from "@/lib/types";
 
+// Shown when a /bean/:id or /roaster/:id deep-link points at an id not in the catalog.
+function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <div style={{ maxWidth: 820, margin: "0 auto", textAlign: "center", padding: "80px 20px" }} className="fade-up">
+      <div style={{ display: "inline-flex", marginBottom: 16, opacity: 0.5 }}>
+        <Icon name="search" size={40} />
+      </div>
+      <h1 className="display" style={{ fontSize: 26, fontWeight: 700 }}>
+        {label} not found
+      </h1>
+      <p style={{ color: "var(--mocha)", marginTop: 8, fontSize: 15 }}>
+        It may have been removed, or the link is out of date.
+      </p>
+      <div style={{ marginTop: 22 }}>
+        <Button variant="outline" onClick={onBack}>
+          <Icon name="back" size={18} /> Go back
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- BEAN DETAIL ----------
 export function BeanDetail({
   beanId,
@@ -27,7 +49,7 @@ export function BeanDetail({
   const D = useData();
   const bean = D.bean(beanId);
   const [following, setFollowing] = useState(false);
-  if (!bean) return null;
+  if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
   const roaster = D.roaster(bean.roasterId);
   const roasterName = roaster?.name ?? bean.roasterName ?? "My roaster";
   const reviews = D.TASTINGS.filter((t) => t.beanId === beanId);
@@ -348,7 +370,7 @@ export function RoasterDetail({
   const D = useData();
   const roaster = D.roaster(roasterId);
   const [following, setFollowing] = useState(false);
-  if (!roaster) return null;
+  if (!roaster) return <NotFoundPanel label="Roaster" onBack={onBack} />;
   const beans = D.BEANS.filter((b) => b.roasterId === roasterId);
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-up">

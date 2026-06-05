@@ -71,6 +71,20 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const isDark = resolvedTheme === "dark";
   const toggleTheme = () => setTheme(isDark ? "light" : "dark");
 
+  // Keep the mobile browser-chrome theme-color in sync with the *active in-app*
+  // theme (next-themes is class-based, so a static prefers-color-scheme meta
+  // would disagree when the user toggles against their OS preference).
+  useEffect(() => {
+    if (!mounted) return;
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", isDark ? "#1b1610" : "#f4ece1");
+  }, [isDark, mounted]);
+
   const me = users.find((u) => u.id === currentUserId);
 
   const toggleLike = (id: string) => {
@@ -122,8 +136,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     setBeans((prev) => [bean, ...prev]);
     if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
     else {
-      closeLog();
+      // bag is already persisted; keep the success panel up briefly, then close
       toast(`${bean.name} added to your shelf ✓`);
+      setTimeout(closeLog, 1100);
     }
   };
 

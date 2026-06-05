@@ -10,7 +10,7 @@ export default function BeanPage() {
   return (
     <BeanDetail
       beanId={id}
-      onBack={() => router.back()}
+      onBack={() => (window.history.length > 1 ? router.back() : router.push("/"))}
       onOpenRoaster={s.openRoaster}
       likes={s.likes}
       onLike={s.toggleLike}
