@@ -54,7 +54,7 @@ export function DataProvider({
       bean: (id) => beans.find((b) => b.id === id),
       roaster: (id) => (id ? roasters.find((r) => r.id === id) : undefined),
       user: (id) => users.find((u) => u.id === id),
-      shelf: () => beans.filter((b) => b.owned),
+      shelf: () => beans.filter((b) => b.owned && b.ownerId === currentUserId),
     }),
     [roasters, users, beans, tastings, currentUserId],
   );
