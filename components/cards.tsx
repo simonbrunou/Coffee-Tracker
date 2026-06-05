@@ -346,9 +346,9 @@ export function BeanCard({
           )}
           {bean.price ? (
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--caramel-deep)" }}>${bean.price}</span>
-          ) : (
+          ) : bean.owned ? (
             <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--sage)" }}>On shelf</span>
-          )}
+          ) : null}
         </div>
       </div>
     </button>
