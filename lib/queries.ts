@@ -1,6 +1,6 @@
 import "server-only";
 import { query } from "./db";
-import { CURRENT_USER_ID } from "./seed-data";
+import { getCurrentUserId } from "./auth";
 import type { AppData, Bean, Roaster, Tasting, User } from "./types";
 
 // camelCase aliases must be double-quoted (Postgres folds bare identifiers to
@@ -12,11 +12,11 @@ export const BEAN_COLS = `
   price::float8 as price, avg_rating::float8 as "avgRating", ratings,
   color, flavors, description as "desc", farm, varieties,
   sca_score::float8 as "scaScore", owned, bag_weight as "bagWeight",
-  purchased, remaining::float8 as remaining`;
+  purchased, remaining::float8 as remaining, user_id as "ownerId"`;
 
 export const TASTING_COLS = `
   id, user_id as "userId", bean_id as "beanId", rating, brew, dose, ratio,
-  temp, note, likes, comments, time, mine`;
+  temp, note, likes, comments, time`;
 
 export async function getRoasters(): Promise<Roaster[]> {
   const { rows } = await query<Roaster>(
@@ -32,9 +32,23 @@ export async function getUsers(): Promise<User[]> {
   return rows;
 }
 
-export async function getBeans(): Promise<Bean[]> {
+export async function getBeans(currentUserId: string | null): Promise<Bean[]> {
+  // Beans are globally readable (the Feed resolves any user's tasting->bean),
+  // but the per-user bag fields are returned only to the owner. $1 is the
+  // current user id (null for anon -> user_id = null is never true -> all redact).
   const { rows } = await query<Bean>(
-    `select ${BEAN_COLS} from beans order by created_at desc, id`,
+    `select
+       id, name, roaster_id as "roasterId", roaster_name as "roasterName",
+       origin, process, roast, altitude, varietal,
+       price::float8 as price, avg_rating::float8 as "avgRating", ratings,
+       color, flavors, description as "desc", farm, varieties,
+       sca_score::float8 as "scaScore", user_id as "ownerId",
+       coalesce(owned and user_id = $1, false)        as "owned",
+       case when user_id = $1 then bag_weight end     as "bagWeight",
+       case when user_id = $1 then purchased  end     as "purchased",
+       case when user_id = $1 then remaining::float8 end as "remaining"
+     from beans order by created_at desc, id`,
+    [currentUserId],
   );
   return rows;
 }
@@ -56,12 +70,13 @@ export async function getLikedTastingIds(userId: string): Promise<string[]> {
 
 /** Everything the client shell needs, fetched once on the server. */
 export async function getAppData(): Promise<AppData> {
+  const currentUserId = await getCurrentUserId();
   const [roasters, users, beans, tastings, likedIds] = await Promise.all([
     getRoasters(),
     getUsers(),
-    getBeans(),
+    getBeans(currentUserId),
     getTastings(),
-    getLikedTastingIds(CURRENT_USER_ID),
+    currentUserId ? getLikedTastingIds(currentUserId) : Promise.resolve<string[]>([]),
   ]);
-  return { roasters, users, beans, tastings, likedIds, currentUserId: CURRENT_USER_ID };
+  return { roasters, users, beans, tastings, likedIds, currentUserId };
 }

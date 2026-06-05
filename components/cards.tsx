@@ -22,6 +22,7 @@ export function TastingCard({
   delay?: number;
 }) {
   const D = useData();
+  const isMine = tasting.userId === D.currentUserId;
   const user = D.user(tasting.userId);
   const bean = D.bean(tasting.beanId);
   const [saved, setSaved] = useState(false);
@@ -57,7 +58,7 @@ export function TastingCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span style={{ fontWeight: 600, fontSize: 14.5 }}>{user.name}</span>
-            {tasting.mine && <Tag accent>You</Tag>}
+            {isMine && <Tag accent>You</Tag>}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>
             @{user.handle} · {ago}
@@ -345,9 +346,9 @@ export function BeanCard({
           )}
           {bean.price ? (
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--caramel-deep)" }}>${bean.price}</span>
-          ) : (
+          ) : bean.owned ? (
             <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--sage)" }}>On shelf</span>
-          )}
+          ) : null}
         </div>
       </div>
     </button>

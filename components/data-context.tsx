@@ -16,7 +16,7 @@ export interface DataApi {
   BREW_METHODS: string[];
   ROAST_LEVELS: string[];
   PROCESSES: string[];
-  currentUserId: string;
+  currentUserId: string | null;
   bean: (id: string) => Bean | undefined;
   roaster: (id: string | null | undefined) => Roaster | undefined;
   user: (id: string) => User | undefined;
@@ -37,7 +37,7 @@ export function DataProvider({
   users: User[];
   beans: Bean[];
   tastings: Tasting[];
-  currentUserId: string;
+  currentUserId: string | null;
   children: React.ReactNode;
 }) {
   const value = useMemo<DataApi>(
@@ -54,7 +54,7 @@ export function DataProvider({
       bean: (id) => beans.find((b) => b.id === id),
       roaster: (id) => (id ? roasters.find((r) => r.id === id) : undefined),
       user: (id) => users.find((u) => u.id === id),
-      shelf: () => beans.filter((b) => b.owned),
+      shelf: () => beans.filter((b) => b.owned && b.ownerId === currentUserId),
     }),
     [roasters, users, beans, tastings, currentUserId],
   );

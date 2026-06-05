@@ -57,6 +57,8 @@ export interface Bean {
   purchased?: string;
   /** Fraction of the bag left, 0–1. */
   remaining?: number | null;
+  /** Owner (creator) of this bag; null only for a future shared catalog. */
+  ownerId?: string | null;
 }
 
 /** A brew/tasting entry — the fast, everyday action logged against a bag. */
@@ -74,7 +76,6 @@ export interface Tasting {
   comments: number;
   /** Relative age label, e.g. "2h" or "now". */
   time: string;
-  mine: boolean;
 }
 
 // ---- SCA Coffee Taster's Flavor Wheel ----
@@ -95,7 +96,7 @@ export interface AppData {
   beans: Bean[];
   tastings: Tasting[];
   likedIds: string[];
-  currentUserId: string;
+  currentUserId: string | null;
 }
 
 // ---- Server action payloads ----

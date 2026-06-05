@@ -1,5 +1,5 @@
 import "server-only";
-import { Pool, type QueryResultRow } from "pg";
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
 
 /**
  * Shared pg connection pool. The connection string defaults to the repo's
@@ -23,3 +23,24 @@ export function query<T extends QueryResultRow = QueryResultRow>(
 ) {
   return pool.query<T>(text, params);
 }
+
+/** Factory so the transaction helper is unit-testable with a fake pool. */
+export function makeWithTransaction(p: Pick<Pool, "connect">) {
+  return async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = (await p.connect()) as PoolClient;
+    try {
+      await client.query("BEGIN");
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  };
+}
+
+/** App-wide transaction runner bound to the shared pool. */
+export const withTransaction = makeWithTransaction(pool);

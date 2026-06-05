@@ -66,7 +66,11 @@ app/
   profile/page.tsx  /profile     → Profile
   bean/[id]/page.tsx    /bean/:id    → Bean detail
   roaster/[id]/page.tsx /roaster/:id → Roaster detail
+  login/page.tsx    /login       → sign in (credentials + OAuth)
+  signup/page.tsx   /signup      → create account
+  api/auth/[...nextauth]/route.ts  Auth.js handlers
   actions.ts        server actions — logBrew / addBag / toggleLike
+  auth-actions.ts   server actions — registerUser / signOutAction
   globals.css       OKLCH design system + keyframes + component classes
   icon.svg
 components/
@@ -88,7 +92,7 @@ lib/
   flavor-wheel.ts   SCA wheel taxonomy + leaf-color map
   db.ts             pg pool (server-only)
   queries.ts        read queries
-db/schema.sql       tables (roasters, users, beans, tastings, likes)
+db/schema.sql       tables (roasters, users, accounts, beans, tastings, likes)
 scripts/db-setup.ts schema + seed runner
 ```
 
@@ -100,5 +104,28 @@ Two core objects, exactly as the design landed:
   on your shelf (with SCA score, bag weight, "% left").
 - **Tasting / Brew** — the fast everyday action, logged against a bag.
 
-The app shows a single user (`u1`, "You"); there is no auth — faithful to the
-prototype, which is a personal journal.
+## Authentication
+
+The app uses **Auth.js v5** (`auth.ts`, `app/api/auth/[...nextauth]/`) with three
+sign-in methods — **email + password** (Credentials), **Google**, and **GitHub** —
+and JWT sessions. Browsing the feed, discover, and bean/roaster pages is public;
+**writing** (logging a brew, adding a bag, liking, your journal/profile) requires
+signing in. Users are persisted into the `users` table; OAuth identity keys on
+`(provider, provider_account_id)` (the `accounts` table), never on email, so the
+same email across providers makes separate accounts — there is no cross-provider
+linking. Per-user session revocation rides a `session_version` column checked on
+write paths.
+
+Auth routes: `/login`, `/signup`, sign-out from the sidebar. Server actions:
+`app/auth-actions.ts` (`registerUser`, `signOutAction`); the current user is read
+server-side via `lib/auth.ts` (`getCurrentUserId` / `requireUserId`).
+
+Set the required env vars in `.env.local` — see `.env.example` and the
+"Authentication" section of `SETUP.md`:
+
+- `AUTH_SECRET` (generate with `npx auth secret`)
+- `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`
+  (register OAuth apps with callback `<origin>/api/auth/callback/{google,github}`)
+
+Credentials sign-up/sign-in works with just `AUTH_SECRET`; OAuth needs the
+provider IDs/secrets filled in.

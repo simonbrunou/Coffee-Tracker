@@ -5,6 +5,7 @@
 -- Lowercase, snake_case identifiers; Postgres text[] for the ordered
 -- flavor-note and variety lists.
 
+drop table if exists accounts cascade;
 drop table if exists likes cascade;
 drop table if exists tastings cascade;
 drop table if exists beans cascade;
@@ -29,7 +30,27 @@ create table users (
   tastings  int  not null default 0,
   followers int  not null default 0,
   following int  not null default 0,
-  bio       text not null default ''
+  bio       text not null default '',
+  email           text,                              -- display-only; NOT globally unique
+  email_verified  timestamptz,
+  image           text,                              -- OAuth avatar URL (distinct from avatar tint)
+  password_hash   text,                              -- only credential users
+  session_version int  not null default 0,           -- bump to revoke a user's JWTs
+  created_at      timestamptz not null default now()
+);
+
+-- At most one *password* account per email; OAuth rows may share an email.
+-- Named explicitly so registerUser can branch on err.constraint.
+create unique index users_email_lower_uq on users (lower(email)) where password_hash is not null;
+
+create table accounts (
+  id                  text primary key,
+  user_id             text not null references users(id) on delete cascade,
+  type                text not null,              -- 'oauth' | 'oidc'
+  provider            text not null,              -- 'google' | 'github'
+  provider_account_id text not null,
+  created_at          timestamptz not null default now(),
+  unique (provider, provider_account_id)
 );
 
 create table beans (
@@ -56,7 +77,9 @@ create table beans (
   bag_weight   text,
   purchased    text,
   remaining    numeric,                        -- fraction left 0–1; null if not on shelf
-  created_at   timestamptz not null default now()
+  user_id      text references users(id) on delete cascade,  -- owner; null only for a future shared catalog
+  created_at   timestamptz not null default now(),
+  constraint beans_owned_has_owner check (not owned or user_id is not null)
 );
 
 create table tastings (
@@ -72,7 +95,6 @@ create table tastings (
   likes      int  not null default 0,
   comments   int  not null default 0,
   time       text not null default 'now',     -- relative age label
-  mine       boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -83,9 +105,9 @@ create table likes (
   primary key (user_id, tasting_id)
 );
 
-create index beans_owned_idx       on beans (owned);
+create index beans_user_owned_idx  on beans (user_id, owned);
 create index beans_roaster_idx     on beans (roaster_id);
 create index beans_created_idx     on beans (created_at desc);
 create index tastings_created_idx  on tastings (created_at desc);
 create index tastings_bean_idx     on tastings (bean_id);
-create index tastings_mine_idx     on tastings (mine);
+create index accounts_user_idx     on accounts (user_id);
