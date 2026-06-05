@@ -119,6 +119,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const me = users.find((u) => u.id === currentUserId);
 
   const toggleLike = (id: string) => {
+    if (!currentUserId) { router.push("/login"); return; }
     const willLike = !likes.has(id);
     setLikes((prev) => {
       const n = new Set(prev);
@@ -138,8 +139,14 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     });
   };
 
-  const openBrew = (beanId?: string) => setLog({ open: true, mode: "brew", preset: beanId ?? null });
-  const openAddBag = () => setLog({ open: true, mode: "bag", preset: null });
+  const openBrew = (beanId?: string) => {
+    if (!currentUserId) return router.push("/login");
+    setLog({ open: true, mode: "brew", preset: beanId ?? null });
+  };
+  const openAddBag = () => {
+    if (!currentUserId) return router.push("/login");
+    setLog({ open: true, mode: "bag", preset: null });
+  };
   const closeLog = () => setLog((l) => ({ ...l, open: false }));
   const openBean = (id: string) => router.push(`/bean/${id}`);
   const openRoaster = (id: string) => router.push(`/roaster/${id}`);
@@ -223,13 +230,19 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
               </Button>
             </div>
             <div style={{ marginTop: "auto", paddingTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => router.push("/profile")} className="nav-user" style={{ flex: 1, minWidth: 0 }}>
-                {me && <Avatar user={me} size={36} />}
-                <div style={{ textAlign: "left", minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>You</div>
-                  <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@you</div>
-                </div>
-              </button>
+              {me ? (
+                <button onClick={() => router.push("/profile")} className="nav-user" style={{ flex: 1, minWidth: 0 }}>
+                  <Avatar user={me} size={36} />
+                  <div style={{ textAlign: "left", minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{me.name}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@{me.handle}</div>
+                  </div>
+                </button>
+              ) : (
+                <Button variant="outline" onClick={() => router.push("/login")} style={{ flex: 1 }}>
+                  Sign in
+                </Button>
+              )}
               <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
             </div>
           </aside>
