@@ -8,6 +8,8 @@ vi.mock("@/lib/auth", () => ({
 }));
 const queryMock = vi.fn();
 vi.mock("@/lib/db", () => ({ query: (...a: unknown[]) => queryMock(...a) }));
+const revalidateMock = vi.fn();
+vi.mock("next/cache", () => ({ revalidatePath: (...a: unknown[]) => revalidateMock(...a) }));
 
 import { logBrew } from "@/app/actions";
 
@@ -31,5 +33,15 @@ describe("logBrew ownership guard", () => {
     expect(params).toContain("u-me");
     // and the SQL must carry the ownership guard (catches a refactor that drops it)
     expect(sql).toMatch(/from beans where id = \$3 and user_id = \$2/i);
+  });
+
+  it("rejects an out-of-range rating before touching the db", async () => {
+    await expect(logBrew({ ...input, rating: 99 })).rejects.toThrow();
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+  it("revalidates after a successful insert", async () => {
+    queryMock.mockResolvedValue({ rows: [{ id: "t-1", userId: "u-me", beanId: "b-1" }] });
+    await logBrew(input);
+    expect(revalidateMock).toHaveBeenCalledWith("/", "layout");
   });
 });

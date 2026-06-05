@@ -39,6 +39,8 @@ export function BeanDetail({
   likes,
   onLike,
   onAdd,
+  onEditBag,
+  onDeleteBag,
 }: {
   beanId: string;
   onBack: () => void;
@@ -46,10 +48,13 @@ export function BeanDetail({
   likes: Set<string>;
   onLike: (id: string) => void;
   onAdd: (id: string) => void;
+  onEditBag?: (beanId: string) => void;
+  onDeleteBag?: (beanId: string) => void;
 }) {
   const D = useData();
   const bean = D.bean(beanId);
   const [following, setFollowing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
   const isOwner = bean.ownerId != null && bean.ownerId === D.currentUserId;
   const roaster = D.roaster(bean.roasterId);
@@ -177,19 +182,47 @@ export function BeanDetail({
               <span style={{ fontWeight: 700, fontSize: 20, color: "var(--caramel-deep)" }}>${bean.price}</span>
             ) : null}
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}>
             {isOwner && (
               <Button onClick={() => onAdd(bean.id)}>
                 <Icon name="drop" size={18} color="currentColor" /> Log a brew
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={() => setFollowing((f) => !f)}
-              className={following ? "bg-[var(--caramel-soft)]" : undefined}
-            >
-              <Icon name={following ? "check" : "bookmark"} size={17} /> {following ? "Saved" : "Want to try"}
-            </Button>
+            {isOwner && onEditBag && (
+              <Button variant="outline" onClick={() => onEditBag(bean.id)}>
+                <Icon name="settings" size={17} /> Edit bag
+              </Button>
+            )}
+            {isOwner && onDeleteBag && (
+              confirmDelete ? (
+                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 12.5, color: "var(--mocha)" }}>
+                    Delete this bag and its {bean.ratings} brew{bean.ratings === 1 ? "" : "s"}?
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={() => { onDeleteBag(bean.id); setConfirmDelete(false); }}
+                    style={{ color: "var(--berry, #a8434a)", borderColor: "var(--berry, #a8434a)" }}
+                  >
+                    Delete
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                </span>
+              ) : (
+                <Button variant="ghost" onClick={() => setConfirmDelete(true)}>
+                  <Icon name="close" size={16} /> Delete
+                </Button>
+              )
+            )}
+            {!isOwner && (
+              <Button
+                variant="outline"
+                onClick={() => setFollowing((f) => !f)}
+                className={following ? "bg-[var(--caramel-soft)]" : undefined}
+              >
+                <Icon name={following ? "check" : "bookmark"} size={17} /> {following ? "Saved" : "Want to try"}
+              </Button>
+            )}
           </div>
         </div>
       </div>

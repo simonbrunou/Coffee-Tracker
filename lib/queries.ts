@@ -16,7 +16,7 @@ export const BEAN_COLS = `
 
 export const TASTING_COLS = `
   id, user_id as "userId", bean_id as "beanId", rating, brew, dose, ratio,
-  temp, note, likes, comments, time`;
+  temp, note, likes, comments, time, created_at as "createdAt"`;
 
 export async function getRoasters(): Promise<Roaster[]> {
   const { rows } = await query<Roaster>(
@@ -27,56 +27,69 @@ export async function getRoasters(): Promise<Roaster[]> {
 
 export async function getUsers(): Promise<User[]> {
   const { rows } = await query<User>(
-    `select id, name, handle, avatar, tastings, followers, following, bio from users order by id`,
+    `select u.id, u.name, u.handle, u.avatar,
+            coalesce(t.tastings, 0)::int as tastings,
+            u.followers, u.following, u.bio
+     from users u
+     left join (select user_id, count(*) as tastings from tastings group by user_id) t
+       on t.user_id = u.id
+     order by u.id`,
   );
   return rows;
 }
 
 export async function getBeans(currentUserId: string | null): Promise<Bean[]> {
-  // Beans are globally readable (the Feed resolves any user's tasting->bean),
-  // but the per-user bag fields are returned only to the owner. $1 is the
-  // current user id (null for anon -> user_id = null is never true -> all redact).
   const { rows } = await query<Bean>(
     `select
        id, name, roaster_id as "roasterId", roaster_name as "roasterName",
        origin, process, roast, altitude, varietal,
-       price::float8 as price, avg_rating::float8 as "avgRating", ratings,
+       price::float8 as price,
+       coalesce(r.avg_rating, 0)::float8 as "avgRating",
+       coalesce(r.ratings, 0)::int       as ratings,
        color, flavors, description as "desc", farm, varieties,
        sca_score::float8 as "scaScore", user_id as "ownerId",
        coalesce(owned and user_id = $1, false)        as "owned",
        case when user_id = $1 then bag_weight end     as "bagWeight",
        case when user_id = $1 then purchased  end     as "purchased",
        case when user_id = $1 then remaining::float8 end as "remaining"
-     from beans order by created_at desc, id`,
+     from beans
+     left join (
+       select bean_id, round(avg(rating), 1) as avg_rating, count(*) as ratings
+       from tastings group by bean_id
+     ) r on r.bean_id = beans.id
+     order by beans.created_at desc, beans.id`,
     [currentUserId],
   );
   return rows;
 }
 
-export async function getTastings(): Promise<Tasting[]> {
+export async function getTastings(currentUserId: string | null): Promise<Tasting[]> {
   const { rows } = await query<Tasting>(
-    `select ${TASTING_COLS} from tastings order by created_at desc, id`,
+    `select
+       t.id, t.user_id as "userId", t.bean_id as "beanId", t.rating, t.brew,
+       t.dose, t.ratio, t.temp, t.note,
+       coalesce(l.likes, 0)::int as likes, t.comments, t.time,
+       t.created_at as "createdAt",
+       ($1::text is not null and exists (
+         select 1 from likes lm where lm.tasting_id = t.id and lm.user_id = $1
+       )) as "likedByMe"
+     from tastings t
+     left join (select tasting_id, count(*) as likes from likes group by tasting_id) l
+       on l.tasting_id = t.id
+     order by t.created_at desc, t.id`,
+    [currentUserId],
   );
   return rows;
-}
-
-export async function getLikedTastingIds(userId: string): Promise<string[]> {
-  const { rows } = await query<{ tasting_id: string }>(
-    `select tasting_id from likes where user_id = $1`,
-    [userId],
-  );
-  return rows.map((r) => r.tasting_id);
 }
 
 /** Everything the client shell needs, fetched once on the server. */
 export async function getAppData(): Promise<AppData> {
   const currentUserId = await getCurrentUserId();
-  const [roasters, users, beans, tastings, likedIds] = await Promise.all([
+  const [roasters, users, beans, tastings] = await Promise.all([
     getRoasters(),
     getUsers(),
     getBeans(currentUserId),
-    getTastings(),
-    currentUserId ? getLikedTastingIds(currentUserId) : Promise.resolve<string[]>([]),
+    getTastings(currentUserId),
   ]);
-  return { roasters, users, beans, tastings, likedIds, currentUserId };
+  return { roasters, users, beans, tastings, currentUserId };
 }

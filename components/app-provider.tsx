@@ -3,7 +3,7 @@
    Mounted once in the root layout so the shared client state (beans, brews,
    likes, the log sheet) survives client-side route navigation. Route pages
    render into {children} and read handlers/state via useShell(). */
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 // useLayoutEffect on the client (runs before paint / before the browser's
@@ -15,9 +15,17 @@ import { DataProvider } from "./data-context";
 import { LogSheet } from "./log-sheet";
 import { Avatar, Icon, type IconName } from "./ui";
 import { Button } from "@/components/ui/button";
-import { logBrew as logBrewAction, addBag as addBagAction, toggleLike as toggleLikeAction } from "@/app/actions";
+import {
+  logBrew as logBrewAction,
+  addBag as addBagAction,
+  toggleLike as toggleLikeAction,
+  updateBrew as updateBrewAction,
+  deleteBrew as deleteBrewAction,
+  updateBag as updateBagAction,
+  deleteBag as deleteBagAction,
+} from "@/app/actions";
 import { signOutAction } from "@/app/auth-actions";
-import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting } from "@/lib/types";
+import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 
 const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
   { id: "feed", label: "Feed", icon: "home", href: "/" },
@@ -33,6 +41,10 @@ interface ShellApi {
   openRoaster: (id: string) => void;
   openBrew: (beanId?: string) => void;
   openAddBag: () => void;
+  openEditBrew: (t: Tasting) => void;
+  deleteBrew: (id: string) => void;
+  openEditBag: (beanId: string) => void;
+  deleteBag: (beanId: string) => void;
 }
 
 const ShellContext = createContext<ShellApi | null>(null);
@@ -46,14 +58,26 @@ export function useShell(): ShellApi {
 export function AppProvider({ initialData, children }: { initialData: AppData; children: React.ReactNode }) {
   const { roasters, users, currentUserId } = initialData;
 
-  const [beans, setBeans] = useState<Bean[]>(initialData.beans);
-  const [tastings, setTastings] = useState<Tasting[]>(initialData.tastings);
-  const [likes, setLikes] = useState<Set<string>>(() => new Set(initialData.likedIds));
+  // Server truth is the canonical base: useOptimistic re-bases on `initialData`
+  // whenever a Server Action's revalidatePath re-runs the force-dynamic layout.
+  // Optimistic updates (in a transition) cover the in-flight latency window, then
+  // reconcile to the re-based server value automatically.
+  const [beans, setBeansOptimistic] = useOptimistic(initialData.beans, (_state: Bean[], next: Bean[]) => next);
+  const [tastings, setTastingsOptimistic] = useOptimistic(
+    initialData.tastings,
+    (_state: Tasting[], next: Tasting[]) => next,
+  );
+  const [likes, setLikes] = useState<Set<string>>(
+    () => new Set(initialData.tastings.filter((t) => t.likedByMe).map((t) => t.id)),
+  );
+  const [, startTransition] = useTransition();
   const [log, setLog] = useState<{ open: boolean; mode: "brew" | "bag"; preset: string | null }>({
     open: false,
     mode: "brew",
     preset: null,
   });
+  // When set, the sheet opens in edit mode pre-populated from this row.
+  const [edit, setEdit] = useState<{ kind: "brew"; tasting: Tasting } | { kind: "bag"; bean: Bean } | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -142,43 +166,85 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
 
   const openBrew = (beanId?: string) => {
     if (!currentUserId) return router.push("/login");
+    setEdit(null);
     setLog({ open: true, mode: "brew", preset: beanId ?? null });
   };
   const openAddBag = () => {
     if (!currentUserId) return router.push("/login");
+    setEdit(null);
     setLog({ open: true, mode: "bag", preset: null });
   };
-  const closeLog = () => setLog((l) => ({ ...l, open: false }));
+  const openEditBrew = (t: Tasting) => {
+    if (t.userId !== currentUserId) return;
+    setEdit({ kind: "brew", tasting: t });
+    setLog({ open: true, mode: "brew", preset: t.beanId });
+  };
+  const openEditBag = (beanId: string) => {
+    const b = beans.find((x) => x.id === beanId);
+    if (!b || b.ownerId !== currentUserId) return;
+    setEdit({ kind: "bag", bean: b });
+    setLog({ open: true, mode: "bag", preset: null });
+  };
+  const closeLog = () => {
+    setLog((l) => ({ ...l, open: false }));
+    setEdit(null);
+  };
   const openBean = (id: string) => router.push(`/bean/${id}`);
   const openRoaster = (id: string) => router.push(`/roaster/${id}`);
 
+  // Re-throw on failure so the sheet can show a real error instead of a false
+  // success. The new row appears via the action's revalidatePath re-base (proven
+  // fast on the spike); the success panel masks the round-trip.
   const handleLogBrew = async (input: LogBrewInput) => {
-    try {
-      const t = await logBrewAction(input);
-      setTastings((prev) => [t, ...prev]);
-      const b = beans.find((x) => x.id === input.beanId);
-      toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
-    } catch {
-      toast("Couldn't log that brew — please try again");
-    }
+    const b = beans.find((x) => x.id === input.beanId);
+    await logBrewAction(input);
+    toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
   };
 
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
-    let bean: Bean;
-    try {
-      bean = await addBagAction(input);
-    } catch {
-      closeLog();
-      toast("Couldn't add that bag — please try again");
-      return;
-    }
-    setBeans((prev) => [bean, ...prev]);
+    const bean = await addBagAction(input);
+    // keep the new bag visible in the shelf for the "& continue" → brew hand-off
+    startTransition(() => setBeansOptimistic([bean, ...beans]));
     if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
     else {
-      // bag is already persisted; keep the success panel up briefly, then close
       toast(`${bean.name} added to your shelf ✓`);
       setTimeout(closeLog, 1100);
     }
+  };
+
+  const handleUpdateBrew = async (input: UpdateBrewInput) => {
+    await updateBrewAction(input); // throws → sheet shows the error; revalidate re-bases
+    toast("Brew updated ✓");
+  };
+  const handleDeleteBrew = async (id: string) => {
+    // async work INSIDE the transition so useOptimistic auto-reverts the removal
+    // if the delete fails (the canonical base still has the row until revalidate).
+    startTransition(async () => {
+      setTastingsOptimistic(tastings.filter((t) => t.id !== id));
+      try {
+        await deleteBrewAction(id);
+        toast("Brew deleted");
+      } catch {
+        toast("Couldn't delete that brew — please try again");
+      }
+    });
+  };
+  const handleUpdateBag = async (input: UpdateBagInput) => {
+    await updateBagAction(input);
+    toast("Bag updated ✓");
+  };
+  const handleDeleteBag = async (beanId: string) => {
+    startTransition(async () => {
+      setBeansOptimistic(beans.filter((b) => b.id !== beanId));
+      setTastingsOptimistic(tastings.filter((t) => t.beanId !== beanId));
+      try {
+        await deleteBagAction(beanId);
+        toast("Bag and its brews deleted");
+        router.push("/journal");
+      } catch {
+        toast("Couldn't delete that bag — please try again");
+      }
+    });
   };
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -191,6 +257,10 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     openRoaster,
     openBrew,
     openAddBag,
+    openEditBrew,
+    deleteBrew: handleDeleteBrew,
+    openEditBag,
+    deleteBag: handleDeleteBag,
   };
 
   return (
@@ -293,6 +363,10 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             onClose={closeLog}
             onLogBrew={handleLogBrew}
             onAddBag={handleAddBag}
+            editBrew={edit?.kind === "brew" ? edit.tasting : null}
+            onUpdateBrew={async (i) => { await handleUpdateBrew(i); }}
+            editBag={edit?.kind === "bag" ? edit.bean : null}
+            onUpdateBag={async (i) => { await handleUpdateBag(i); }}
           />
         </div>
       </ShellContext.Provider>

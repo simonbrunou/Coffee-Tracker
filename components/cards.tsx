@@ -2,10 +2,12 @@
 /* ============ Cortado — Cards ============ */
 import { useState } from "react";
 import { useData } from "./data-context";
+import { useShell } from "./app-provider";
 import { Avatar, BeanRating, FlavorChip, Icon, RoastPill, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tasting, Bean } from "@/lib/types";
+import { relativeTime } from "@/lib/relative-time";
 
 // ---- Tasting card (feed + journal) ----
 export function TastingCard({
@@ -22,6 +24,7 @@ export function TastingCard({
   delay?: number;
 }) {
   const D = useData();
+  const shell = useShell();
   const isMine = tasting.userId === D.currentUserId;
   const user = D.user(tasting.userId);
   const bean = D.bean(tasting.beanId);
@@ -30,7 +33,7 @@ export function TastingCard({
 
   if (!user || !bean) return null;
   const roaster = D.roaster(bean.roasterId);
-  const ago = tasting.time === "now" ? "just now" : `${tasting.time} ago`;
+  const ago = relativeTime(tasting.createdAt);
 
   const doLike = () => {
     if (!liked) {
@@ -65,6 +68,9 @@ export function TastingCard({
           </div>
         </div>
         <BeanRating value={tasting.rating} size={16} />
+        {isMine && (
+          <BrewMenu onEdit={() => shell.openEditBrew(tasting)} onDelete={() => shell.deleteBrew(tasting.id)} />
+        )}
       </div>
 
       {/* bean strip */}
@@ -134,7 +140,7 @@ export function TastingCard({
               color={liked ? "var(--caramel)" : "currentColor"}
             />
           }
-          label={tasting.likes + (liked ? 1 : 0)}
+          label={tasting.likes + (liked && !tasting.likedByMe ? 1 : !liked && tasting.likedByMe ? -1 : 0)}
           activeColor="var(--caramel)"
         />
         <ActionBtn icon={<Icon name="comment" size={19} />} label={tasting.comments} />
@@ -155,6 +161,41 @@ export function TastingCard({
         />
       </div>
     </article>
+  );
+}
+
+// Own-brew overflow menu: Edit opens the sheet in edit mode; Delete confirms inline.
+function BrewMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  if (confirm) {
+    return (
+      <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: "var(--mocha)" }}>Delete?</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { onDelete(); setConfirm(false); setOpen(false); }}
+          style={{ color: "var(--berry, #a8434a)" }}
+        >
+          Yes
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setConfirm(false)}>No</Button>
+      </span>
+    );
+  }
+  return open ? (
+    <span style={{ display: "inline-flex", gap: 2, alignItems: "center" }}>
+      <Button variant="ghost" size="sm" onClick={() => { onEdit(); setOpen(false); }}>Edit</Button>
+      <Button variant="ghost" size="sm" onClick={() => setConfirm(true)}>Delete</Button>
+      <Button variant="ghost" size="icon" aria-label="Close menu" onClick={() => setOpen(false)}>
+        <Icon name="close" size={16} />
+      </Button>
+    </span>
+  ) : (
+    <Button variant="ghost" size="icon" aria-label="Brew options" onClick={() => setOpen(true)}>
+      <Icon name="settings" size={16} />
+    </Button>
   );
 }
 
