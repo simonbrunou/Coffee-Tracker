@@ -109,4 +109,4 @@ create index beans_roaster_idx     on beans (roaster_id);
 create index beans_created_idx     on beans (created_at desc);
 create index tastings_created_idx  on tastings (created_at desc);
 create index tastings_bean_idx     on tastings (bean_id);
-create index tastings_mine_idx     on tastings (mine);
+create index accounts_user_idx     on accounts (user_id);
