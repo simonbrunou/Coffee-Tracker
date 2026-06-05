@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
 import { BEAN_COLS, TASTING_COLS } from "@/lib/queries";
 import { requireUserId } from "@/lib/auth";
-import type { AddBagInput, Bean, LogBrewInput, Tasting } from "@/lib/types";
+import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
-import { validateLogBrew, validateAddBag } from "@/lib/brew-validation";
+import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag } from "@/lib/brew-validation";
 
 /** Log a brew against a bag — the fast, everyday action. Persists and returns
  *  the new tasting so the client can prepend it to the journal/feed. */
@@ -57,6 +57,61 @@ export async function addBag(rawInput: AddBagInput): Promise<Bean> {
   );
   revalidatePath("/", "layout");
   return rows[0];
+}
+
+/** Edit a brew's mutable fields. Never touches time/created_at (feed order). */
+export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
+  const userId = await requireUserId();
+  const v = validateUpdateBrew(rawInput);
+  if (!v.ok) throw new Error(v.error);
+  const input = v.value;
+  const { rowCount } = await query(
+    `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
+     where id = $1 and user_id = $2`,
+    [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
+  );
+  if (!rowCount) throw new Error("Couldn't update that brew.");
+  const { rows } = await query<Tasting>(
+    `select ${TASTING_COLS} from tastings where id = $1`,
+    [input.id],
+  );
+  revalidatePath("/", "layout");
+  return { ...rows[0], likedByMe: false };
+}
+
+export async function deleteBrew(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const { rowCount } = await query(`delete from tastings where id = $1 and user_id = $2`, [id, userId]);
+  if (!rowCount) throw new Error("Couldn't delete that brew.");
+  revalidatePath("/", "layout");
+}
+
+/** Edit a bag's catalog fields. */
+export async function updateBag(rawInput: UpdateBagInput): Promise<Bean> {
+  const userId = await requireUserId();
+  const v = validateUpdateBag(rawInput);
+  if (!v.ok) throw new Error(v.error);
+  const input = v.value;
+  const varieties = input.varieties.length ? input.varieties : ["—"];
+  const { rows } = await query<Bean>(
+    `update beans set name = $3, roaster_name = $4, origin = $5, process = $6,
+        roast = $7, color = $8, flavors = $9, farm = $10, varieties = $11, sca_score = $12
+     where id = $1 and user_id = $2
+     returning ${BEAN_COLS}`,
+    [input.id, userId, input.name, input.roasterName, input.origin, input.process,
+     input.roast, input.color, input.flavors, input.farm, varieties, input.scaScore],
+  );
+  if (rows.length === 0) throw new Error("Couldn't update that bag.");
+  revalidatePath("/", "layout");
+  return rows[0];
+}
+
+/** Delete a bag. FK `on delete cascade` removes its tastings + their likes. */
+export async function deleteBag(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const { rowCount } = await query(`delete from beans where id = $1 and user_id = $2`, [id, userId]);
+  if (!rowCount) throw new Error("Couldn't delete that bag.");
+  revalidatePath("/", "layout");
 }
 
 /** Persist a like/unlike of a tasting for the current user. */
