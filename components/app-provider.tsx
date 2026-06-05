@@ -162,37 +162,23 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const openBean = (id: string) => router.push(`/bean/${id}`);
   const openRoaster = (id: string) => router.push(`/roaster/${id}`);
 
+  // Re-throw on failure so the sheet can show a real error instead of a false
+  // success. The new row appears via the action's revalidatePath re-base (proven
+  // fast on the spike); the success panel masks the round-trip.
   const handleLogBrew = async (input: LogBrewInput) => {
     const b = beans.find((x) => x.id === input.beanId);
-    startTransition(async () => {
-      const optimistic: Tasting = {
-        id: `temp-${input.beanId}`, userId: currentUserId ?? "", beanId: input.beanId,
-        rating: input.rating, brew: input.brew, dose: input.dose, ratio: input.ratio,
-        temp: input.temp, note: input.note, likes: 0, comments: 0, likedByMe: false,
-        createdAt: new Date().toISOString(), time: "now",
-      };
-      setTastingsOptimistic([optimistic, ...tastings]);
-      try {
-        await logBrewAction(input); // revalidatePath re-bases tastings/beans to server truth
-        toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
-      } catch {
-        toast("Couldn't log that brew — please try again");
-      }
-    });
+    await logBrewAction(input);
+    toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
   };
 
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
-    try {
-      const bean = await addBagAction(input); // revalidatePath brings the new bean into initialData
-      startTransition(() => setBeansOptimistic([bean, ...beans]));
-      if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
-      else {
-        toast(`${bean.name} added to your shelf ✓`);
-        setTimeout(closeLog, 1100);
-      }
-    } catch {
-      closeLog();
-      toast("Couldn't add that bag — please try again");
+    const bean = await addBagAction(input);
+    // keep the new bag visible in the shelf for the "& continue" → brew hand-off
+    startTransition(() => setBeansOptimistic([bean, ...beans]));
+    if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
+    else {
+      toast(`${bean.name} added to your shelf ✓`);
+      setTimeout(closeLog, 1100);
     }
   };
 

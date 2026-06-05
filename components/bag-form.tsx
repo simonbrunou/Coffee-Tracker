@@ -27,7 +27,7 @@ export function BagForm({
   onClose: () => void;
   backToBrew?: boolean;
   onBack?: () => void;
-  onAddBag: (input: AddBagInput, backToBrew: boolean) => void;
+  onAddBag: (input: AddBagInput, backToBrew: boolean) => Promise<void>;
 }) {
   const [f, setF] = useState({
     roaster: "",
@@ -43,6 +43,8 @@ export function BagForm({
   const [varInput, setVarInput] = useState("");
   const [notes, setNotes] = useState<string[]>([]);
   const [done, setDone] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f, v: string | number) => setF((p) => ({ ...p, [k]: v }));
 
   const addVariety = () => {
@@ -52,7 +54,10 @@ export function BagForm({
   };
   const valid = f.roaster.trim() && f.name.trim() && f.origin.trim();
 
-  const save = () => {
+  const save = async () => {
+    if (!valid || pending) return;
+    setPending(true);
+    setError(null);
     const input: AddBagInput = {
       name: f.name.trim(),
       roasterName: f.roaster.trim(),
@@ -65,10 +70,15 @@ export function BagForm({
       flavors: notes,
       color: f.color,
     };
-    // Persist immediately (no cancellable timer) so the bag can't be lost if the
-    // success panel is dismissed; onAddBag drives the close / "& continue" transition.
-    setDone(true);
-    onAddBag(input, !!backToBrew);
+    // Await the write before showing success; on the "& continue" path the
+    // provider switches the sheet to the brew view (this form unmounts).
+    try {
+      await onAddBag(input, !!backToBrew);
+      if (!backToBrew) setDone(true);
+    } catch (e) {
+      setPending(false);
+      setError(e instanceof Error ? e.message : "Couldn't add that bag — please try again.");
+    }
   };
 
   if (done) return <DonePanel title="Bag added to your shelf" sub={`${f.name} is ready to brew.`} />;
@@ -224,8 +234,14 @@ export function BagForm({
         <FlavorWheelPicker value={notes} onChange={setNotes} max={10} />
       </div>
       <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line-soft)" }}>
-        <Button onClick={save} disabled={!valid} className="w-full">
-          <Icon name="check" size={18} color="currentColor" /> {backToBrew ? "Save bag & continue" : "Add to my shelf"}
+        {error && (
+          <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
+            {error}
+          </div>
+        )}
+        <Button onClick={save} disabled={!valid || pending} className="w-full">
+          <Icon name="check" size={18} color="currentColor" />{" "}
+          {pending ? "Saving…" : backToBrew ? "Save bag & continue" : "Add to my shelf"}
         </Button>
       </div>
     </>

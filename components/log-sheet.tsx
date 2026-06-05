@@ -35,8 +35,8 @@ export function LogSheet({
   mode: "brew" | "bag";
   onClose: () => void;
   presetBeanId: string | null;
-  onLogBrew: (input: LogBrewInput) => void;
-  onAddBag: (input: AddBagInput, backToBrew: boolean) => void;
+  onLogBrew: (input: LogBrewInput) => Promise<void>;
+  onAddBag: (input: AddBagInput, backToBrew: boolean) => Promise<void>;
 }) {
   const [view, setView] = useState<"brew" | "bag">("brew");
   // Re-sync the view when the sheet opens, the mode changes, OR the preset
@@ -85,7 +85,7 @@ function BrewFlow({
   presetBeanId: string | null;
   onClose: () => void;
   onNewBag: () => void;
-  onLogBrew: (input: LogBrewInput) => void;
+  onLogBrew: (input: LogBrewInput) => Promise<void>;
 }) {
   const D = useData();
   const shelf = D.shelf();
@@ -98,25 +98,35 @@ function BrewFlow({
   const [ratio, setRatio] = useState("16");
   const [temp, setTemp] = useState("94");
   const [done, setDone] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
   const bean = beanId ? D.bean(beanId) ?? shelf.find((b) => b.id === beanId) : null;
 
-  const submit = () => {
-    if (!beanId || !rating) return;
-    // Persist immediately so dismissing the success panel can't drop the write.
-    // Only send brew params if the user actually opened "Add brew details".
-    onLogBrew({
-      beanId,
-      rating,
-      brew,
-      note,
-      dose: showParams ? dose + "g" : "—",
-      ratio: showParams ? "1:" + ratio : "—",
-      temp: showParams ? temp + "°C" : "—",
-    });
-    setDone(true);
-    timerRef.current = setTimeout(onClose, 1300);
+  // Await the write before showing success — a failed action surfaces a real
+  // error instead of a false "Brew logged!". Only send brew params if the user
+  // actually opened "Add brew details".
+  const submit = async () => {
+    if (!beanId || !rating || pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      await onLogBrew({
+        beanId,
+        rating,
+        brew,
+        note,
+        dose: showParams ? dose + "g" : "—",
+        ratio: showParams ? "1:" + ratio : "—",
+        temp: showParams ? temp + "°C" : "—",
+      });
+      setDone(true);
+      timerRef.current = setTimeout(onClose, 1300);
+    } catch (e) {
+      setPending(false);
+      setError(e instanceof Error ? e.message : "Couldn't log that brew — please try again.");
+    }
   };
 
   if (done) return <DonePanel title="Brew logged!" sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`} />;
@@ -258,8 +268,13 @@ function BrewFlow({
         />
       </div>
       <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line-soft)" }}>
-        <Button onClick={submit} disabled={!beanId || !rating} className="w-full">
-          <Icon name="check" size={18} color="currentColor" /> Log brew
+        {error && (
+          <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
+            {error}
+          </div>
+        )}
+        <Button onClick={submit} disabled={!beanId || !rating || pending} className="w-full">
+          <Icon name="check" size={18} color="currentColor" /> {pending ? "Saving…" : "Log brew"}
         </Button>
       </div>
     </>
