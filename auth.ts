@@ -39,11 +39,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     GitHub,
     Credentials({
       credentials: { email: {}, password: {} },
-      authorize: async (creds) => {
+      authorize: async (creds, request) => {
         const email = String(creds?.email ?? "");
         const password = String(creds?.password ?? "");
-        // Rate-limit the unauthenticated login endpoint.
-        if (!checkRateLimit(`login:${email.toLowerCase()}`)) return null;
+        // Rate-limit the unauthenticated login endpoint by BOTH email and IP
+        // (either tripping blocks): per-email stops targeted brute force, per-IP
+        // stops spraying one password across many emails.
+        const ip = (request?.headers?.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+        if (!checkRateLimit(`login:email:${email.toLowerCase()}`)) return null;
+        if (!checkRateLimit(`login:ip:${ip}`)) return null;
         const user = await findCredentialUserByEmail(poolDb, email);
         // Always run a bcrypt compare (dummy hash on the no-user path) so timing
         // is identical → no user-enumeration oracle.
