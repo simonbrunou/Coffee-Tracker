@@ -32,6 +32,11 @@ domain `users` table as the single source of identity.
   `(provider, providerAccountId)`, never on email. Email becomes display-only.
   Same email via Google + GitHub + password produces distinct journals unless
   explicitly linked later (deferred).
+- **Deploy target:** **publicly hosted, multi-user.** This keeps the full
+  hardening set in scope — rate-limiting, the dummy-hash timing defense, and
+  Vitest are all v1, not gold-plating (decided after a proportionality review).
+  The one item still deferred is per-user JWT revocation (`sessionVersion`) —
+  see "Out of scope," which states the residual risk now that it's public.
 
 ## Threat model / why "separate accounts, no email linking"
 
@@ -62,9 +67,12 @@ Additions to `users`:
 | `password_hash` | `text null` | Only credential users have one. |
 | `created_at` | `timestamptz not null default now()` | |
 
-- **Partial unique index:** `create unique index on users (lower(email)) where
-  password_hash is not null;` — at most one password account per email, while
-  OAuth rows may share an email.
+- **Partial unique index (explicitly named):** `create unique index
+  users_email_lower_uq on users (lower(email)) where password_hash is not null;`
+  — at most one password account per email, while OAuth rows may share an email.
+  The name matters: `registerUser` branches on `err.constraint` to tell an email
+  collision (`users_email_lower_uq`) from a handle collision (`users_handle_key`,
+  the auto-name of `handle text not null unique`) — both surface as `23505`.
 - `users.id` stays `text`, generated server-side as `u-${randomUUID()}`
   (matches the `t-`/`b-` convention in `app/actions.ts`).
 
@@ -85,9 +93,21 @@ create table accounts (
 Credentials identity is handled via `users.email` + `users.password_hash` + the
 partial unique index — no `accounts` row needed.
 
+**Migration mechanics:** `scripts/db-setup.ts` drops & recreates from
+`db/schema.sql` (no migration tooling). Add `drop table if exists accounts
+cascade;` **before** `drop table if exists users cascade;` (the new FK), and
+ensure `create table accounts` comes **after** `create table users`. No data to
+preserve (seed is empty). The existing `users` insert loop in `db-setup.ts` is a
+no-op once `USERS` is `[]`.
+
+**Projection invariant (hard rule — this app is publicly hosted):**
 `password_hash`, `email`, and `email_verified` are **never** added to any
-client-facing projection (`getUsers` in `lib/queries.ts` already selects an
-explicit column list — keep it that way).
+client-facing projection. `getAppData` ships the full `getUsers()` result to
+**every visitor, including logged-out ones**, and the migration is adding
+sensitive columns to that same `users` table — so this is a live leak risk, not
+hygiene. `getUsers` (`lib/queries.ts`) already selects an explicit safe column
+list; keep it, and add a unit assertion that its column list excludes the three
+sensitive columns so a future widening fails the test.
 
 ### 2. Auth.js wiring
 
@@ -123,19 +143,28 @@ async jwt({ token, account, profile, user }) {
 }
 ```
 
-- `resolveOrCreateOAuthUser` runs inside **one** `withTransaction`: look up
-  `accounts` by `(provider, providerAccountId)` → reuse `user_id`; else create a
-  `users` row (generated handle + avatar tint; `name`/`image`/`email` from the
-  profile, email **display-only**) + an `accounts` row, returning our
-  `users.id`. **No email lookup.** Handle-collision (`23505`) retry uses a
-  **SAVEPOINT** (a raw `23505` aborts the whole Postgres transaction, so you
-  cannot just re-`INSERT` — wrap each attempt in `savepoint`/`rollback to
-  savepoint`, or retry the whole transaction).
-- **Fails closed:** if the upsert throws (DB down, unrecoverable collision), the
-  callback throws → Auth.js denies sign-in → no half-written user, no token.
+- `resolveOrCreateOAuthUser` runs inside **one** `withTransaction` (a plain
+  `BEGIN`/`COMMIT` — no savepoints needed, see below): look up `accounts` by
+  `(provider, providerAccountId)` → reuse `user_id`; else create a `users` row
+  + an `accounts` row, returning our `users.id`. **No email lookup.** The two
+  inserts must be atomic, or a crash between them orphans a `users` row with no
+  `accounts` link and the next login creates a *second* user.
+- **Handle generation (up-front, collision-proof — no retry loop):** generate
+  `user_` + 10 random base36 chars (~52 bits) and insert once. At ~2.8e15
+  combinations a collision is astronomically unlikely, so a handle `23505` is
+  treated as a genuine (essentially never) error that propagates, **not** a
+  designed control-flow path. This deletes the savepoint machinery entirely.
+  Handles are non-PII and never derived from email/name (shared with
+  `registerUser`).
+- **Fails closed:** if the upsert throws (DB down, the ~never handle collision),
+  the callback throws → Auth.js denies sign-in → no half-written user, no token.
   Prefer surfacing OAuth-create failure as `AccessDenied` (a `signIn` callback
   is an option if a clean denial page is wanted; `jwt` is acceptable but define
   the failure path).
+- **First-call guard is intentional:** `if (token.uid) return token` must **not**
+  add a live `users`-existence lookup — that would hit the DB on every request.
+  A stale `uid` (deleted user) surfaces as a `23503` on the next write and is
+  handled there (account deletion is out of scope; see deferred).
 
 - **Credentials `authorize(creds)`**: `select id, password_hash from users where
   lower(email) = lower($1) and password_hash is not null`. **Always run a bcrypt
@@ -175,31 +204,41 @@ async jwt({ token, account, profile, user }) {
 
 Login and signup are different operations — `authorize()` only *reads*. New
 password accounts are created by a dedicated **server action** (not
-`authorize()` auto-register):
+`authorize()` auto-register).
 
+- **Location & signature:** `registerUser` lives in a new `app/auth-actions.ts`
+  (`"use server"`) — kept separate from `app/actions.ts` so the `/signup` client
+  form imports only auth actions. Return contract:
+  `registerUser(input): Promise<{ error: string }>` on a handled failure, or it
+  **throws the redirect** on success (never returns). The form renders `error`
+  when present.
 - **Input + validation:** `name` (required, trimmed, length-bounded), `email`
   (required, format-checked, normalized to lowercase), `password` (policy:
-  min 8 chars; be aware bcrypt truncates at 72 **bytes** — reject or document
-  over-long input), optional `handle`.
+  min 8 chars; reject > 72 **bytes** since bcrypt silently truncates there),
+  optional `handle`.
 - **Hash:** `bcrypt.hash(password, 12)`.
-- **Handle:** if not supplied, generate via the **shared** non-PII generator
-  (`user_` + short base36) used by the OAuth path; validate charset/length if
-  supplied.
+- **Handle:** if not supplied, generate via the **shared** up-front generator
+  (`user_` + 10 random base36) — collision-proof, no retry; validate
+  charset/length if user-supplied.
 - **Avatar:** assign a default tint from the catalog palette (same strategy the
   OAuth upsert uses) — `users.avatar` is `NOT NULL`.
-- **Insert + race:** `insert into users (id, name, handle, email, password_hash,
-  avatar, ...) values (...)`. Catch `23505`: on the partial-unique email index →
-  friendly "email already registered"; on the handle index → regenerate/retry.
-  (Do **not** `SELECT`-then-`INSERT` — that's the email race the index is there
-  to stop.)
-- **After success:** call `signIn("credentials", ...)` to establish the JWT, then
-  redirect to `/`.
+- **Insert + race:** `insert into users (...) values (...)` **then catch
+  `23505`** (do **not** `SELECT`-then-`INSERT` — that's the race the index
+  stops). Branch on `err.constraint`: `users_email_lower_uq` → return
+  `{ error: "email already registered" }`; `users_handle_key` → (essentially
+  never) regenerate once or surface a generic error.
+- **After success — ordering matters:** the `signIn("credentials", { email,
+  password, redirectTo: "/" })` call must be **outside** the INSERT's
+  `try/catch`, because `signIn` throws the Next redirect (`NEXT_REDIRECT`) and it
+  must not be swallowed by the `23505` handler. Any wrapping `try/catch` around
+  `signIn` must re-throw `isRedirectError(e)`.
 - **Acknowledged tension:** the "email already registered" response is itself a
-  credential-account enumeration oracle. Accepted for usability; noted so it's a
-  conscious choice, not an oversight.
-- **Abuse:** signup and the credentials login POST are unauthenticated public
-  endpoints; add basic rate-limiting (per IP / per email) — bcrypt cost 12 makes
-  unthrottled login a CPU-DoS lever. (Mechanism: see §6.)
+  credential-account enumeration oracle. Accepted for usability; the dummy-hash
+  timing defense on the *login* path (§2) still holds, so the two paths are
+  consistent (signup leaks existence by design; login does not leak via timing).
+- **Abuse:** signup and the credentials-login POST are unauthenticated public
+  endpoints — rate-limited per §6.8 (this app is publicly hosted; bcrypt cost 12
+  makes unthrottled login a CPU-DoS lever).
 
 ### 3. Current-user plumbing (replaces `CURRENT_USER_ID`)
 
@@ -223,8 +262,11 @@ password accounts are created by a dedicated **server action** (not
 - `components/app-provider.tsx:229-230`: the hardcoded `"You"` / `"@you"` sidebar
   labels must become dynamic (`me?.name` / `me ? "@"+me.handle : …`) or a Sign-in
   button — today they render wrong for any non-`u1` user.
-- `lib/queries.ts`: **remove `mine` from `TASTING_COLS`** (see §4) so any site
-  still reading `tasting.mine` fails to compile.
+- `lib/queries.ts`: **remove `mine` from `TASTING_COLS`**, **`lib/types.ts`:
+  remove `mine` from the `Tasting` interface**, and `app/actions.ts:18`: stop
+  writing `mine`. All three are required — dropping it from the SQL alone does
+  **not** error (see §4); removing it from the *type* is what makes the read
+  sites fail to compile.
 - `lib/seed-data.ts`: remove the `CURRENT_USER_ID` export and the seeded user
   (`USERS` becomes `[]`).
 - `scripts/db-setup.ts`: still imports `USERS` (now empty) — its insert loop is a
@@ -237,8 +279,16 @@ password accounts are created by a dedicated **server action** (not
 `components/data-context.tsx:19,33,40,53,59`, `lib/types.ts:98`.
 `mine` read sites: `components/cards.tsx:60`, `components/screens.tsx:141`,
 `components/detail.tsx:448` (+ stored in `app/actions.ts:18`, `TASTING_COLS`,
-seed). `getAppData` has a single caller, `app/layout.tsx:46` (no-arg, internal
-session read — works in the async root server component).
+`Tasting` type at `lib/types.ts:77`, seed). `getAppData` has a single caller,
+`app/layout.tsx:46` (no-arg, internal session read — works in the async root
+server component).
+
+**New files (creation-only):** `auth.ts` (root NextAuth config + type
+augmentation), `app/api/auth/[...nextauth]/route.ts`, `lib/auth.ts`
+(`getCurrentUserId`/`requireUserId`), `app/auth-actions.ts` (`registerUser`),
+`lib/rate-limit.ts` (§6.8), `app/login/page.tsx`, `app/signup/page.tsx`,
+`vitest.config.ts`, `.env.example`. **Docs:** `SETUP.md`, `README.md` (drop the
+"no auth / single user" line).
 
 ### 4. The `mine` correctness fix (independent of auth, detonated by it)
 
@@ -251,11 +301,17 @@ every brew tagged "You."**
 Fix: compute ownership at render as `tasting.userId === currentUserId` at **all
 three** read sites — `components/cards.tsx:60` (`{tasting.mine && <Tag>You</Tag>}`),
 `components/screens.tsx:141` and `components/detail.tsx:448` (both
-`D.TASTINGS.filter(t => t.mine)`). The DB column is **kept** (reversible), but
-**`mine` is dropped from `TASTING_COLS`** (`lib/queries.ts`) so it is no longer
-shipped to the client and any missed read site **fails to compile** rather than
-silently leaking another user's brews as "You." This exhaustiveness is the
-entire security payoff of the migration.
+`D.TASTINGS.filter(t => t.mine)`).
+
+**The compile-time gate requires removing `mine` from the `Tasting` _type_, not
+just the SQL.** `lib/db.ts` runs `pool.query<Tasting>(...)` — the row type is a
+caller assertion, so dropping `mine` from `TASTING_COLS` alone leaves
+`Tasting.mine: boolean` on the type and the read sites keep compiling (silently
+getting `undefined` at runtime — a worse, silent regression). So: remove `mine`
+from **`lib/types.ts` (`Tasting`)**, from **`TASTING_COLS`**, and stop writing it
+in **`app/actions.ts`**. Only then do the three `t.mine` sites throw TS2339,
+forcing each to switch to the ownership check. The DB column is kept
+(reversible). This compile-time exhaustiveness is the entire security payoff.
 
 ### 5. UI
 
@@ -263,12 +319,15 @@ entire security payoff of the migration.
   "Continue with GitHub" buttons.
 - `app/signup/page.tsx` — name, email, password (+ optional handle, else
   auto-generated), plus the OAuth buttons.
-- Sign-out control in the profile / sidebar.
-- Logged-out write affordances (Log a brew, Add a bag, like buttons,
-  your-journal / your-profile) show a sign-in CTA / redirect to `/login`. The
-  client already guards a missing `me` (`components/app-provider.tsx`,
-  `components/detail.tsx`); extend those to show the CTA when `currentUserId` is
-  `null`.
+- **Sign-out:** a button in the sidebar user block (a `"use server"` form
+  calling `signOut({ redirectTo: "/" })`).
+- **Logged-out states (specified, not "or"):**
+  - Sidebar user block (`app-provider.tsx:229-230`): when `me` is null, replace
+    the name/handle with a **"Sign in" button** → `/login` (not dynamic labels).
+  - `ProfileScreen` (`detail.tsx:458`, currently `if (!me) return null`):
+    **redirect to `/login`** rather than rendering blank.
+  - Write triggers (Log a brew, Add a bag, like): when `currentUserId` is null,
+    the control routes to `/login` instead of opening the sheet.
 - `/login` and `/signup` redirect to `/` if a session already exists.
 - **No client `SessionProvider`** — `currentUserId` continues to flow from the
   server via `AppData`.
@@ -282,27 +341,37 @@ Mandatory in v1:
    between auth and security theater.)
 2. **No email account-linking;** `accounts (provider, provider_account_id)` is
    unique; identity never keys on email.
-3. **Handle generation:** random, non-PII (e.g. `user_` + short base36), with a
-   collision-retry loop catching unique violations (`23505`) inside the upsert
-   transaction. Never derived from email/name.
+3. **Handle generation:** random, non-PII, **up-front** (`user_` + 10 base36) —
+   collision-proof, single insert, no retry loop / no savepoints (§2). Never
+   derived from email/name.
 4. **`getAppData` is session-aware:** logged-out → `currentUserId: null`,
    `likedIds: []`.
-5. **`mine` computed, not trusted** (section 4).
+5. **`mine` computed, not trusted** (§4 — requires the `Tasting`-type removal).
 6. **Credentials hygiene:** bcrypt cost ≥ 12; **uniform errors with a dummy-hash
    compare on the no-user path** (a bare early-return is a timing oracle — §2);
    `password_hash`/`email`/`email_verified` excluded from every client
-   projection.
+   projection (§1 invariant + the `getUsers` column-list assertion).
 7. **`trustHost: true` / pinned `AUTH_URL`** in prod; rely on Auth.js's default
    `httpOnly`/`SameSite=Lax`/`Secure`-prefix cookies + built-in CSRF knowingly
    (§2).
-8. **Rate-limiting** on the unauthenticated signup + credentials-login POSTs
-   (per IP / per email). Minimal v1: an in-memory/Postgres fixed-window counter;
-   note it is per-instance only. Prevents mass-registration and bcrypt CPU-DoS.
-
-**Structural data-exposure guard (recommended, defer-OK):** introduce a
-`PublicUser` type / projection so `email`/`password_hash` can never reach the
-client via future drift — `getAppData` ships the whole `users` list to every
-visitor, so a convention-only exclusion is fragile.
+8. **Rate-limiting (publicly hosted — required, fully specified):** `lib/rate-
+   limit.ts` exporting `checkRateLimit(key): boolean`.
+   - **Store:** module-level `Map<string, { count: number; resetAt: number }>`
+     (in-memory, **per-instance** — documented limitation; swap to Postgres/KV
+     if/when running multi-instance).
+   - **Keys:** two independent windows checked per request — `ip:<ip>` and
+     `email:<lowercased-email>`; either tripping blocks. IP from the forwarded
+     header (trustHost-aware).
+   - **Window / limit:** fixed 15-minute window; **10** attempts per key per
+     window for both `/signup` and the credentials-login path.
+   - **On trip:** the action returns `{ error: "Too many attempts, try again
+     later." }` (login) or the signup `{ error }` shape — no bcrypt run, no DB
+     hit. Called at the **top** of `registerUser` and inside Credentials
+     `authorize()` before the DB lookup.
+8b. **Projection guard:** the §1 `getUsers` column-list assertion is the
+   structural defense against `email`/`password_hash` drift — preferred over a
+   separate `PublicUser` type (the explicit column list already *is* the
+   projection; the test prevents it widening).
 
 ### 7. Dependencies
 
@@ -328,12 +397,15 @@ The developer registers the Google and GitHub OAuth apps; callback URL
 ### 9. Testing
 
 No test infrastructure exists today. Add **Vitest** (`vitest.config.ts` with
-`environment: "node"`, a `test` script in `package.json`, and an alias/stub for
-the `server-only` import, which throws outside a Next bundle). Unit-test the pure
-logic:
+`environment: "node"`, a `test` script in `package.json`, the `@/*` path alias —
+via `vite-tsconfig-paths` or `resolve.alias` — so `@/lib/*` imports resolve, and
+an alias/stub mapping the `server-only` import to an empty module since it throws
+outside a Next bundle). Unit-test the pure logic:
 
 - bcrypt hash / verify round-trip and failure; **dummy-hash timing path**.
-- Handle generation + collision-retry (savepoint semantics).
+- Handle generation (format + uniqueness of `user_` + 10 base36).
+- `getUsers` column-list assertion (excludes `email`/`password_hash`/
+  `email_verified`) — the §1 projection guard.
 - `resolveOrCreateOAuthUser` (mock the `pg` client): reuse on existing
   `(provider, providerAccountId)`, create otherwise.
 - `registerUser`: validation rejects, `23505` → "email taken", success path.
@@ -347,15 +419,16 @@ signup → login.
 1. **Security backbone + gating UI together.** Schema migration (`accounts`, new
    `users` columns, partial index), `withTransaction` in `lib/db.ts`, remove
    `CURRENT_USER_ID`, make `currentUserId` nullable (incl. `data-context.tsx` +
-   the `app-provider.tsx` hardcoded labels), the `mine` fix (drop from
-   `TASTING_COLS`), add `requireUserId`/`getCurrentUserId`, gate the three
-   actions — **and the logged-out CTAs in the same step.** Rationale: a stub
-   `requireUserId` that throws makes every write fail; if the gating UI doesn't
-   land together, step 1 leaves the app build-passing but write-broken and
-   untestable. With both, logged-out is a coherent, testable state from step 1.
+   the `app-provider.tsx` labels), the `mine` fix (remove from `Tasting` type +
+   `TASTING_COLS` + actions — §4), add `requireUserId`/`getCurrentUserId`, gate
+   the three actions — **and the logged-out CTAs in the same step.** Rationale: a
+   stub `requireUserId` that throws makes every write fail; if the gating UI
+   doesn't land together, step 1 leaves the app build-passing but write-broken
+   and untestable. With both, logged-out is a coherent, testable state.
 2. **Auth.js providers** — `auth.ts` (+ type augmentation), the route handler,
-   Credentials `authorize` (dummy-hash path), `registerUser` server action, the
-   `jwt` resolve-or-create upsert (savepoint retry, first-call guard), `session`
+   Credentials `authorize` (dummy-hash path), `registerUser` (`app/auth-
+   actions.ts`), `lib/rate-limit.ts`, the `jwt` resolve-or-create upsert
+   (first-call guard, plain `BEGIN`/`COMMIT`, up-front handle), `session`
    callback, `bcryptjs`, Vitest + unit tests. `requireUserId` becomes real here.
 3. **Auth UI** — `/login`, `/signup` (wired to `signIn`/`registerUser`),
    sign-out, already-authenticated redirects; `SETUP.md` / `.env.example` /
