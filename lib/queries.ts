@@ -12,7 +12,7 @@ export const BEAN_COLS = `
   price::float8 as price, avg_rating::float8 as "avgRating", ratings,
   color, flavors, description as "desc", farm, varieties,
   sca_score::float8 as "scaScore", owned, bag_weight as "bagWeight",
-  purchased, remaining::float8 as remaining`;
+  purchased, remaining::float8 as remaining, user_id as "ownerId"`;
 
 export const TASTING_COLS = `
   id, user_id as "userId", bean_id as "beanId", rating, brew, dose, ratio,

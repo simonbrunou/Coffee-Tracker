@@ -57,6 +57,8 @@ export interface Bean {
   purchased?: string;
   /** Fraction of the bag left, 0–1. */
   remaining?: number | null;
+  /** Owner (creator) of this bag; null only for a future shared catalog. */
+  ownerId?: string | null;
 }
 
 /** A brew/tasting entry — the fast, everyday action logged against a bag. */

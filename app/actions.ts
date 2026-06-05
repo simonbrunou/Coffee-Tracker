@@ -39,10 +39,10 @@ export async function addBag(input: AddBagInput): Promise<Bean> {
     `insert into beans
        (id, name, roaster_id, roaster_name, origin, process, roast, altitude,
         varietal, price, avg_rating, ratings, color, flavors, description,
-        farm, varieties, sca_score, owned, bag_weight, purchased, remaining)
+        farm, varieties, sca_score, owned, bag_weight, purchased, remaining, user_id)
      values ($1, $2, null, $3, $4, $5, $6, '—',
         $7, null, 0, 0, $8, $9, $10,
-        $11, $12, $13, true, '250g', null, 1)
+        $11, $12, $13, true, '250g', null, 1, $14)
      returning ${BEAN_COLS}`,
     [
       id,
@@ -58,6 +58,7 @@ export async function addBag(input: AddBagInput): Promise<Bean> {
       input.farm,
       varieties,
       scaScore,
+      userId,
     ],
   );
   return rows[0];
