@@ -3,31 +3,22 @@
 import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
 import { BEAN_COLS, TASTING_COLS } from "@/lib/queries";
-import { CURRENT_USER_ID } from "@/lib/seed-data";
+import { requireUserId } from "@/lib/auth";
 import type { AddBagInput, Bean, LogBrewInput, Tasting } from "@/lib/types";
 
 /** Log a brew against a bag — the fast, everyday action. Persists and returns
  *  the new tasting so the client can prepend it to the journal/feed. */
 export async function logBrew(input: LogBrewInput): Promise<Tasting> {
+  const userId = await requireUserId();
   if (!input.beanId) throw new Error("logBrew: beanId is required");
   const rating = Math.max(1, Math.min(5, Math.round(input.rating)));
   const id = `t-${randomUUID()}`;
   const { rows } = await query<Tasting>(
     `insert into tastings
-       (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments, time, mine)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 'now', true)
+       (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments, time)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 'now')
      returning ${TASTING_COLS}`,
-    [
-      id,
-      CURRENT_USER_ID,
-      input.beanId,
-      rating,
-      input.brew,
-      input.dose,
-      input.ratio,
-      input.temp,
-      input.note,
-    ],
+    [id, userId, input.beanId, rating, input.brew, input.dose, input.ratio, input.temp, input.note],
   );
   return rows[0];
 }
@@ -35,6 +26,7 @@ export async function logBrew(input: LogBrewInput): Promise<Tasting> {
 /** Add a bag — the rich catalog record, created once. Becomes a real catalog
  *  entry on the user's shelf. */
 export async function addBag(input: AddBagInput): Promise<Bean> {
+  const userId = await requireUserId();
   const id = `b-${randomUUID()}`;
   const varieties = input.varieties.length ? input.varieties : ["—"];
   const varietal = varieties[0] ?? "—";
@@ -73,15 +65,13 @@ export async function addBag(input: AddBagInput): Promise<Bean> {
 
 /** Persist a like/unlike of a tasting for the current user. */
 export async function toggleLike(tastingId: string, liked: boolean): Promise<void> {
+  const userId = await requireUserId();
   if (liked) {
     await query(
       `insert into likes (user_id, tasting_id) values ($1, $2) on conflict do nothing`,
-      [CURRENT_USER_ID, tastingId],
+      [userId, tastingId],
     );
   } else {
-    await query(`delete from likes where user_id = $1 and tasting_id = $2`, [
-      CURRENT_USER_ID,
-      tastingId,
-    ]);
+    await query(`delete from likes where user_id = $1 and tasting_id = $2`, [userId, tastingId]);
   }
 }

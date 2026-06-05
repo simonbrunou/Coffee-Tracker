@@ -2,8 +2,8 @@
    Used to seed Postgres (scripts/db-setup.ts) and as the source of static
    reference maps (flavor colors, brew methods, roast levels) consumed directly
    by the UI. The content tables (roasters, users, beans, tastings, likes) seed
-   empty apart from the single current-user row — there is no demo/placeholder
-   content; the app starts as a fresh, empty journal. */
+   empty — there is no demo/placeholder content; the app starts as a fresh,
+   empty journal, and users are created by signup/OAuth. */
 import type { Bean, Roaster, Tasting, User } from "./types";
 import { WHEEL_FLAT } from "./flavor-wheel";
 

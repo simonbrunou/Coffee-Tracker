@@ -83,11 +83,11 @@ async function main() {
       const createdAt = new Date(base - i * 3_600_000);
       await client.query(
         `insert into tastings
-           (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments, time, mine, created_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+           (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments, time, created_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           t.id, t.userId, t.beanId, t.rating, t.brew, t.dose, t.ratio, t.temp,
-          t.note, t.likes, t.comments, t.time, t.mine, createdAt,
+          t.note, t.likes, t.comments, t.time, createdAt,
         ],
       );
     }
