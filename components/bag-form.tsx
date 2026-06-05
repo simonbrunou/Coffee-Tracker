@@ -6,7 +6,7 @@ import { BeanBag } from "./cards";
 import { FlavorWheelPicker } from "./flavor-wheel";
 import { SheetHeader, DonePanel } from "./sheet-chrome";
 import { ROAST_LEVELS } from "@/lib/seed-data";
-import type { AddBagInput } from "@/lib/types";
+import type { AddBagInput, Bean, UpdateBagInput } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label as UiLabel } from "@/components/ui/label";
@@ -23,25 +23,30 @@ export function BagForm({
   backToBrew,
   onBack,
   onAddBag,
+  editBag,
+  onUpdateBag,
 }: {
   onClose: () => void;
   backToBrew?: boolean;
   onBack?: () => void;
   onAddBag: (input: AddBagInput, backToBrew: boolean) => Promise<void>;
+  editBag?: Bean | null;
+  onUpdateBag?: (input: UpdateBagInput) => Promise<void>;
 }) {
+  const isEdit = !!editBag;
   const [f, setF] = useState({
-    roaster: "",
-    name: "",
-    origin: "",
-    farm: "",
-    process: "Washed",
-    roast: "Light",
-    sca: 86,
-    color: BAG_COLORS[1],
+    roaster: editBag?.roasterName ?? "",
+    name: editBag?.name ?? "",
+    origin: editBag?.origin ?? "",
+    farm: editBag?.farm ?? "",
+    process: editBag?.process ?? "Washed",
+    roast: editBag?.roast ?? "Light",
+    sca: editBag?.scaScore ?? 86,
+    color: editBag?.color ?? BAG_COLORS[1],
   });
-  const [varieties, setVarieties] = useState<string[]>([]);
+  const [varieties, setVarieties] = useState<string[]>(editBag?.varieties ?? []);
   const [varInput, setVarInput] = useState("");
-  const [notes, setNotes] = useState<string[]>([]);
+  const [notes, setNotes] = useState<string[]>(editBag?.flavors ?? []);
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,21 +78,32 @@ export function BagForm({
     // Await the write before showing success; on the "& continue" path the
     // provider switches the sheet to the brew view (this form unmounts).
     try {
-      await onAddBag(input, !!backToBrew);
-      if (!backToBrew) setDone(true);
+      if (isEdit && onUpdateBag) {
+        await onUpdateBag({ id: editBag!.id, ...input });
+        setDone(true);
+      } else {
+        await onAddBag(input, !!backToBrew);
+        if (!backToBrew) setDone(true);
+      }
     } catch (e) {
       setPending(false);
-      setError(e instanceof Error ? e.message : "Couldn't add that bag — please try again.");
+      setError(e instanceof Error ? e.message : "Couldn't save that bag — please try again.");
     }
   };
 
-  if (done) return <DonePanel title="Bag added to your shelf" sub={`${f.name} is ready to brew.`} />;
+  if (done)
+    return (
+      <DonePanel
+        title={isEdit ? "Bag updated" : "Bag added to your shelf"}
+        sub={`${f.name} is ready to brew.`}
+      />
+    );
 
   const scoreColor = f.sca >= 90 ? "var(--sage)" : f.sca >= 87 ? "var(--caramel)" : "var(--mocha)";
 
   return (
     <>
-      <SheetHeader kicker="Add a bag" onClose={onClose} onBack={backToBrew ? onBack : undefined} />
+      <SheetHeader kicker={isEdit ? "Edit bag" : "Add a bag"} onClose={onClose} onBack={backToBrew ? onBack : undefined} />
       <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>
         {/* preview chip */}
         <div
@@ -241,7 +257,7 @@ export function BagForm({
         )}
         <Button onClick={save} disabled={!valid || pending} className="w-full">
           <Icon name="check" size={18} color="currentColor" />{" "}
-          {pending ? "Saving…" : backToBrew ? "Save bag & continue" : "Add to my shelf"}
+          {pending ? "Saving…" : isEdit ? "Save changes" : backToBrew ? "Save bag & continue" : "Add to my shelf"}
         </Button>
       </div>
     </>

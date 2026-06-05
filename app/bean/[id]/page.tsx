@@ -15,6 +15,8 @@ export default function BeanPage() {
       likes={s.likes}
       onLike={s.toggleLike}
       onAdd={s.openBrew}
+      onEditBag={s.openEditBag}
+      onDeleteBag={s.deleteBag}
     />
   );
 }

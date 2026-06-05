@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { AddBagInput, LogBrewInput } from "@/lib/types";
+import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 
 // Section header inside the sheets (was the shared `Label`).
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -30,6 +30,10 @@ export function LogSheet({
   presetBeanId,
   onLogBrew,
   onAddBag,
+  editBrew,
+  onUpdateBrew,
+  editBag,
+  onUpdateBag,
 }: {
   open: boolean;
   mode: "brew" | "bag";
@@ -37,6 +41,10 @@ export function LogSheet({
   presetBeanId: string | null;
   onLogBrew: (input: LogBrewInput) => Promise<void>;
   onAddBag: (input: AddBagInput, backToBrew: boolean) => Promise<void>;
+  editBrew?: Tasting | null;
+  onUpdateBrew?: (input: UpdateBrewInput) => Promise<void>;
+  editBag?: Bean | null;
+  onUpdateBag?: (input: UpdateBagInput) => Promise<void>;
 }) {
   const [view, setView] = useState<"brew" | "bag">("brew");
   // Re-sync the view when the sheet opens, the mode changes, OR the preset
@@ -66,9 +74,18 @@ export function LogSheet({
             onClose={onClose}
             onNewBag={() => setView("bag")}
             onLogBrew={onLogBrew}
+            editBrew={editBrew}
+            onUpdateBrew={onUpdateBrew}
           />
         ) : (
-          <BagForm onClose={onClose} backToBrew={mode === "brew"} onBack={() => setView("brew")} onAddBag={onAddBag} />
+          <BagForm
+            onClose={onClose}
+            backToBrew={mode === "brew"}
+            onBack={() => setView("brew")}
+            onAddBag={onAddBag}
+            editBag={editBag}
+            onUpdateBag={onUpdateBag}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -81,22 +98,28 @@ function BrewFlow({
   onClose,
   onNewBag,
   onLogBrew,
+  editBrew,
+  onUpdateBrew,
 }: {
   presetBeanId: string | null;
   onClose: () => void;
   onNewBag: () => void;
   onLogBrew: (input: LogBrewInput) => Promise<void>;
+  editBrew?: Tasting | null;
+  onUpdateBrew?: (input: UpdateBrewInput) => Promise<void>;
 }) {
   const D = useData();
   const shelf = D.shelf();
-  const [beanId, setBeanId] = useState<string | null>(presetBeanId || (shelf[0] && shelf[0].id) || null);
-  const [rating, setRating] = useState(0);
-  const [brew, setBrew] = useState("V60");
-  const [note, setNote] = useState("");
-  const [showParams, setShowParams] = useState(false);
-  const [dose, setDose] = useState("15");
-  const [ratio, setRatio] = useState("16");
-  const [temp, setTemp] = useState("94");
+  const isEdit = !!editBrew;
+  const hadParams = !!editBrew && editBrew.dose !== "—";
+  const [beanId, setBeanId] = useState<string | null>(editBrew?.beanId ?? presetBeanId ?? (shelf[0]?.id ?? null));
+  const [rating, setRating] = useState(editBrew?.rating ?? 0);
+  const [brew, setBrew] = useState(editBrew?.brew ?? "V60");
+  const [note, setNote] = useState(editBrew?.note ?? "");
+  const [showParams, setShowParams] = useState(hadParams);
+  const [dose, setDose] = useState(hadParams ? editBrew!.dose.replace(/[^\d.]/g, "") : "15");
+  const [ratio, setRatio] = useState(hadParams ? editBrew!.ratio.replace(/^1:/, "") : "16");
+  const [temp, setTemp] = useState(hadParams ? editBrew!.temp.replace(/[^\d.]/g, "") : "94");
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,29 +134,35 @@ function BrewFlow({
     if (!beanId || !rating || pending) return;
     setPending(true);
     setError(null);
+    const params = {
+      brew,
+      note,
+      dose: showParams ? dose + "g" : "—",
+      ratio: showParams ? "1:" + ratio : "—",
+      temp: showParams ? temp + "°C" : "—",
+    };
     try {
-      await onLogBrew({
-        beanId,
-        rating,
-        brew,
-        note,
-        dose: showParams ? dose + "g" : "—",
-        ratio: showParams ? "1:" + ratio : "—",
-        temp: showParams ? temp + "°C" : "—",
-      });
+      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...params });
+      else await onLogBrew({ beanId, rating, ...params });
       setDone(true);
       timerRef.current = setTimeout(onClose, 1300);
     } catch (e) {
       setPending(false);
-      setError(e instanceof Error ? e.message : "Couldn't log that brew — please try again.");
+      setError(e instanceof Error ? e.message : "Couldn't save that brew — please try again.");
     }
   };
 
-  if (done) return <DonePanel title="Brew logged!" sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`} />;
+  if (done)
+    return (
+      <DonePanel
+        title={isEdit ? "Brew updated!" : "Brew logged!"}
+        sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
+      />
+    );
 
   return (
     <>
-      <SheetHeader kicker="Log a brew" onClose={onClose} />
+      <SheetHeader kicker={isEdit ? "Edit brew" : "Log a brew"} onClose={onClose} />
       <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>
         {/* Bag selector — horizontal shelf */}
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
@@ -274,7 +303,7 @@ function BrewFlow({
           </div>
         )}
         <Button onClick={submit} disabled={!beanId || !rating || pending} className="w-full">
-          <Icon name="check" size={18} color="currentColor" /> {pending ? "Saving…" : "Log brew"}
+          <Icon name="check" size={18} color="currentColor" /> {pending ? "Saving…" : isEdit ? "Save changes" : "Log brew"}
         </Button>
       </div>
     </>
