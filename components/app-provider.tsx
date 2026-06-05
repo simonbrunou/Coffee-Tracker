@@ -3,7 +3,7 @@
    Mounted once in the root layout so the shared client state (beans, brews,
    likes, the log sheet) survives client-side route navigation. Route pages
    render into {children} and read handlers/state via useShell(). */
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 // useLayoutEffect on the client (runs before paint / before the browser's
@@ -46,9 +46,19 @@ export function useShell(): ShellApi {
 export function AppProvider({ initialData, children }: { initialData: AppData; children: React.ReactNode }) {
   const { roasters, users, currentUserId } = initialData;
 
-  const [beans, setBeans] = useState<Bean[]>(initialData.beans);
-  const [tastings, setTastings] = useState<Tasting[]>(initialData.tastings);
-  const [likes, setLikes] = useState<Set<string>>(() => new Set(initialData.likedIds));
+  // Server truth is the canonical base: useOptimistic re-bases on `initialData`
+  // whenever a Server Action's revalidatePath re-runs the force-dynamic layout.
+  // Optimistic updates (in a transition) cover the in-flight latency window, then
+  // reconcile to the re-based server value automatically.
+  const [beans, setBeansOptimistic] = useOptimistic(initialData.beans, (_state: Bean[], next: Bean[]) => next);
+  const [tastings, setTastingsOptimistic] = useOptimistic(
+    initialData.tastings,
+    (_state: Tasting[], next: Tasting[]) => next,
+  );
+  const [likes, setLikes] = useState<Set<string>>(
+    () => new Set(initialData.tastings.filter((t) => t.likedByMe).map((t) => t.id)),
+  );
+  const [, startTransition] = useTransition();
   const [log, setLog] = useState<{ open: boolean; mode: "brew" | "bag"; preset: string | null }>({
     open: false,
     mode: "brew",
@@ -153,31 +163,36 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const openRoaster = (id: string) => router.push(`/roaster/${id}`);
 
   const handleLogBrew = async (input: LogBrewInput) => {
-    try {
-      const t = await logBrewAction(input);
-      setTastings((prev) => [t, ...prev]);
-      const b = beans.find((x) => x.id === input.beanId);
-      toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
-    } catch {
-      toast("Couldn't log that brew — please try again");
-    }
+    const b = beans.find((x) => x.id === input.beanId);
+    startTransition(async () => {
+      const optimistic: Tasting = {
+        id: `temp-${input.beanId}`, userId: currentUserId ?? "", beanId: input.beanId,
+        rating: input.rating, brew: input.brew, dose: input.dose, ratio: input.ratio,
+        temp: input.temp, note: input.note, likes: 0, comments: 0, likedByMe: false,
+        createdAt: new Date().toISOString(), time: "now",
+      };
+      setTastingsOptimistic([optimistic, ...tastings]);
+      try {
+        await logBrewAction(input); // revalidatePath re-bases tastings/beans to server truth
+        toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
+      } catch {
+        toast("Couldn't log that brew — please try again");
+      }
+    });
   };
 
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
-    let bean: Bean;
     try {
-      bean = await addBagAction(input);
+      const bean = await addBagAction(input); // revalidatePath brings the new bean into initialData
+      startTransition(() => setBeansOptimistic([bean, ...beans]));
+      if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
+      else {
+        toast(`${bean.name} added to your shelf ✓`);
+        setTimeout(closeLog, 1100);
+      }
     } catch {
       closeLog();
       toast("Couldn't add that bag — please try again");
-      return;
-    }
-    setBeans((prev) => [bean, ...prev]);
-    if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
-    else {
-      // bag is already persisted; keep the success panel up briefly, then close
-      toast(`${bean.name} added to your shelf ✓`);
-      setTimeout(closeLog, 1100);
     }
   };
 
