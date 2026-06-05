@@ -27,7 +27,7 @@ create table users (
   name      text not null,
   handle    text not null unique,
   avatar    text not null,                  -- avatar tint (hex)
-  tastings  int  not null default 0,
+  tastings  int  not null default 0, -- derived on read; not maintained by the app
   followers int  not null default 0,
   following int  not null default 0,
   bio       text not null default '',
@@ -64,8 +64,8 @@ create table beans (
   altitude     text   not null default '—',
   varietal     text   not null default '',
   price        numeric,                        -- null for user bags
-  avg_rating   numeric not null default 0,
-  ratings      int     not null default 0,
+  avg_rating   numeric not null default 0, -- derived on read; not maintained by the app
+  ratings      int     not null default 0, -- derived on read; not maintained by the app
   color        text    not null,              -- bag/label tint (hex)
   flavors      text[]  not null default '{}', -- SCA tasting notes
   description  text    not null default '',
@@ -92,7 +92,7 @@ create table tastings (
   ratio      text not null default '—',
   temp       text not null default '—',
   note       text not null default '',
-  likes      int  not null default 0,
+  likes      int  not null default 0, -- derived on read; not maintained by the app
   comments   int  not null default 0,
   time       text not null default 'now',     -- relative age label
   created_at timestamptz not null default now()
@@ -111,3 +111,5 @@ create index beans_created_idx     on beans (created_at desc);
 create index tastings_created_idx  on tastings (created_at desc);
 create index tastings_bean_idx     on tastings (bean_id);
 create index accounts_user_idx     on accounts (user_id);
+create index tastings_user_idx  on tastings (user_id);   -- getUsers tastings count
+create index likes_tasting_idx  on likes (tasting_id);   -- per-tasting like count
