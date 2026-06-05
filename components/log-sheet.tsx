@@ -104,11 +104,19 @@ function BrewFlow({
 
   const submit = () => {
     if (!beanId || !rating) return;
+    // Persist immediately so dismissing the success panel can't drop the write.
+    // Only send brew params if the user actually opened "Add brew details".
+    onLogBrew({
+      beanId,
+      rating,
+      brew,
+      note,
+      dose: showParams ? dose + "g" : "—",
+      ratio: showParams ? "1:" + ratio : "—",
+      temp: showParams ? temp + "°C" : "—",
+    });
     setDone(true);
-    timerRef.current = setTimeout(() => {
-      onLogBrew({ beanId, rating, brew, note, dose: dose + "g", ratio: "1:" + ratio, temp: temp + "°C" });
-      onClose();
-    }, 1300);
+    timerRef.current = setTimeout(onClose, 1300);
   };
 
   if (done) return <DonePanel title="Brew logged!" sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`} />;

@@ -1,16 +1,16 @@
 "use client";
-import { FeedScreen } from "@/components/screens";
+import { JournalScreen } from "@/components/screens";
 import { useShell } from "@/components/app-provider";
 
-export default function FeedPage() {
+export default function JournalPage() {
   const s = useShell();
   return (
-    <FeedScreen
+    <JournalScreen
       likes={s.likes}
       onLike={s.toggleLike}
       onOpenBean={s.openBean}
-      filter={s.feedFilter}
-      setFilter={s.setFeedFilter}
+      onBrew={s.openBrew}
+      onAddBag={s.openAddBag}
     />
   );
 }

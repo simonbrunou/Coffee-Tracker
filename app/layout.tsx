@@ -1,8 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Spectral, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AppProvider } from "@/components/app-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { getAppData } from "@/lib/queries";
 import "./globals.css";
+
+// Read fresh from Postgres on each full load; the AppProvider's client state
+// then persists across client-side route navigation.
+export const dynamic = "force-dynamic";
 
 // Display serif — characterful, used for headings, bean names, stats.
 const spectral = Spectral({
@@ -31,17 +37,21 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f4ece1",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4ece1" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1610" },
+  ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const initialData = await getAppData();
   return (
     <html lang="en" suppressHydrationWarning className={`${spectral.variable} ${hanken.variable}`}>
       <body>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          {children}
+          <AppProvider initialData={initialData}>{children}</AppProvider>
           <Toaster position="bottom-center" />
         </ThemeProvider>
       </body>

@@ -27,12 +27,12 @@ async function main() {
   try {
     console.log(`→ Connecting to ${connectionString.replace(/:[^:@/]+@/, ":***@")}`);
 
-    // 1. Schema
+    // 1. Schema + seed, all in one transaction (Postgres has transactional DDL,
+    //    so a failed seed rolls the drop/recreate back instead of leaving empty tables).
     const schema = readFileSync(join(process.cwd(), "db", "schema.sql"), "utf8");
+    await client.query("begin");
     await client.query(schema);
     console.log("✓ Schema created");
-
-    await client.query("begin");
 
     // 2. Roasters
     for (const r of ROASTERS) {

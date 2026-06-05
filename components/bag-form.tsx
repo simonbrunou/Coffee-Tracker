@@ -1,6 +1,6 @@
 "use client";
 /* ============ Cortado — Add a Bag (rich catalog form) ============ */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Icon } from "./ui";
 import { BeanBag } from "./cards";
 import { FlavorWheelPicker } from "./flavor-wheel";
@@ -43,8 +43,6 @@ export function BagForm({
   const [varInput, setVarInput] = useState("");
   const [notes, setNotes] = useState<string[]>([]);
   const [done, setDone] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
   const set = (k: keyof typeof f, v: string | number) => setF((p) => ({ ...p, [k]: v }));
 
   const addVariety = () => {
@@ -55,7 +53,6 @@ export function BagForm({
   const valid = f.roaster.trim() && f.name.trim() && f.origin.trim();
 
   const save = () => {
-    setDone(true);
     const input: AddBagInput = {
       name: f.name.trim(),
       roasterName: f.roaster.trim(),
@@ -68,7 +65,10 @@ export function BagForm({
       flavors: notes,
       color: f.color,
     };
-    timerRef.current = setTimeout(() => onAddBag(input, !!backToBrew), 1200);
+    // Persist immediately (no cancellable timer) so the bag can't be lost if the
+    // success panel is dismissed; onAddBag drives the close / "& continue" transition.
+    setDone(true);
+    onAddBag(input, !!backToBrew);
   };
 
   if (done) return <DonePanel title="Bag added to your shelf" sub={`${f.name} is ready to brew.`} />;

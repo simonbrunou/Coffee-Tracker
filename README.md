@@ -58,13 +58,21 @@ Set `DATABASE_URL` in the environment to point at a different database.
 
 ```
 app/
-  layout.tsx        fonts + metadata
-  page.tsx          server component — fetches initial data from Postgres
+  layout.tsx        fonts + metadata; fetches initial data from Postgres (force-dynamic)
+                    and mounts the AppProvider shell around the routes
+  page.tsx          /            → Feed
+  journal/page.tsx  /journal     → Journal (Brews + Shelf)
+  discover/page.tsx /discover    → Discover
+  profile/page.tsx  /profile     → Profile
+  bean/[id]/page.tsx    /bean/:id    → Bean detail
+  roaster/[id]/page.tsx /roaster/:id → Roaster detail
   actions.ts        server actions — logBrew / addBag / toggleLike
   globals.css       OKLCH design system + keyframes + component classes
   icon.svg
 components/
-  app-shell.tsx     client shell: routing, state, nav, mutation wiring
+  app-provider.tsx  layout-level client shell: nav chrome, lifted state
+                    (beans/brews/likes), the log sheet, and useShell() for pages;
+                    routing via next/navigation so state survives navigation
   data-context.tsx  window.DATA-shaped context, backed by lifted React state
   ui.tsx            Avatar, BeanRating, Icon, FlavorChip, Tag, Placeholder…
   cards.tsx         TastingCard, BeanCard, BeanBag
