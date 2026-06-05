@@ -16,6 +16,7 @@ import { LogSheet } from "./log-sheet";
 import { Avatar, Icon, type IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { logBrew as logBrewAction, addBag as addBagAction, toggleLike as toggleLikeAction } from "@/app/actions";
+import { signOutAction } from "@/app/auth-actions";
 import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting } from "@/lib/types";
 
 const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
@@ -231,13 +232,18 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             </div>
             <div style={{ marginTop: "auto", paddingTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
               {me ? (
-                <button onClick={() => router.push("/profile")} className="nav-user" style={{ flex: 1, minWidth: 0 }}>
-                  <Avatar user={me} size={36} />
-                  <div style={{ textAlign: "left", minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{me.name}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@{me.handle}</div>
-                  </div>
-                </button>
+                <>
+                  <button onClick={() => router.push("/profile")} className="nav-user" style={{ flex: 1, minWidth: 0 }}>
+                    <Avatar user={me} size={36} />
+                    <div style={{ textAlign: "left", minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{me.name}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@{me.handle}</div>
+                    </div>
+                  </button>
+                  <form action={signOutAction}>
+                    <Button variant="ghost" size="sm" type="submit">Sign out</Button>
+                  </form>
+                </>
               ) : (
                 <Button variant="outline" onClick={() => router.push("/login")} style={{ flex: 1 }}>
                   Sign in

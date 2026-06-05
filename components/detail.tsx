@@ -1,6 +1,7 @@
 "use client";
 /* ============ Cortado — Bean detail, Roaster detail, Profile ============ */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useData } from "./data-context";
 import { BeanCard, TastingCard } from "./cards";
 import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
@@ -444,6 +445,7 @@ export function ProfileScreen({
   onLike: (id: string) => void;
 }) {
   const D = useData();
+  const router = useRouter();
   const me = D.currentUserId ? D.user(D.currentUserId) : undefined;
   const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
   const topFlavors: Record<string, number> = {};
@@ -454,6 +456,10 @@ export function ProfileScreen({
   const flavorList = Object.entries(topFlavors)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
+
+  useEffect(() => {
+    if (!me) router.replace("/login");
+  }, [me, router]);
 
   if (!me) return null;
 
