@@ -74,6 +74,10 @@ export interface Tasting {
   note: string;
   likes: number;
   comments: number;
+  /** True when the current viewer has liked this tasting (server-derived). */
+  likedByMe: boolean;
+  /** ISO timestamp the brew was logged; relative label derived on the client. */
+  createdAt: string;
   /** Relative age label, e.g. "2h" or "now". */
   time: string;
 }
@@ -95,7 +99,6 @@ export interface AppData {
   users: User[];
   beans: Bean[];
   tastings: Tasting[];
-  likedIds: string[];
   currentUserId: string | null;
 }
 
@@ -121,4 +124,18 @@ export interface AddBagInput {
   scaScore: number;
   flavors: string[];
   color: string;
+}
+
+export interface UpdateBrewInput {
+  id: string;
+  rating: number;
+  brew: string;
+  note: string;
+  dose: string;
+  ratio: string;
+  temp: string;
+}
+
+export interface UpdateBagInput extends AddBagInput {
+  id: string;
 }
