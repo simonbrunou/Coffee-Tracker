@@ -1,6 +1,6 @@
 import "server-only";
 import { query } from "./db";
-import { CURRENT_USER_ID } from "./seed-data";
+import { getCurrentUserId } from "./auth";
 import type { AppData, Bean, Roaster, Tasting, User } from "./types";
 
 // camelCase aliases must be double-quoted (Postgres folds bare identifiers to
@@ -16,7 +16,7 @@ export const BEAN_COLS = `
 
 export const TASTING_COLS = `
   id, user_id as "userId", bean_id as "beanId", rating, brew, dose, ratio,
-  temp, note, likes, comments, time, mine`;
+  temp, note, likes, comments, time`;
 
 export async function getRoasters(): Promise<Roaster[]> {
   const { rows } = await query<Roaster>(
@@ -56,12 +56,13 @@ export async function getLikedTastingIds(userId: string): Promise<string[]> {
 
 /** Everything the client shell needs, fetched once on the server. */
 export async function getAppData(): Promise<AppData> {
+  const currentUserId = await getCurrentUserId();
   const [roasters, users, beans, tastings, likedIds] = await Promise.all([
     getRoasters(),
     getUsers(),
     getBeans(),
     getTastings(),
-    getLikedTastingIds(CURRENT_USER_ID),
+    currentUserId ? getLikedTastingIds(currentUserId) : Promise.resolve<string[]>([]),
   ]);
-  return { roasters, users, beans, tastings, likedIds, currentUserId: CURRENT_USER_ID };
+  return { roasters, users, beans, tastings, likedIds, currentUserId };
 }
