@@ -6,6 +6,7 @@ import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { relativeTime } from "@/lib/relative-time";
 import type { Bean, Roaster } from "@/lib/types";
 
 // ---------- Section header ----------
@@ -320,7 +321,7 @@ export function JournalScreen({
                     </div>
                     <BeanRating value={t.rating} size={13} />
                     <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>
-                      {t.brew} · {t.time === "now" ? "just now" : `${t.time} ago`}
+                      {t.brew} · {relativeTime(t.createdAt)}
                     </div>
                   </button>
                 );

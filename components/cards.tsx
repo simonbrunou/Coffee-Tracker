@@ -6,6 +6,7 @@ import { Avatar, BeanRating, FlavorChip, Icon, RoastPill, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tasting, Bean } from "@/lib/types";
+import { relativeTime } from "@/lib/relative-time";
 
 // ---- Tasting card (feed + journal) ----
 export function TastingCard({
@@ -30,7 +31,7 @@ export function TastingCard({
 
   if (!user || !bean) return null;
   const roaster = D.roaster(bean.roasterId);
-  const ago = tasting.time === "now" ? "just now" : `${tasting.time} ago`;
+  const ago = relativeTime(tasting.createdAt);
 
   const doLike = () => {
     if (!liked) {
@@ -134,7 +135,7 @@ export function TastingCard({
               color={liked ? "var(--caramel)" : "currentColor"}
             />
           }
-          label={tasting.likes + (liked ? 1 : 0)}
+          label={tasting.likes + (liked && !tasting.likedByMe ? 1 : !liked && tasting.likedByMe ? -1 : 0)}
           activeColor="var(--caramel)"
         />
         <ActionBtn icon={<Icon name="comment" size={19} />} label={tasting.comments} />
