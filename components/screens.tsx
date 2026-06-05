@@ -138,7 +138,7 @@ export function JournalScreen({
   onAddBag: () => void;
 }) {
   const D = useData();
-  const mine = D.TASTINGS.filter((t) => t.mine);
+  const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
   const [section, setSection] = useState<"brews" | "shelf">("brews");
   const [view, setView] = useState<"timeline" | "grid">("timeline");
   const shelf = D.shelf();

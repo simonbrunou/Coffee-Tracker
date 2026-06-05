@@ -445,7 +445,7 @@ export function ProfileScreen({
 }) {
   const D = useData();
   const me = D.user(D.currentUserId);
-  const mine = D.TASTINGS.filter((t) => t.mine);
+  const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
   const topFlavors: Record<string, number> = {};
   mine.forEach((t) => {
     const b = D.bean(t.beanId);
