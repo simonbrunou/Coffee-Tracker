@@ -74,7 +74,6 @@ export interface Tasting {
   comments: number;
   /** Relative age label, e.g. "2h" or "now". */
   time: string;
-  mine: boolean;
 }
 
 // ---- SCA Coffee Taster's Flavor Wheel ----
@@ -95,7 +94,7 @@ export interface AppData {
   beans: Bean[];
   tastings: Tasting[];
   likedIds: string[];
-  currentUserId: string;
+  currentUserId: string | null;
 }
 
 // ---- Server action payloads ----

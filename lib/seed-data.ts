@@ -7,9 +7,6 @@
 import type { Bean, Roaster, Tasting, User } from "./types";
 import { WHEEL_FLAT } from "./flavor-wheel";
 
-/** The user whose journal/shelf this app shows. */
-export const CURRENT_USER_ID = "u1";
-
 /** Flavor note palette (warm hues) from the original catalog. */
 export const FLAVORS: Record<string, string> = {
   Blueberry: "#5b6aa8", "Dark Chocolate": "#5a4233", Caramel: "#b07a3c",
@@ -29,12 +26,8 @@ export const flavorColor = (name: string): string => FLAVOR_COLORS[name] ?? "var
 
 export const ROASTERS: Roaster[] = [];
 
-/** Only the current user is seeded — the account this app's journal belongs to.
- *  Required because tastings.user_id / likes.user_id reference users(id), so the
- *  row must exist before the first logged brew or like. */
-export const USERS: User[] = [
-  { id: CURRENT_USER_ID, name: "You", handle: "you", avatar: "#b07a3c", tastings: 0, followers: 0, following: 0, bio: "" },
-];
+/** Users are created by signup / OAuth — none are seeded. */
+export const USERS: User[] = [];
 
 export const BEANS: Bean[] = [];
 
