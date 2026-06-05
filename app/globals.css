@@ -1,0 +1,286 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============ Cortado — Coffee Journal · Design System ============
+   Faithful port of the prototype's styles.css. Fonts are supplied by
+   next/font (Spectral + Hanken Grotesque) as --font-spectral / --font-hanken
+   and referenced below. The palette lives once in :root and is exposed to
+   Tailwind via `@theme inline` so `bg-cream`, `text-espresso`, etc. resolve. */
+
+@theme inline {
+  --color-cream: var(--cream);
+  --color-cream-deep: var(--cream-deep);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-espresso: var(--espresso);
+  --color-coffee: var(--coffee);
+  --color-mocha: var(--mocha);
+  --color-caramel: var(--caramel);
+  --color-caramel-deep: var(--caramel-deep);
+  --color-caramel-soft: var(--caramel-soft);
+  --color-sage: var(--sage);
+  --color-gold: var(--gold);
+
+  /* shadcn/ui semantic tokens — mapped onto the warm palette above */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+:root {
+  /* Warm cafe palette */
+  --cream:        oklch(0.965 0.012 78);
+  --cream-deep:   oklch(0.935 0.018 76);
+  --surface:      oklch(0.992 0.006 84);
+  --surface-2:    oklch(0.975 0.010 80);
+  --line:         oklch(0.89 0.018 74);
+  --line-soft:    oklch(0.92 0.014 76);
+
+  --espresso:     oklch(0.27 0.030 52);   /* primary text */
+  --coffee:       oklch(0.42 0.040 55);   /* secondary text */
+  --mocha:        oklch(0.58 0.030 58);   /* tertiary text */
+
+  --caramel:      oklch(0.62 0.125 55);   /* primary accent */
+  --caramel-deep: oklch(0.52 0.115 50);
+  --caramel-soft: oklch(0.90 0.045 70);
+  --sage:         oklch(0.62 0.055 140);  /* secondary accent (same L) */
+
+  --gold:         oklch(0.78 0.115 80);   /* rating stars */
+
+  /* shadcn/ui semantic tokens (light) — references so dark mode only flips the base palette */
+  --radius: 0.75rem;
+  --background:            var(--cream);
+  --foreground:            var(--espresso);
+  --card:                  var(--surface);
+  --card-foreground:       var(--espresso);
+  --popover:               var(--surface);
+  --popover-foreground:    var(--espresso);
+  --primary:               var(--espresso);
+  --primary-foreground:    var(--cream);
+  --secondary:             var(--surface-2);
+  --secondary-foreground:  var(--espresso);
+  --muted:                 var(--surface-2);
+  --muted-foreground:      var(--mocha);
+  --accent:                var(--cream-deep);
+  --accent-foreground:     var(--espresso);
+  --destructive:           oklch(0.58 0.20 25);
+  --border:                var(--line);
+  --input:                 var(--line);
+  --ring:                  var(--caramel);
+
+  --shadow-sm: 0 1px 2px oklch(0.30 0.03 50 / 0.06), 0 1px 3px oklch(0.30 0.03 50 / 0.05);
+  --shadow-md: 0 4px 12px oklch(0.30 0.03 50 / 0.08), 0 2px 4px oklch(0.30 0.03 50 / 0.05);
+  --shadow-lg: 0 12px 32px oklch(0.30 0.03 50 / 0.12), 0 4px 8px oklch(0.30 0.03 50 / 0.06);
+
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+
+  /* next/font supplies --font-spectral and --font-hanken on <html> */
+  --font-display: var(--font-spectral), 'Spectral', Georgia, serif;
+  --font-body: var(--font-hanken), 'Hanken Grotesk', -apple-system, system-ui, sans-serif;
+}
+
+/* ---- Dark mode: a late-night cafe. Only the base palette flips; every
+   shadcn token + inline var(--token) follows automatically. ---- */
+.dark {
+  --cream:        oklch(0.19 0.012 64);   /* page background */
+  --cream-deep:   oklch(0.25 0.016 64);   /* active nav / hover */
+  --surface:      oklch(0.225 0.014 64);  /* cards */
+  --surface-2:    oklch(0.275 0.016 64);  /* insets */
+  --line:         oklch(0.34 0.018 62);
+  --line-soft:    oklch(0.30 0.016 62);
+
+  --espresso:     oklch(0.93 0.012 82);   /* primary text / light fills */
+  --coffee:       oklch(0.80 0.020 76);   /* secondary text */
+  --mocha:        oklch(0.75 0.022 70);   /* tertiary text (lightened for AA contrast on dark) */
+
+  --caramel:      oklch(0.70 0.130 60);   /* primary accent */
+  --caramel-deep: oklch(0.80 0.120 66);   /* accent text (brighter on dark) */
+  --caramel-soft: oklch(0.34 0.060 58);   /* accent fill (selected pills) */
+  --sage:         oklch(0.70 0.060 150);
+  --gold:         oklch(0.80 0.120 82);
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30), 0 1px 3px oklch(0 0 0 / 0.28);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.38), 0 2px 4px oklch(0 0 0 / 0.30);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.50), 0 4px 8px oklch(0 0 0 / 0.34);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--cream);
+  color: var(--espresso);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root, #app-root { height: 100%; }
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, textarea { font-family: inherit; }
+
+::selection { background: var(--caramel-soft); }
+
+/* Scrollbar */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; border: 3px solid var(--cream); }
+*::-webkit-scrollbar-thumb:hover { background: var(--mocha); }
+
+/* Utility */
+.display { font-family: var(--font-display); }
+.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+
+/* Striped image placeholder */
+.ph {
+  background-color: var(--surface-2);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    oklch(0.88 0.02 74 / 0.5) 0 1px,
+    transparent 1px 9px
+  );
+  display: flex; align-items: center; justify-content: center;
+  color: var(--mocha);
+  font-family: ui-monospace, monospace; font-size: 11px;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+.fade-up { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* ---- Log sheet (shadcn Dialog content): bottom-sheet on mobile, centered on desktop.
+   Defined unlayered so it deterministically overrides the base DialogContent
+   utilities (avoids Tailwind arbitrary-variant cascade quirks). ---- */
+@keyframes sheetPop {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.log-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+  width: 100%; max-width: 100%; max-height: 94vh;
+  border-radius: 22px 22px 0 0;
+  /* neutralize the base DialogContent's Tailwind v4 `translate`/`scale`
+     properties so they don't stack with our `transform` centering */
+  translate: none; scale: none;
+  animation: sheetUp 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (min-width: 880px) {
+  .log-sheet {
+    left: 50%; right: auto; top: 50%; bottom: auto;
+    transform: translate(-50%, -50%);
+    border-radius: 22px;
+    animation: sheetPop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .log-sheet.log-sheet--brew { max-width: 520px; }
+  .log-sheet.log-sheet--bag  { max-width: 560px; }
+}
+
+/* ---- Layout ---- */
+.sidebar {
+  width: 240px; flex-shrink: 0; padding: 26px 18px 22px;
+  border-right: 1px solid var(--line-soft); background: var(--surface);
+  display: flex; flex-direction: column;
+}
+.main-scroll { flex: 1; overflow-y: auto; position: relative; }
+.screen-pad { padding: 40px 44px 60px; }
+.mobile-top, .bottom-nav, .fab { display: none; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 13px; padding: 11px 14px; border-radius: 12px;
+  font-size: 15px; font-weight: 600; color: var(--coffee); position: relative;
+  transition: background 0.14s, color 0.14s;
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item[data-active="true"] { background: var(--cream-deep); color: var(--espresso); }
+.nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--caramel); margin-left: auto; }
+.nav-item[data-active="true"] .nav-dot { display: none; }
+
+.nav-user {
+  display: flex; align-items: center; gap: 11px; padding: 9px; border-radius: 12px; width: 100%;
+  border: 1px solid var(--line-soft); background: var(--surface); transition: background 0.14s;
+}
+.nav-user:hover { background: var(--surface-2); }
+
+/* ---- Mobile ---- */
+@media (max-width: 879px) {
+  .sidebar { display: none; }
+  .mobile-only-spacer { display: block; }
+  .mobile-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; position: sticky; top: 0; z-index: 50;
+    background: color-mix(in oklch, var(--cream) 88%, transparent);
+    backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-soft);
+  }
+  .screen-pad { padding: 22px 18px 40px; }
+
+  .bottom-nav {
+    display: flex; align-items: center; justify-content: space-around;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 60; gap: 4px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: color-mix(in oklch, var(--surface) 92%, transparent);
+    backdrop-filter: blur(14px); border-top: 1px solid var(--line-soft);
+  }
+  .bottom-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;
+    font-size: 10.5px; font-weight: 600; color: var(--mocha); padding: 5px 0;
+  }
+  .bottom-item[data-active="true"] { color: var(--caramel-deep); }
+  .fab {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 54px; height: 54px; border-radius: 50%; background: var(--espresso);
+    box-shadow: var(--shadow-md); margin-top: -22px; transition: transform 0.15s;
+  }
+  .fab:active { transform: scale(0.92); }
+}
+@media (min-width: 880px) { .mobile-only-spacer { display: none; } }
+
+@media (max-width: 540px) { .two-col { flex-direction: column; gap: 0; } }
+@media (max-width: 600px) { .radar-row { grid-template-columns: 1fr !important; justify-items: center; text-align: center; } }
