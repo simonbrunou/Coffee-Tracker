@@ -5,6 +5,7 @@
 -- Lowercase, snake_case identifiers; Postgres text[] for the ordered
 -- flavor-note and variety lists.
 
+drop table if exists accounts cascade;
 drop table if exists likes cascade;
 drop table if exists tastings cascade;
 drop table if exists beans cascade;
@@ -29,7 +30,27 @@ create table users (
   tastings  int  not null default 0,
   followers int  not null default 0,
   following int  not null default 0,
-  bio       text not null default ''
+  bio       text not null default '',
+  email           text,                              -- display-only; NOT globally unique
+  email_verified  timestamptz,
+  image           text,                              -- OAuth avatar URL (distinct from avatar tint)
+  password_hash   text,                              -- only credential users
+  session_version int  not null default 0,           -- bump to revoke a user's JWTs
+  created_at      timestamptz not null default now()
+);
+
+-- At most one *password* account per email; OAuth rows may share an email.
+-- Named explicitly so registerUser can branch on err.constraint.
+create unique index users_email_lower_uq on users (lower(email)) where password_hash is not null;
+
+create table accounts (
+  id                  text primary key,
+  user_id             text not null references users(id) on delete cascade,
+  type                text not null,              -- 'oauth' | 'oidc'
+  provider            text not null,              -- 'google' | 'github'
+  provider_account_id text not null,
+  created_at          timestamptz not null default now(),
+  unique (provider, provider_account_id)
 );
 
 create table beans (
