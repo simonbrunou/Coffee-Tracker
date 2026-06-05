@@ -26,8 +26,10 @@ describe("logBrew ownership guard", () => {
     const t = await logBrew(input);
     expect(t.id).toBe("t-1");
     // the guarded statement filters by owner: bean id and user id are both params
-    const [, params] = queryMock.mock.calls[0];
+    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
     expect(params).toContain("b-1");
     expect(params).toContain("u-me");
+    // and the SQL must carry the ownership guard (catches a refactor that drops it)
+    expect(sql).toMatch(/from beans where id = \$3 and user_id = \$2/i);
   });
 });
