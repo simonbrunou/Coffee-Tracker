@@ -25,6 +25,15 @@ describe("edit/delete ownership guards", () => {
     expect(params).toContain("t-1");
     expect(params).toContain("u-me");
   });
+  it("updateBrew re-selects the row WITH the ownership guard (no foreign row leak)", async () => {
+    queryMock.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "t-1", userId: "u-me" }] }); // SELECT
+    const t = await updateBrew(brew);
+    expect(t.id).toBe("t-1");
+    const [selSql, selParams] = queryMock.mock.calls[1] as [string, unknown[]];
+    expect(selSql).toMatch(/select[\s\S]*from tastings where id = \$1 and user_id = \$2/i);
+    expect(selParams).toEqual(["t-1", "u-me"]);
+  });
   it("deleteBrew is ownership-guarded", async () => {
     queryMock.mockResolvedValue({ rowCount: 1, rows: [{ id: "t-1" }] });
     await deleteBrew("t-1");

@@ -71,10 +71,14 @@ export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
     [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
   );
   if (!rowCount) throw new Error("Couldn't update that brew.");
+  // Re-select the updated row (TASTING_COLS carries created_at, which the UPDATE
+  // must not RETURN — it would set off the feed-reorder guard test). Keep the
+  // ownership predicate here too so a row deleted mid-flight can't surface.
   const { rows } = await query<Tasting>(
-    `select ${TASTING_COLS} from tastings where id = $1`,
-    [input.id],
+    `select ${TASTING_COLS} from tastings where id = $1 and user_id = $2`,
+    [input.id, userId],
   );
+  if (rows.length === 0) throw new Error("Couldn't update that brew.");
   revalidatePath("/", "layout");
   return { ...rows[0], likedByMe: false };
 }

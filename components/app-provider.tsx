@@ -217,30 +217,34 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     toast("Brew updated ✓");
   };
   const handleDeleteBrew = async (id: string) => {
-    startTransition(() => setTastingsOptimistic(tastings.filter((t) => t.id !== id)));
-    try {
-      await deleteBrewAction(id);
-      toast("Brew deleted");
-    } catch {
-      toast("Couldn't delete that brew — please try again");
-    }
+    // async work INSIDE the transition so useOptimistic auto-reverts the removal
+    // if the delete fails (the canonical base still has the row until revalidate).
+    startTransition(async () => {
+      setTastingsOptimistic(tastings.filter((t) => t.id !== id));
+      try {
+        await deleteBrewAction(id);
+        toast("Brew deleted");
+      } catch {
+        toast("Couldn't delete that brew — please try again");
+      }
+    });
   };
   const handleUpdateBag = async (input: UpdateBagInput) => {
     await updateBagAction(input);
     toast("Bag updated ✓");
   };
   const handleDeleteBag = async (beanId: string) => {
-    startTransition(() => {
+    startTransition(async () => {
       setBeansOptimistic(beans.filter((b) => b.id !== beanId));
       setTastingsOptimistic(tastings.filter((t) => t.beanId !== beanId));
+      try {
+        await deleteBagAction(beanId);
+        toast("Bag and its brews deleted");
+        router.push("/journal");
+      } catch {
+        toast("Couldn't delete that bag — please try again");
+      }
     });
-    try {
-      await deleteBagAction(beanId);
-      toast("Bag and its brews deleted");
-      router.push("/journal");
-    } catch {
-      toast("Couldn't delete that bag — please try again");
-    }
   };
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
