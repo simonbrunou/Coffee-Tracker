@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useData } from "./data-context";
+import { useShell } from "@/components/app-provider";
 import { BeanCard, TastingCard } from "./cards";
 import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
@@ -52,10 +53,11 @@ export function BeanDetail({
   onDeleteBag?: (beanId: string) => void;
 }) {
   const D = useData();
+  const shell = useShell();
   const bean = D.bean(beanId);
-  const [following, setFollowing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
+  const wished = shell.wishedBeans.has(bean.id);
   const isOwner = bean.ownerId != null && bean.ownerId === D.currentUserId;
   const roaster = D.roaster(bean.roasterId);
   const roasterName = roaster?.name ?? bean.roasterName ?? "My roaster";
@@ -217,10 +219,10 @@ export function BeanDetail({
             {!isOwner && (
               <Button
                 variant="outline"
-                onClick={() => setFollowing((f) => !f)}
-                className={following ? "bg-[var(--caramel-soft)]" : undefined}
+                onClick={() => shell.toggleWishlistBean(bean.id)}
+                className={wished ? "bg-[var(--caramel-soft)]" : undefined}
               >
-                <Icon name={following ? "check" : "bookmark"} size={17} /> {following ? "Saved" : "Want to try"}
+                <Icon name={wished ? "check" : "bookmark"} size={17} /> {wished ? "Saved" : "Want to try"}
               </Button>
             )}
           </div>
@@ -409,9 +411,10 @@ export function RoasterDetail({
   onOpenBean: (id: string) => void;
 }) {
   const D = useData();
+  const shell = useShell();
   const roaster = D.roaster(roasterId);
-  const [following, setFollowing] = useState(false);
   if (!roaster) return <NotFoundPanel label="Roaster" onBack={onBack} />;
+  const following = shell.followedRoasters.has(roaster.id);
   const beans = D.BEANS.filter((b) => b.roasterId === roasterId);
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-up">
@@ -438,7 +441,7 @@ export function RoasterDetail({
                 <Icon name="pin" size={15} color="var(--mocha)" /> {roaster.city} · established {roaster.founded}
               </div>
             </div>
-            <Button variant={following ? "outline" : "default"} onClick={() => setFollowing((f) => !f)}>
+            <Button variant={following ? "outline" : "default"} onClick={() => shell.toggleFollowRoaster(roaster.id)}>
               <Icon name={following ? "check" : "plus"} size={17} color="currentColor" />{" "}
               {following ? "Following" : "Follow"}
             </Button>
