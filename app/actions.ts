@@ -2,9 +2,9 @@
 
 import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
-import { BEAN_COLS, getComments, getTastingById, getCommentById } from "@/lib/queries";
-import { requireUserId } from "@/lib/auth";
-import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab } from "@/lib/queries";
+import { requireUserId, getCurrentUserId } from "@/lib/auth";
+import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Page, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
 import { revalidatePath } from "next/cache";
 import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag } from "@/lib/brew-validation";
@@ -157,6 +157,15 @@ export async function toggleWishlistBean(beanId: string, wish: boolean): Promise
   if (wish) await query(`insert into bean_wishlist (user_id, bean_id) values ($1, $2) on conflict do nothing`, [userId, beanId]);
   else await query(`delete from bean_wishlist where user_id = $1 and bean_id = $2`, [userId, beanId]);
   revalidatePath("/", "layout");
+}
+
+// ---- Feed pagination (M3·D) ----
+/** Fetch the next keyset page of the feed for a tab. Validates the tab; the
+ *  cursor is validated (and rejected if malformed) inside getFeedPage. */
+export async function loadMoreFeed(tab: string, cursor: string | null): Promise<Page<Tasting>> {
+  if (!isFeedTab(tab)) throw new Error("Invalid feed tab");
+  const uid = await getCurrentUserId();
+  return getFeedPage(uid, { tab, cursor });
 }
 
 // ---- Comments ----
