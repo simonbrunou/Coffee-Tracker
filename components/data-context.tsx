@@ -1,28 +1,28 @@
 "use client";
 /* ============ Data context ============
-   Mirrors the prototype's `window.DATA` shape so component bodies read
-   naturally (`const D = useData()`), but is backed by React state lifted to
-   the app shell — so logging a brew or adding a bag updates every screen. */
+   Shell + bounded per-user data, lifted to the app shell so it survives client
+   navigation. Unbounded lists (feed, discover, a bean's reviews, a roaster's
+   beans) are server-fetched per screen (M3·D·2) — not held here. */
 import { createContext, useContext, useMemo } from "react";
 import { BREW_METHODS, FLAVOR_COLORS, PROCESSES, ROAST_LEVELS } from "@/lib/seed-data";
 import type { Bean, Page, Roaster, Tasting, User } from "@/lib/types";
 
 export interface DataApi {
   ROASTERS: Roaster[];
-  USERS: User[];
-  BEANS: Bean[];
-  TASTINGS: Tasting[];
-  FOLLOWING: Tasting[];
   /** First keyset page of the Recent feed (M3·D). */
   feed: Page<Tasting>;
+  /** Bounded per-user data + shell `me` (M3·D·2). */
+  me: User | null;
+  myTastings: Tasting[];
+  myShelf: Bean[];
+  savedTastings: Tasting[];
+  wishlistBeans: Bean[];
   FLAVORS: Record<string, string>;
   BREW_METHODS: string[];
   ROAST_LEVELS: string[];
   PROCESSES: string[];
   currentUserId: string | null;
-  bean: (id: string) => Bean | undefined;
   roaster: (id: string | null | undefined) => Roaster | undefined;
-  user: (id: string) => User | undefined;
   shelf: () => Bean[];
 }
 
@@ -30,42 +30,43 @@ const DataContext = createContext<DataApi | null>(null);
 
 export function DataProvider({
   roasters,
-  users,
-  beans,
-  tastings,
-  followingTastings,
   feed,
+  me,
+  myTastings,
+  myShelf,
+  savedTastings,
+  wishlistBeans,
   currentUserId,
   children,
 }: {
   roasters: Roaster[];
-  users: User[];
-  beans: Bean[];
-  tastings: Tasting[];
-  followingTastings: Tasting[];
   feed: Page<Tasting>;
+  me: User | null;
+  myTastings: Tasting[];
+  myShelf: Bean[];
+  savedTastings: Tasting[];
+  wishlistBeans: Bean[];
   currentUserId: string | null;
   children: React.ReactNode;
 }) {
   const value = useMemo<DataApi>(
     () => ({
       ROASTERS: roasters,
-      USERS: users,
-      BEANS: beans,
-      TASTINGS: tastings,
-      FOLLOWING: followingTastings,
       feed,
+      me,
+      myTastings,
+      myShelf,
+      savedTastings,
+      wishlistBeans,
       FLAVORS: FLAVOR_COLORS,
       BREW_METHODS,
       ROAST_LEVELS,
       PROCESSES,
       currentUserId,
-      bean: (id) => beans.find((b) => b.id === id),
       roaster: (id) => (id ? roasters.find((r) => r.id === id) : undefined),
-      user: (id) => users.find((u) => u.id === id),
-      shelf: () => beans.filter((b) => b.owned && b.ownerId === currentUserId),
+      shelf: () => myShelf,
     }),
-    [roasters, users, beans, tastings, followingTastings, feed, currentUserId],
+    [roasters, feed, me, myTastings, myShelf, savedTastings, wishlistBeans, currentUserId],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

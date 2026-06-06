@@ -10,7 +10,7 @@ import type { Comment } from "@/lib/types";
 export function CommentThread({ tastingId }: { tastingId: string }) {
   const D = useData();
   const me = D.currentUserId;
-  const meUser = me ? D.user(me) : undefined;
+  const meUser = D.me ?? undefined;
   const [list, setList] = useState<Comment[] | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);

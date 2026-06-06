@@ -68,19 +68,19 @@ export function useShell(): ShellApi {
 }
 
 export function AppProvider({ initialData, children }: { initialData: AppData; children: React.ReactNode }) {
-  const { roasters, users, currentUserId } = initialData;
+  const { roasters, currentUserId } = initialData;
 
   // Server truth is the canonical base: useOptimistic re-bases on `initialData`
   // whenever a Server Action's revalidatePath re-runs the force-dynamic layout.
   // Optimistic updates (in a transition) cover the in-flight latency window, then
   // reconcile to the re-based server value automatically.
-  const [beans, setBeansOptimistic] = useOptimistic(initialData.beans, (_state: Bean[], next: Bean[]) => next);
-  const [tastings, setTastingsOptimistic] = useOptimistic(
-    initialData.tastings,
+  const [myShelf, setMyShelfOptimistic] = useOptimistic(initialData.myShelf, (_state: Bean[], next: Bean[]) => next);
+  const [myTastings, setMyTastingsOptimistic] = useOptimistic(
+    initialData.myTastings,
     (_state: Tasting[], next: Tasting[]) => next,
   );
   const [likes, setLikes] = useState<Set<string>>(
-    () => new Set(initialData.tastings.filter((t) => t.likedByMe).map((t) => t.id)),
+    () => new Set([...initialData.feed.rows, ...initialData.myTastings].filter((t) => t.likedByMe).map((t) => t.id)),
   );
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(() => new Set(initialData.followedUserIds));
   const [followedRoasters, setFollowedRoasters] = useState<Set<string>>(() => new Set(initialData.followedRoasterIds));
@@ -157,7 +157,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     meta.setAttribute("content", isDark ? "#1b1610" : "#f4ece1");
   }, [isDark, mounted]);
 
-  const me = users.find((u) => u.id === currentUserId);
+  const me = initialData.me;
 
   const toggleLike = (id: string) => {
     if (!currentUserId) { router.push("/login"); return; }
@@ -219,7 +219,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     setLog({ open: true, mode: "brew", preset: t.beanId });
   };
   const openEditBag = (beanId: string) => {
-    const b = beans.find((x) => x.id === beanId);
+    const b = myShelf.find((x) => x.id === beanId);
     if (!b || b.ownerId !== currentUserId) return;
     setEdit({ kind: "bag", bean: b });
     setLog({ open: true, mode: "bag", preset: null });
@@ -235,7 +235,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   // success. The new row appears via the action's revalidatePath re-base (proven
   // fast on the spike); the success panel masks the round-trip.
   const handleLogBrew = async (input: LogBrewInput) => {
-    const b = beans.find((x) => x.id === input.beanId);
+    const b = myShelf.find((x) => x.id === input.beanId);
     await logBrewAction(input);
     toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
   };
@@ -243,7 +243,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
     const bean = await addBagAction(input);
     // keep the new bag visible in the shelf for the "& continue" → brew hand-off
-    startTransition(() => setBeansOptimistic([bean, ...beans]));
+    startTransition(() => setMyShelfOptimistic([bean, ...myShelf]));
     if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
     else {
       toast(`${bean.name} added to your shelf ✓`);
@@ -259,7 +259,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     // async work INSIDE the transition so useOptimistic auto-reverts the removal
     // if the delete fails (the canonical base still has the row until revalidate).
     startTransition(async () => {
-      setTastingsOptimistic(tastings.filter((t) => t.id !== id));
+      setMyTastingsOptimistic(myTastings.filter((t) => t.id !== id));
       try {
         await deleteBrewAction(id);
         toast("Brew deleted");
@@ -274,8 +274,8 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
   const handleDeleteBag = async (beanId: string) => {
     startTransition(async () => {
-      setBeansOptimistic(beans.filter((b) => b.id !== beanId));
-      setTastingsOptimistic(tastings.filter((t) => t.beanId !== beanId));
+      setMyShelfOptimistic(myShelf.filter((b) => b.id !== beanId));
+      setMyTastingsOptimistic(myTastings.filter((t) => t.beanId !== beanId));
       try {
         await deleteBagAction(beanId);
         toast("Bag and its brews deleted");
@@ -311,7 +311,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
 
   return (
-    <DataProvider roasters={roasters} users={users} beans={beans} tastings={tastings} followingTastings={initialData.followingTastings} feed={initialData.feed} currentUserId={currentUserId}>
+    <DataProvider roasters={roasters} feed={initialData.feed} me={me} myTastings={myTastings} myShelf={myShelf} savedTastings={initialData.savedTastings} wishlistBeans={initialData.wishlistBeans} currentUserId={currentUserId}>
       <ShellContext.Provider value={shell}>
         <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
           {/* ---- Desktop sidebar ---- */}

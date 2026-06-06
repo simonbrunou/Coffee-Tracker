@@ -400,12 +400,8 @@ export async function getAppData(): Promise<AppData> {
   // The feed now reads `feed` (keyset page 1); `followingTastings` already has no
   // live consumer (the Following tab fetches via loadMoreFeed). D·2 slims this to
   // shell + per-user data and drops the global arrays.
-  const [roasters, users, beans, tastings, followingTastings, feed] = await Promise.all([
+  const [roasters, feed] = await Promise.all([
     getRoasters(currentUserId),
-    getUsers(currentUserId),
-    getBeans(currentUserId),
-    getTastings(currentUserId),
-    getFollowingTastings(currentUserId),
     getFeedPage(currentUserId, { tab: "Recent" }),
   ]);
   const [followedUserIds, followedRoasterIds, savedTastingIds, wishedBeanIds] = currentUserId
@@ -416,8 +412,19 @@ export async function getAppData(): Promise<AppData> {
         followedIds("bean_wishlist", "user_id", "bean_id", currentUserId),
       ])
     : [[], [], [], []];
+  // Bounded per-user data for the now-scoped journal/profile + shell `me`.
+  const [me, myTastings, myShelf, savedTastings, wishlistBeans] = currentUserId
+    ? await Promise.all([
+        getUserById(currentUserId, currentUserId),
+        getMyTastings(currentUserId),
+        getMyShelf(currentUserId),
+        getSavedTastings(currentUserId),
+        getWishlistBeans(currentUserId),
+      ])
+    : [null, [], [], [], []];
   return {
-    roasters, users, beans, tastings, followingTastings, feed,
+    roasters, feed,
+    me, myTastings, myShelf, savedTastings, wishlistBeans,
     followedUserIds, followedRoasterIds, savedTastingIds, wishedBeanIds, currentUserId,
   };
 }

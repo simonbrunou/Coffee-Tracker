@@ -5,12 +5,12 @@ import { useData } from "./data-context";
 import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
-import { loadMoreFeed } from "@/app/actions";
+import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
 import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { relativeTime } from "@/lib/relative-time";
-import type { Bean, Roaster, Tasting } from "@/lib/types";
+import type { Bean, Page, Roaster, Tasting } from "@/lib/types";
 
 // ---------- Section header ----------
 export function ScreenHead({
@@ -191,14 +191,15 @@ export function JournalScreen({
   onAddBag: () => void;
 }) {
   const D = useData();
-  const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
+  const mine = D.myTastings;
   const [section, setSection] = useState<"brews" | "shelf" | "saved">("brews");
   const [view, setView] = useState<"timeline" | "grid">("timeline");
-  const shelf = D.shelf();
-  // Filter by the optimistic Sets (instant after a Save), not the server snapshot.
+  const shelf = D.myShelf;
+  // Server-scoped saved/wishlist, filtered by the optimistic Sets so an un-save
+  // hides instantly (a new save appears after the action's revalidate).
   const { savedTastings: savedSet, wishedBeans: wishedSet } = useShell();
-  const savedTastings = D.TASTINGS.filter((t) => savedSet.has(t.id));
-  const wishlistedBeans = D.BEANS.filter((b) => wishedSet.has(b.id));
+  const savedTastings = D.savedTastings.filter((t) => savedSet.has(t.id));
+  const wishlistedBeans = D.wishlistBeans.filter((b) => wishedSet.has(b.id));
   const avg = mine.length ? (mine.reduce((s, t) => s + t.rating, 0) / mine.length).toFixed(1) : "0.0";
   const beansLogged = new Set(mine.map((t) => t.beanId)).size;
 
@@ -398,38 +399,34 @@ export function JournalScreen({
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-              {mine.map((t, i) => {
-                const bean = D.bean(t.beanId);
-                if (!bean) return null;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => onOpenBean(bean.id)}
-                    className="fade-up"
-                    style={{
-                      animationDelay: i * 40 + "ms",
-                      textAlign: "left",
-                      padding: 14,
-                      borderRadius: "var(--r-md)",
-                      background: "var(--surface)",
-                      border: "1px solid var(--line-soft)",
-                      boxShadow: "var(--shadow-sm)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
-                    <BeanBag color={bean.color} size={44} />
-                    <div className="display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
-                      {bean.name}
-                    </div>
-                    <BeanRating value={t.rating} size={13} />
-                    <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>
-                      {t.brew} · {relativeTime(t.createdAt)}
-                    </div>
-                  </button>
-                );
-              })}
+              {mine.map((t, i) => (
+                <button
+                  key={t.id}
+                  onClick={() => onOpenBean(t.beanId)}
+                  className="fade-up"
+                  style={{
+                    animationDelay: i * 40 + "ms",
+                    textAlign: "left",
+                    padding: 14,
+                    borderRadius: "var(--r-md)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--line-soft)",
+                    boxShadow: "var(--shadow-sm)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  <BeanBag color={t.beanColor} size={44} />
+                  <div className="display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
+                    {t.beanName}
+                  </div>
+                  <BeanRating value={t.rating} size={13} />
+                  <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>
+                    {t.brew} · {relativeTime(t.createdAt)}
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </>
@@ -547,11 +544,15 @@ function Stat({ big, label, icon }: { big: React.ReactNode; label: string; icon?
 
 // ---------- DISCOVER ----------
 export function DiscoverScreen({
+  initialBeans,
+  trending,
   onOpenBean,
   onOpenRoaster,
   query,
   setQuery,
 }: {
+  initialBeans: Page<Bean>;
+  trending: Bean[];
   onOpenBean: (id: string) => void;
   onOpenRoaster: (id: string) => void;
   query: string;
@@ -562,13 +563,26 @@ export function DiscoverScreen({
   const [process, setProcess] = useState("All");
   const processes = ["All", "Washed", "Natural", "Honey"];
 
-  let beans = D.BEANS;
-  if (process !== "All") beans = beans.filter((b) => b.process === process);
-  if (query)
-    beans = beans.filter((b) =>
-      (b.name + b.origin + b.flavors.join()).toLowerCase().includes(query.toLowerCase()),
-    );
-  const trending = [...D.BEANS].sort((a, b) => b.avgRating - a.avgRating).slice(0, 3);
+  const { rows: beans, loadMore, hasMore, pending, reset } = useLoadMore(initialBeans, (c) =>
+    loadMoreBeans(c, process === "All" ? null : process, query || null),
+  );
+  // Server-side process/text filter: re-fetch page 1 when either changes
+  // (debounced for typing so a search doesn't fire per keystroke).
+  useEffect(() => {
+    let active = true;
+    const run = () => {
+      if (process === "All" && !query) {
+        if (active) reset(initialBeans);
+        return;
+      }
+      loadMoreBeans(null, process === "All" ? null : process, query || null)
+        .then((p) => { if (active) reset(p); })
+        .catch(() => { if (active) reset({ rows: [], nextCursor: null }); });
+    };
+    const t = setTimeout(run, query ? 250 : 0);
+    return () => { active = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [process, query, initialBeans]);
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -665,6 +679,13 @@ export function DiscoverScreen({
               <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
             ))}
           </div>
+          {hasMore && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
+              <Button variant="outline" onClick={loadMore} disabled={pending}>
+                {pending ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          )}
           {beans.length === 0 && <Empty query={query} />}
         </>
       ) : (

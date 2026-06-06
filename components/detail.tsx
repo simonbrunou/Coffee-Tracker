@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useData } from "./data-context";
 import { useShell } from "@/components/app-provider";
+import { useLoadMore } from "./use-load-more";
+import { loadMoreBeanReviews, loadMoreRoasterBeans } from "@/app/actions";
 import { BeanCard, TastingCard } from "./cards";
 import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
 import { flavorColor } from "@/lib/seed-data";
-import type { Bean } from "@/lib/types";
+import type { Bean, Page, Tasting } from "@/lib/types";
 
 // Shown when a /bean/:id or /roaster/:id deep-link points at an id not in the catalog.
 function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void }) {
@@ -35,6 +37,8 @@ function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void })
 // ---------- BEAN DETAIL ----------
 export function BeanDetail({
   beanId,
+  bean,
+  initialReviews,
   onBack,
   onOpenRoaster,
   likes,
@@ -44,6 +48,8 @@ export function BeanDetail({
   onDeleteBag,
 }: {
   beanId: string;
+  bean: Bean | null;
+  initialReviews: Page<Tasting>;
   onBack: () => void;
   onOpenRoaster: (id: string) => void;
   likes: Set<string>;
@@ -54,14 +60,15 @@ export function BeanDetail({
 }) {
   const D = useData();
   const shell = useShell();
-  const bean = D.bean(beanId);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { rows: reviews, loadMore, hasMore, pending } = useLoadMore(initialReviews, (c) =>
+    loadMoreBeanReviews(beanId, c),
+  );
   if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
   const wished = shell.wishedBeans.has(bean.id);
   const isOwner = bean.ownerId != null && bean.ownerId === D.currentUserId;
   const roaster = D.roaster(bean.roasterId);
   const roasterName = roaster?.name ?? bean.roasterName ?? "My roaster";
-  const reviews = D.TASTINGS.filter((t) => t.beanId === beanId);
   const varieties = bean.varieties ?? (bean.varietal ? [bean.varietal] : []);
   const scoreColor =
     (bean.scaScore ?? 0) >= 90 ? "var(--sage)" : (bean.scaScore ?? 0) >= 87 ? "var(--caramel-deep)" : "var(--coffee)";
@@ -315,6 +322,13 @@ export function BeanDetail({
               liked={likes.has(t.id)}
             />
           ))}
+          {hasMore && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
+              <Button variant="outline" onClick={loadMore} disabled={pending}>
+                {pending ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -403,19 +417,23 @@ export function FlavorRadar({ bean }: { bean: Bean }) {
 // ---------- ROASTER DETAIL ----------
 export function RoasterDetail({
   roasterId,
+  initialBeans,
   onBack,
   onOpenBean,
 }: {
   roasterId: string;
+  initialBeans: Page<Bean>;
   onBack: () => void;
   onOpenBean: (id: string) => void;
 }) {
   const D = useData();
   const shell = useShell();
   const roaster = D.roaster(roasterId);
+  const { rows: beans, loadMore, hasMore, pending } = useLoadMore(initialBeans, (c) =>
+    loadMoreRoasterBeans(roasterId, c),
+  );
   if (!roaster) return <NotFoundPanel label="Roaster" onBack={onBack} />;
   const following = shell.followedRoasters.has(roaster.id);
-  const beans = D.BEANS.filter((b) => b.roasterId === roasterId);
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }} className="fade-up">
       <Button variant="outline" onClick={onBack} style={{ marginBottom: 18 }}>
@@ -473,6 +491,13 @@ export function RoasterDetail({
           <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
         ))}
       </div>
+      {hasMore && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <Button variant="outline" onClick={loadMore} disabled={pending}>
+            {pending ? "Loading…" : "Load more"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -489,12 +514,11 @@ export function ProfileScreen({
 }) {
   const D = useData();
   const router = useRouter();
-  const me = D.currentUserId ? D.user(D.currentUserId) : undefined;
-  const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
+  const me = D.me ?? undefined;
+  const mine = D.myTastings;
   const topFlavors: Record<string, number> = {};
   mine.forEach((t) => {
-    const b = D.bean(t.beanId);
-    b?.flavors.forEach((f) => (topFlavors[f] = (topFlavors[f] || 0) + 1));
+    t.beanFlavors.forEach((f) => (topFlavors[f] = (topFlavors[f] || 0) + 1));
   });
   const flavorList = Object.entries(topFlavors)
     .sort((a, b) => b[1] - a[1])

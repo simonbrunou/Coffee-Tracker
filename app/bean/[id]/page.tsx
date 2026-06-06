@@ -1,22 +1,12 @@
-"use client";
-import { useParams, useRouter } from "next/navigation";
-import { BeanDetail } from "@/components/detail";
-import { useShell } from "@/components/app-provider";
+import { getCurrentUserId } from "@/lib/auth";
+import { getBean, getBeanReviewsPage } from "@/lib/queries";
+import { BeanClient } from "./bean-client";
 
-export default function BeanPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const s = useShell();
-  return (
-    <BeanDetail
-      beanId={id}
-      onBack={() => (window.history.length > 1 ? router.back() : router.push("/"))}
-      onOpenRoaster={s.openRoaster}
-      likes={s.likes}
-      onLike={s.toggleLike}
-      onAdd={s.openBrew}
-      onEditBag={s.openEditBag}
-      onDeleteBag={s.deleteBag}
-    />
-  );
+// Server component: fetch the bean + its first page of reviews (scoped/paginated),
+// then hand off to a client wrapper that wires the shell handlers.
+export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const uid = await getCurrentUserId();
+  const [bean, initialReviews] = await Promise.all([getBean(uid, id), getBeanReviewsPage(uid, id, {})]);
+  return <BeanClient beanId={id} bean={bean} initialReviews={initialReviews} />;
 }
