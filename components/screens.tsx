@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useData } from "./data-context";
 import { BeanCard, BeanBag, TastingCard } from "./cards";
+import { useShell } from "./app-provider";
 import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,16 +75,19 @@ export function FeedScreen({
   setFilter: (f: string) => void;
 }) {
   const D = useData();
-  const tabs = ["Following", "Popular", "Nearby"];
-  let list = [...D.TASTINGS];
-  if (filter === "Popular") list = list.sort((a, b) => b.likes - a.likes);
+  const tabs = ["Recent", "Following", "Popular"];
+  let list = filter === "Following" ? [...D.FOLLOWING]
+           : filter === "Popular"   ? [...D.TASTINGS].sort((a, b) => b.likes - a.likes)
+           : [...D.TASTINGS];
+  const sub =
+    filter === "Following"
+      ? "Fresh tastings from the people you follow."
+      : filter === "Popular"
+        ? "The most-loved brews on Cortado right now."
+        : "The latest brews across Cortado.";
   return (
     <div style={{ maxWidth: 620, margin: "0 auto" }}>
-      <ScreenHead
-        kicker="Your daily pour"
-        title="The Feed"
-        sub="Fresh tastings from roasters and people you follow."
-      />
+      <ScreenHead kicker="Your daily pour" title="The Feed" sub={sub} />
       <div role="group" aria-label="Filter feed" style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {tabs.map((t) => {
           const active = filter === t;
@@ -108,18 +112,38 @@ export function FeedScreen({
           );
         })}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        {list.map((t, i) => (
-          <TastingCard
-            key={t.id}
-            tasting={t}
-            delay={i * 50}
-            onOpenBean={onOpenBean}
-            onLike={onLike}
-            liked={likes.has(t.id)}
-          />
-        ))}
+      {filter === "Following" && list.length === 0 ? (
+        <FeedEmpty
+          title="You're not following anyone yet"
+          hint="Find people and roasters to follow over on Discover."
+        />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {list.map((t, i) => (
+            <TastingCard
+              key={t.id}
+              tasting={t}
+              delay={i * 50}
+              onOpenBean={onOpenBean}
+              onLike={onLike}
+              liked={likes.has(t.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Empty state for feed tabs (e.g. Following with no follows yet).
+function FeedEmpty({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
+      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
+        <Icon name="user" size={40} />
       </div>
+      <p style={{ fontSize: 16, fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
+      <p style={{ fontSize: 14, marginTop: 6 }}>{hint}</p>
     </div>
   );
 }
@@ -140,9 +164,13 @@ export function JournalScreen({
 }) {
   const D = useData();
   const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
-  const [section, setSection] = useState<"brews" | "shelf">("brews");
+  const [section, setSection] = useState<"brews" | "shelf" | "saved">("brews");
   const [view, setView] = useState<"timeline" | "grid">("timeline");
   const shelf = D.shelf();
+  // Filter by the optimistic Sets (instant after a Save), not the server snapshot.
+  const { savedTastings: savedSet, wishedBeans: wishedSet } = useShell();
+  const savedTastings = D.TASTINGS.filter((t) => savedSet.has(t.id));
+  const wishlistedBeans = D.BEANS.filter((b) => wishedSet.has(b.id));
   const avg = mine.length ? (mine.reduce((s, t) => s + t.rating, 0) / mine.length).toFixed(1) : "0.0";
   const beansLogged = new Set(mine.map((t) => t.beanId)).size;
 
@@ -189,9 +217,11 @@ export function JournalScreen({
           [
             ["brews", "Brews"],
             ["shelf", "My Shelf"],
+            ["saved", "Saved"],
           ] as const
         ).map(([k, lbl]) => {
           const active = section === k;
+          const count = k === "shelf" ? shelf.length : k === "saved" ? savedTastings.length + wishlistedBeans.length : null;
           return (
             <button
               key={k}
@@ -207,8 +237,8 @@ export function JournalScreen({
               }}
             >
               {lbl}
-              {k === "shelf" && (
-                <span style={{ marginLeft: 7, fontSize: 12, color: "var(--mocha)" }}>{shelf.length}</span>
+              {count != null && (
+                <span style={{ marginLeft: 7, fontSize: 12, color: "var(--mocha)" }}>{count}</span>
               )}
             </button>
           );
@@ -242,6 +272,52 @@ export function JournalScreen({
             <ShelfCard key={b.id} bag={b} onBrew={onBrew} onOpen={onOpenBean} delay={i * 40} />
           ))}
         </div>
+      ) : section === "saved" ? (
+        savedTastings.length === 0 && wishlistedBeans.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
+            <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
+              <Icon name="bookmark" size={40} />
+            </div>
+            <p style={{ fontSize: 16, fontWeight: 600, color: "var(--coffee)" }}>Nothing saved yet</p>
+            <p style={{ fontSize: 14, marginTop: 6 }}>
+              Save a brew you love, or mark a bean you want to try.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+            {savedTastings.length > 0 && (
+              <div>
+                <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
+                  Saved brews
+                </h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {savedTastings.map((t, i) => (
+                    <TastingCard
+                      key={t.id}
+                      tasting={t}
+                      delay={i * 50}
+                      onOpenBean={onOpenBean}
+                      onLike={onLike}
+                      liked={likes.has(t.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {wishlistedBeans.length > 0 && (
+              <div>
+                <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
+                  Want to try
+                </h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
+                  {wishlistedBeans.map((b, i) => (
+                    <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 16 }}>

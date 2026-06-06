@@ -7,6 +7,7 @@ export interface Roaster {
   founded: number;
   beans: number;
   followers: number;
+  followedByMe: boolean;
   blurb: string;
 }
 
@@ -19,6 +20,7 @@ export interface User {
   tastings: number;
   followers: number;
   following: number;
+  followedByMe: boolean;
   bio: string;
 }
 
@@ -59,6 +61,7 @@ export interface Bean {
   remaining?: number | null;
   /** Owner (creator) of this bag; null only for a future shared catalog. */
   ownerId?: string | null;
+  wishlistedByMe: boolean;
 }
 
 /** A brew/tasting entry — the fast, everyday action logged against a bag. */
@@ -73,13 +76,26 @@ export interface Tasting {
   temp: string;
   note: string;
   likes: number;
-  comments: number;
+  commentsCount: number;
+  /** True when the current viewer has saved/bookmarked this tasting. */
+  savedByMe: boolean;
   /** True when the current viewer has liked this tasting (server-derived). */
   likedByMe: boolean;
   /** ISO timestamp the brew was logged; relative label derived on the client. */
   createdAt: string;
   /** Relative age label, e.g. "2h" or "now". */
   time: string;
+}
+
+/** A flat comment on a tasting. */
+export interface Comment {
+  id: string;
+  tastingId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  /** ISO timestamp of the last edit; null if never edited. */
+  updatedAt: string | null;
 }
 
 // ---- SCA Coffee Taster's Flavor Wheel ----
@@ -93,12 +109,18 @@ export interface WheelCategory {
   groups: WheelGroup[];
 }
 
-/** Everything the client shell needs to render, fetched once on the server. */
 export interface AppData {
   roasters: Roaster[];
   users: User[];
   beans: Bean[];
   tastings: Tasting[];
+  /** Tastings authored by users the current viewer follows (server-filtered). */
+  followingTastings: Tasting[];
+  /** Current viewer's membership id-lists, to seed the optimistic client Sets. */
+  followedUserIds: string[];
+  followedRoasterIds: string[];
+  savedTastingIds: string[];
+  wishedBeanIds: string[];
   currentUserId: string | null;
 }
 
@@ -139,3 +161,6 @@ export interface UpdateBrewInput {
 export interface UpdateBagInput extends AddBagInput {
   id: string;
 }
+
+export interface AddCommentInput { tastingId: string; body: string }
+export interface UpdateCommentInput { id: string; body: string }

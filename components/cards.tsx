@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "./app-provider";
 import { Avatar, BeanRating, FlavorChip, Icon, RoastPill, Tag } from "./ui";
+import { CommentThread } from "./comment-thread";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tasting, Bean } from "@/lib/types";
@@ -28,7 +29,8 @@ export function TastingCard({
   const isMine = tasting.userId === D.currentUserId;
   const user = D.user(tasting.userId);
   const bean = D.bean(tasting.beanId);
-  const [saved, setSaved] = useState(false);
+  const saved = shell.savedTastings.has(tasting.id);
+  const [showComments, setShowComments] = useState(false);
   const [burst, setBurst] = useState(false);
 
   if (!user || !bean) return null;
@@ -62,6 +64,16 @@ export function TastingCard({
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span style={{ fontWeight: 600, fontSize: 14.5 }}>{user.name}</span>
             {isMine && <Tag accent>You</Tag>}
+            {!isMine && D.currentUserId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 text-[12px] text-[var(--caramel-deep)]"
+                onClick={() => shell.toggleFollowUser(tasting.userId)}
+              >
+                {shell.followedUsers.has(tasting.userId) ? "Following" : "Follow"}
+              </Button>
+            )}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>
             @{user.handle} · {ago}
@@ -143,11 +155,15 @@ export function TastingCard({
           label={tasting.likes + (liked && !tasting.likedByMe ? 1 : !liked && tasting.likedByMe ? -1 : 0)}
           activeColor="var(--caramel)"
         />
-        <ActionBtn icon={<Icon name="comment" size={19} />} label={tasting.comments} />
+        <ActionBtn
+          icon={<Icon name="comment" size={19} />}
+          label={tasting.commentsCount}
+          onClick={() => setShowComments((s) => !s)}
+        />
         <div style={{ flex: 1 }} />
         <ActionBtn
           active={saved}
-          onClick={() => setSaved((s) => !s)}
+          onClick={() => shell.toggleSaveTasting(tasting.id)}
           icon={
             <Icon
               name="bookmark"
@@ -160,6 +176,7 @@ export function TastingCard({
           activeColor="var(--sage)"
         />
       </div>
+      {showComments && <CommentThread tastingId={tasting.id} />}
     </article>
   );
 }

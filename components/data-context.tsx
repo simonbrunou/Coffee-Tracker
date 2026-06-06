@@ -12,6 +12,7 @@ export interface DataApi {
   USERS: User[];
   BEANS: Bean[];
   TASTINGS: Tasting[];
+  FOLLOWING: Tasting[];
   FLAVORS: Record<string, string>;
   BREW_METHODS: string[];
   ROAST_LEVELS: string[];
@@ -30,6 +31,7 @@ export function DataProvider({
   users,
   beans,
   tastings,
+  followingTastings,
   currentUserId,
   children,
 }: {
@@ -37,6 +39,7 @@ export function DataProvider({
   users: User[];
   beans: Bean[];
   tastings: Tasting[];
+  followingTastings: Tasting[];
   currentUserId: string | null;
   children: React.ReactNode;
 }) {
@@ -46,6 +49,7 @@ export function DataProvider({
       USERS: users,
       BEANS: beans,
       TASTINGS: tastings,
+      FOLLOWING: followingTastings,
       FLAVORS: FLAVOR_COLORS,
       BREW_METHODS,
       ROAST_LEVELS,
@@ -56,7 +60,7 @@ export function DataProvider({
       user: (id) => users.find((u) => u.id === id),
       shelf: () => beans.filter((b) => b.owned && b.ownerId === currentUserId),
     }),
-    [roasters, users, beans, tastings, currentUserId],
+    [roasters, users, beans, tastings, followingTastings, currentUserId],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
