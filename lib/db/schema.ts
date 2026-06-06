@@ -90,8 +90,8 @@ export const beans = pgTable(
     check("beans_owned_has_owner", sql`not ${t.owned} or ${t.userId} is not null`),
     index("beans_user_owned_idx").on(t.userId, t.owned),
     index("beans_roaster_idx").on(t.roasterId),
-    // .nullsFirst() so Postgres omits the clause (DESC default), matching db/schema.sql's bare `desc`.
-    index("beans_created_idx").on(t.createdAt.desc().nullsFirst()),
+    // Composite keyset index for (created_at, id) cursor pagination (M3·D).
+    index("beans_created_id_idx").on(t.createdAt.desc().nullsFirst(), t.id.desc()),
   ],
 );
 
@@ -113,7 +113,8 @@ export const tastings = pgTable(
   },
   (t) => [
     check("tastings_rating_check", sql`${t.rating} between 1 and 5`),
-    index("tastings_created_idx").on(t.createdAt.desc().nullsFirst()),
+    // Composite keyset index for (created_at, id) cursor pagination (M3·D).
+    index("tastings_created_id_idx").on(t.createdAt.desc().nullsFirst(), t.id.desc()),
     index("tastings_bean_idx").on(t.beanId),
     index("tastings_user_idx").on(t.userId),
   ],
