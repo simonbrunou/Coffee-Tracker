@@ -18,8 +18,10 @@ export async function signOutAllDevices(): Promise<void> {
 
 /** Hard-delete the account. DELETE FROM users cascades to every user-owned row
  *  (accounts, beans→tastings→likes/saves/comments, the user's own tastings/likes,
- *  follows, saves, wishlist, comments). Runs in a tx; signOut is last because its
- *  redirect throws. next-auth writes the session-clearing cookie BEFORE the
+ *  follows, saves, wishlist, comments). The single DELETE is already atomic; the
+ *  withTransaction wrapper just makes the multi-table cascade read as one explicit
+ *  unit. signOut is last because its redirect throws. next-auth writes the
+ *  session-clearing cookie BEFORE the
  *  redirect throw and JWT signOut needs no DB, so the user is logged out on this
  *  same response; read-path revocation (row gone → getSessionVersion null →
  *  getCurrentUserId null) is a backstop only if signOut fails before that write. */
