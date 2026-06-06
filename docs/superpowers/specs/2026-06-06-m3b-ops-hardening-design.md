@@ -153,7 +153,7 @@ export function GET() {
 
 **No `output: "standalone"`** (council-cut footgun: it breaks asset serving unless `.next/static`/`public` are hand-copied exactly, and it conflicts with `next start`). The Dockerfile uses plain **`next start`**, matching the existing `npm start` script.
 
-**`Dockerfile`** — multi-stage, `node:20-alpine` (matches `.nvmrc`), non-root runtime:
+**`Dockerfile`** — multi-stage, `node:24-alpine` (matches `.nvmrc` = 24, bumped to Active LTS in commit `a1b0bd7`), non-root runtime:
 - `deps` stage: `npm ci`
 - `build` stage: copy deps + source, `AUTH_SECRET=ci-build-placeholder npm run build` (placeholder only suppresses the next-auth build warning; build is force-dynamic, no DB needed)
 - `runner` stage: `NODE_ENV=production`, copy `node_modules` + `.next` + `public`(if present) + `package.json` + `next.config.ts`, non-root `node` user, `EXPOSE 3000`, `CMD ["npm","start"]`
