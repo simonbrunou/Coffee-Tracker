@@ -1,6 +1,7 @@
 # M3·D·2 — Slim getAppData + Per-Screen Server-Scoping — Design
 
 **Date:** 2026-06-06
+**Status:** Implemented (2026-06-06), PR #17. Built as a 3-cut (additive query layer → atomic flip → cleanup). `getAppData` no longer ships global beans/tastings/users; discover/bean/roaster are server-fetch + client-render; journal/profile/log-sheet/comment-thread read the provider's bounded per-user data. Live spike PASSED — `/` payload dropped from all 30 brews to feed page-1 (20); bean-detail server page renders 10 paginated reviews denormalized. 119 tests; security + code-quality reviews ship-ready (one unused-export Minor fixed). Completes M3·D and M3.
 **Branch:** `feat/m3d2-scope-getappdata` (off `main` @ `ddd426f`, the M3·D·1 merge)
 **Milestone:** M3·D, **phase 2 of 2** (completes M3·D and M3). D·1 (PR #16) made rows self-sufficient + paginated the feed, additively. D·2 removes the unbounded global arrays — the actual payload-reduction win.
 **Approach:** the M3·D approach is locked (targeted, **no data-fetching library**, server-fetch pages + client render). The 3-member M3·D council pressure-tested this whole architecture and the D·1 adversarial review mapped D·2's hard parts; this spec executes that analysis — **no new council round** (D·2 is a strict subset of what was reviewed).
