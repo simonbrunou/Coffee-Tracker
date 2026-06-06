@@ -27,7 +27,7 @@
 
 **Files:**
 - Modify: `package.json` (deps + scripts), `.gitignore`
-- Create: `drizzle.config.ts`, `.env.test` (gitignored), `test/integration/_db.ts` (helpers), `test/integration/globalSetup.ts`, `test/integration/smoke.test.ts`
+- Create: `drizzle.config.ts`, `.env.test` (gitignored), `test/integration/_db.ts` (helpers), `test/integration/setup.ts` (setupFile), `test/integration/smoke.test.ts`
 - Modify: `vitest.config.ts`
 
 - [ ] **Step 1: Install Drizzle**
@@ -115,7 +115,21 @@ export async function dropDb(name: string) {
   await admin((c) => c.query(`drop database if exists ${name} with (force)`).then(() => {}));
 }
 
-/** Catalog snapshot used by the fidelity gate. */
+/** Normalize a column_default so cosmetic representations compare equal:
+ *  '0'::numeric -> 0, '{}'::text[] -> {}, ''::text -> '', 'now'::text -> now. */
+function normDefault(d: string | null): string | null {
+  if (d == null) return null;
+  return d
+    .replace(/::[a-zA-Z0-9_ "[\]]+/g, "") // strip ::type casts
+    .replace(/^'([\s\S]*)'$/, "$1")        // unwrap surrounding quotes
+    .trim();
+}
+
+/** Catalog snapshot for the fidelity gate.
+ *  Constraint NAMES are only asserted for CHECKs (stable + app-meaningful) and,
+ *  separately, the load-bearing standalone index `users_email_lower_uq`.
+ *  FK/PK/UNIQUE auto-names differ between drizzle-kit and Postgres, so those are
+ *  compared by DEFINITION only (def still encodes columns, refs, ON DELETE). */
 export async function catalog(client: Client) {
   const columns = (
     await client.query(`
@@ -123,34 +137,46 @@ export async function catalog(client: Client) {
       from information_schema.columns
       where table_schema = 'public'
       order by table_name, column_name`)
-  ).rows;
-  const constraints = (
+  ).rows.map((r) => ({ ...r, column_default: normDefault(r.column_default) }));
+
+  const cons = (
     await client.query(`
       select conname, contype, pg_get_constraintdef(oid) as def
       from pg_constraint
       where connamespace = 'public'::regnamespace
-      order by conname`)
+      order by contype, def, conname`)
   ).rows;
+  // CHECKs: names are stable and app-meaningful -> compare (name, def).
+  const checks = cons
+    .filter((c) => c.contype === "c")
+    .map((c) => ({ conname: c.conname, def: c.def }));
+  // FK / PK / UNIQUE: auto-names differ by engine -> compare defs only (sorted).
+  const constraintDefs = cons.filter((c) => c.contype !== "c").map((c) => c.def).sort();
+
+  // Standalone indexes only — exclude constraint-backed ones (indexname == a
+  // conname), which are already covered by the constraint comparison. This keeps
+  // the app-load-bearing partial index `users_email_lower_uq` (not a constraint)
+  // asserted by name + def.
+  const conNames = new Set(cons.map((c) => c.conname));
   const indexes = (
     await client.query(`
       select indexname, indexdef from pg_indexes
       where schemaname = 'public'
       order by indexname`)
-  ).rows;
-  return { columns, constraints, indexes };
+  ).rows.filter((i) => !conNames.has(i.indexname));
+
+  return { columns, checks, constraintDefs, indexes };
 }
 ```
 
-- [ ] **Step 6: `test/integration/globalSetup.ts`**
+- [ ] **Step 6: `test/integration/setup.ts` (per-worker setup file)**
+
+Must be a `setupFile`, NOT `globalSetup`: setup files run inside each worker process before the test module is evaluated, so the loaded `DATABASE_URL` reaches the worker where `describe.skipIf(!process.env.DATABASE_URL)` is evaluated. (globalSetup runs only in the main process and may not propagate env to forked workers.) No-op in CI, where `DATABASE_URL` is set at the job level.
 
 ```ts
 import { config } from "dotenv";
 
-// Load the local test DB URL if present (no-op in CI, where DATABASE_URL is set
-// at the job level). Integration test files self-skip when DATABASE_URL is unset.
-export default function setup() {
-  config({ path: ".env.test" });
-}
+config({ path: ".env.test" }); // no-op if the file is absent (CI uses job env)
 ```
 
 - [ ] **Step 7: Split `vitest.config.ts` into `unit` + `integration` projects**
@@ -183,7 +209,7 @@ export default defineConfig({
           environment: "node",
           include: ["test/integration/**/*.test.ts"],
           fileParallelism: false,
-          globalSetup: ["test/integration/globalSetup.ts"],
+          setupFiles: ["test/integration/setup.ts"],
         },
       },
     ],
@@ -209,22 +235,21 @@ describe.skipIf(!hasDb)("integration lane", () => {
 });
 ```
 
-- [ ] **Step 9: package.json scripts**
+- [ ] **Step 9: package.json script**
 
 Add:
 ```json
-"test:integration": "vitest run --project integration",
-"pretest:integration": "npm run db:setup"
+"test:integration": "vitest run --project integration"
 ```
-(The integration project's globalSetup loads `.env.test`, so `npm run test:integration` finds the test DB. `db:setup` is rewritten in Task 4 to be non-destructive + read `DATABASE_URL`.)
+The integration tests create their own scratch DBs from `drizzle/0000_init.sql`, so they do **not** depend on `db:setup` having run — no `pretest` migrate hook (this keeps Task 3 runnable before Task 4). The `setup.ts` setupFile loads `.env.test` so `test:integration` finds the test DB.
 
 - [ ] **Step 10: Verify the lanes**
 
-Run: `npm test` (no `.env.test` loaded by unit project → integration self-skips except smoke which needs DB; smoke skips without DATABASE_URL).
-Expected: unit project green (94 tests); integration smoke **skipped**.
-
 Run: `npm run test:integration`
-Expected: smoke test **passes** (connects to `coffee_tracker_test`).
+Expected: smoke test **passes** (connects to `coffee_tracker_test` via `.env.test`).
+
+Run: `npm test`
+Expected: unit project green (94 tests); integration project runs and the smoke passes too (since `.env.test` is present). To confirm the skip path, temporarily move `.env.test` aside and re-run `npm test` → integration tests **self-skip** (no `DATABASE_URL`), unit still green.
 
 - [ ] **Step 11: Commit**
 
@@ -270,9 +295,12 @@ describe.skipIf(!hasDb)("schema fidelity: Drizzle baseline == db/schema.sql", ()
     try {
       const ca = await catalog(a);
       const cb = await catalog(b);
-      // Compare as JSON sets so diffs are legible on failure.
+      // Columns (normalized defaults); CHECKs by name+def; FK/PK/UNIQUE by def
+      // only (auto-names differ by engine); standalone indexes by name+def
+      // (this is where the load-bearing users_email_lower_uq is verified).
       expect(ca.columns).toEqual(cb.columns);
-      expect(ca.constraints).toEqual(cb.constraints);
+      expect(ca.checks).toEqual(cb.checks);
+      expect(ca.constraintDefs).toEqual(cb.constraintDefs);
       expect(ca.indexes).toEqual(cb.indexes);
     } finally {
       await a.end();
@@ -320,7 +348,10 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    unique("users_handle_key").on(t.handle),
+    // Name is auto-generated and not app-referenced (handle clashes fall through
+    // to the generic register message) -> the gate compares UNIQUE by def, not name.
+    unique().on(t.handle),
+    // App-load-bearing NAME (register-errors.ts branches on err.constraint).
     uniqueIndex("users_email_lower_uq").on(lower(t.email)).where(sql`${t.passwordHash} is not null`),
   ],
 );
@@ -336,7 +367,7 @@ export const accounts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    unique("accounts_provider_provider_account_id_key").on(t.provider, t.providerAccountId),
+    unique().on(t.provider, t.providerAccountId), // auto-name; gate compares by def
     index("accounts_user_idx").on(t.userId),
   ],
 );
@@ -491,12 +522,12 @@ Expected: `drizzle/0000_init.sql` + `drizzle/meta/` created. (`generate` is offl
 - [ ] **Step 4: Run the fidelity gate**
 
 Run: `npm run test:integration -- schema-fidelity`
-Expected on first run: likely **FAIL** with a catalog diff. Read the diff and fix `lib/db/schema.ts`, then **delete `drizzle/` and regenerate** (Step 3) and re-run. Likely fixes:
-- **Constraint/index names**: pin any auto-named UNIQUE to the Postgres name (`unique("…_key")`); confirm `users_email_lower_uq` name is preserved.
-- **Array defaults**: if drizzle emits `ARRAY[]::text[]` vs `'{}'::text[]`, the `column_default` row differs — adjust the `.default(sql\`…\`)` literal to match `db/schema.sql`.
-- **`numeric` defaults**: `avg_rating` default `0` may serialize as `'0'::numeric` on both sides — confirm equal.
-- **CHECK defs**: both go through `pg_get_constraintdef` so `between` normalizes identically; a mismatch means a different expression — fix the `sql\`\`` text.
-Iterate until: `expect(ca.columns/constraints/indexes).toEqual(...)` all pass.
+Expected on first run: possibly **FAIL** with a catalog diff. Read the diff, fix `lib/db/schema.ts`, then **delete `drizzle/` and regenerate** (Step 3) and re-run. The gate already absorbs the two biggest cosmetic noise sources (FK/PK/UNIQUE auto-names → compared by def; `column_default` → normalized), so remaining failures are real. Likely fixes:
+- **CHECK name/def**: the four named checks must match — `beans_owned_has_owner`, `no_self_follow`, `tastings_rating_check`, `comments_body_check`. A name mismatch means the pinned `check("…")` name differs from Postgres's inline auto-name; a def mismatch means the `sql\`\`` expression differs (both sides normalize through `pg_get_constraintdef`, so `between` → `>= AND <=` identically).
+- **`users_email_lower_uq` indexdef**: confirm the partial predicate (`WHERE (password_hash IS NOT NULL)`) and `lower(email)` expression render identically.
+- **column `udt_name`/`is_nullable`**: a wrong type (`numeric` vs `integer`, missing `text[]`) or nullability shows here.
+- **normalized default still differing**: an unforeseen default representation — extend `normDefault` (it's test code, not the oracle) only if the difference is provably cosmetic.
+Iterate until `columns`, `checks`, `constraintDefs`, and `indexes` all pass.
 
 - [ ] **Step 5: Confirm tsc + unit lane still green**
 
@@ -538,12 +569,14 @@ describe.skipIf(!hasDb)("schema constraints fire", () => {
     return freshDbWithSql(DB, baseline);
   }
 
-  it("has exactly 11 public tables (excluding the drizzle journal)", async () => {
+  it("has exactly 11 public tables", async () => {
+    // Scratch DB applies drizzle/0000 as raw SQL (no migrate()), so there is no
+    // __drizzle_migrations journal here — a plain public BASE TABLE count is 11.
     const c = await client();
     try {
       const r = await c.query(
         `select count(*)::int as n from information_schema.tables
-         where table_schema='public' and table_name <> '__drizzle_migrations'`,
+         where table_schema='public' and table_type='BASE TABLE'`,
       );
       expect(r.rows[0].n).toBe(11);
     } finally { await c.end(); }
@@ -655,14 +688,22 @@ async function main() {
   console.log(`→ ${connectionString.replace(/:[^:@/]+@/, ":***@")}`);
 
   if (RESET) {
-    console.log("→ --reset: dropping schema public");
-    await pool.query("drop schema public cascade; create schema public;");
+    // Must drop the `drizzle` schema too: migrate() keeps its __drizzle_migrations
+    // journal there, NOT in public. Dropping only public would leave the journal
+    // marking 0000 as "applied", so migrate() below would skip re-creating the
+    // tables -> empty schema -> seed crash.
+    console.log("→ --reset: dropping schema public + drizzle (migration journal)");
+    await pool.query(
+      "drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;",
+    );
   }
 
   // Additive, idempotent: applies any pending migrations. Never drops on its own.
   await migrate(db, { migrationsFolder: "drizzle" });
   console.log("✓ Migrations applied");
 
+  // NOTE: seed arrays are currently EMPTY (no committed demo content), so seed()
+  // is a no-op today; the gate stays future-proof for when seed data is added.
   if (RESET || (await isEmpty())) {
     await seed();
     console.log("✅ Seeded.");
@@ -682,16 +723,22 @@ main()
 
 Keep the existing INSERT loops verbatim inside `seed()`. The `migrate()` call must run on its own (it manages its own transactions) — do not wrap it in the seed transaction. Remove the old `readFileSync("db/schema.sql")` usage.
 
-- [ ] **Step 2: Verify against the test DB (fresh + idempotent + reset)**
+- [ ] **Step 2: Verify non-destructive vs reset using a sentinel row**
+
+Seed arrays are empty, so prove non-destructiveness with a manually-inserted sentinel row (not seed content):
 
 ```bash
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coffee_tracker_test
-docker exec coffee-pg psql -U postgres -d coffee_tracker_test -c "drop schema public cascade; create schema public;"
-npm run db:setup            # migrates + seeds (empty)
-npm run db:setup            # migrates (no-op) + SKIPS seed (non-destructive)
-npm run db:reset            # --reset: drops + migrates + seeds
+PSQL="docker exec coffee-pg psql -U postgres -d coffee_tracker_test"
+$PSQL -c "drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;"
+npm run db:setup     # migrate: creates 11 tables; seed() no-op (empty arrays)
+$PSQL -c "insert into roasters (id,name,city,founded) values ('sentinel','S','S',2020);"
+npm run db:setup     # NON-DESTRUCTIVE: migrate no-op; isEmpty()=false -> 'skipped seed'
+$PSQL -tAc "select count(*) from roasters;"   # expect 1 — sentinel SURVIVED
+npm run db:reset     # --reset: drops public+drizzle, re-migrates, seeds
+$PSQL -tAc "select count(*) from roasters;"   # expect 0 — sentinel GONE
 ```
-Expected: first run "Seeded."; second run "skipped seed (non-destructive)."; reset run "Seeded." again. No `DROP TABLE` happens on a bare `db:setup`.
+Expected: after the 2nd `db:setup` count = **1** (no `DROP TABLE` on a bare setup); after `db:reset` count = **0**. Crucially, `db:reset` must **not error** — that proves the `drizzle` journal schema was dropped so `migrate()` re-applied the baseline (the journal-survival bug would otherwise crash the seed against missing tables).
 
 - [ ] **Step 3: Confirm `db:reset` passes `--reset`**
 
@@ -750,6 +797,14 @@ jobs:
       - run: npm ci
       - name: Type-check
         run: npm run typecheck
+      - name: Schema/migration drift check
+        run: |
+          npx drizzle-kit generate --name ci_drift_check
+          if [ -n "$(git status --porcelain drizzle/)" ]; then
+            echo "::error::lib/db/schema.ts drifted from the committed migration. Run 'npx drizzle-kit generate' and commit."
+            git --no-pager diff --stat drizzle/ && git status --porcelain drizzle/
+            exit 1
+          fi
       - name: Migrate test DB
         run: npm run db:setup
       - name: Test
