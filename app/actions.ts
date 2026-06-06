@@ -2,9 +2,10 @@
 
 import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
-import { BEAN_COLS, TASTING_COLS } from "@/lib/queries";
+import { BEAN_COLS, TASTING_COLS, getComments } from "@/lib/queries";
 import { requireUserId } from "@/lib/auth";
-import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
 import { revalidatePath } from "next/cache";
 import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag } from "@/lib/brew-validation";
 
@@ -26,7 +27,7 @@ export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
   );
   if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
   revalidatePath("/", "layout");
-  return { ...rows[0], likedByMe: false };
+  return { ...rows[0], likedByMe: false, savedByMe: false, commentsCount: 0 };
 }
 
 /** Add a bag — the rich catalog record, created once. Becomes a real catalog
@@ -80,7 +81,7 @@ export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
   );
   if (rows.length === 0) throw new Error("Couldn't update that brew.");
   revalidatePath("/", "layout");
-  return { ...rows[0], likedByMe: false };
+  return { ...rows[0], likedByMe: false, savedByMe: false, commentsCount: 0 };
 }
 
 export async function deleteBrew(id: string): Promise<void> {
@@ -129,5 +130,71 @@ export async function toggleLike(tastingId: string, liked: boolean): Promise<voi
   } else {
     await query(`delete from likes where user_id = $1 and tasting_id = $2`, [userId, tastingId]);
   }
+  revalidatePath("/", "layout");
+}
+
+// ---- Follows / saves / wishlist (idempotent toggles, mirroring toggleLike) ----
+export async function toggleFollowUser(targetUserId: string, follow: boolean): Promise<void> {
+  const userId = await requireUserId();
+  if (userId === targetUserId) throw new Error("You can't follow yourself.");
+  if (follow) await query(`insert into user_follows (follower_id, followee_id) values ($1, $2) on conflict do nothing`, [userId, targetUserId]);
+  else await query(`delete from user_follows where follower_id = $1 and followee_id = $2`, [userId, targetUserId]);
+  revalidatePath("/", "layout");
+}
+export async function toggleFollowRoaster(roasterId: string, follow: boolean): Promise<void> {
+  const userId = await requireUserId();
+  if (follow) await query(`insert into roaster_follows (user_id, roaster_id) values ($1, $2) on conflict do nothing`, [userId, roasterId]);
+  else await query(`delete from roaster_follows where user_id = $1 and roaster_id = $2`, [userId, roasterId]);
+  revalidatePath("/", "layout");
+}
+export async function toggleSaveTasting(tastingId: string, save: boolean): Promise<void> {
+  const userId = await requireUserId();
+  if (save) await query(`insert into tasting_saves (user_id, tasting_id) values ($1, $2) on conflict do nothing`, [userId, tastingId]);
+  else await query(`delete from tasting_saves where user_id = $1 and tasting_id = $2`, [userId, tastingId]);
+  revalidatePath("/", "layout");
+}
+export async function toggleWishlistBean(beanId: string, wish: boolean): Promise<void> {
+  const userId = await requireUserId();
+  if (wish) await query(`insert into bean_wishlist (user_id, bean_id) values ($1, $2) on conflict do nothing`, [userId, beanId]);
+  else await query(`delete from bean_wishlist where user_id = $1 and bean_id = $2`, [userId, beanId]);
+  revalidatePath("/", "layout");
+}
+
+// ---- Comments ----
+export async function fetchComments(tastingId: string): Promise<Comment[]> {
+  return getComments(tastingId);
+}
+export async function addComment(rawInput: AddCommentInput): Promise<Comment> {
+  const userId = await requireUserId();
+  const v = validateComment(rawInput);
+  if (!v.ok) throw new Error(v.error);
+  const id = `c-${randomUUID()}`;
+  const { rows } = await query<Comment>(
+    `insert into comments (id, tasting_id, user_id, body) values ($1, $2, $3, $4)
+     returning id, tasting_id as "tastingId", user_id as "userId", body,
+               created_at as "createdAt", updated_at as "updatedAt"`,
+    [id, v.value.tastingId, userId, v.value.body],
+  );
+  revalidatePath("/", "layout");
+  return rows[0];
+}
+export async function updateComment(rawInput: UpdateCommentInput): Promise<Comment> {
+  const userId = await requireUserId();
+  const v = validateUpdateComment(rawInput);
+  if (!v.ok) throw new Error(v.error);
+  const { rows } = await query<Comment>(
+    `update comments set body = $3, updated_at = now() where id = $1 and user_id = $2
+     returning id, tasting_id as "tastingId", user_id as "userId", body,
+               created_at as "createdAt", updated_at as "updatedAt"`,
+    [v.value.id, userId, v.value.body],
+  );
+  if (rows.length === 0) throw new Error("Couldn't update that comment.");
+  revalidatePath("/", "layout");
+  return rows[0];
+}
+export async function deleteComment(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const { rowCount } = await query(`delete from comments where id = $1 and user_id = $2`, [id, userId]);
+  if (!rowCount) throw new Error("Couldn't delete that comment.");
   revalidatePath("/", "layout");
 }
