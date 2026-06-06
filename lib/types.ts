@@ -1,4 +1,5 @@
 /* ============ Cortado — Domain Types ============ */
+export type { Page } from "@/lib/pagination";
 
 export interface Roaster {
   id: string;
@@ -85,6 +86,17 @@ export interface Tasting {
   createdAt: string;
   /** Relative age label, e.g. "2h" or "now". */
   time: string;
+  // ---- Denormalized for standalone rendering (M3·D): a tasting row carries
+  // its author + bean display fields so cards need no global lookup. ----
+  authorName: string;
+  authorHandle: string;
+  authorAvatar: string;
+  beanName: string;
+  beanColor: string;
+  beanOrigin: string;
+  /** coalesce(roaster.name, bean.roaster_name); null falls back to "My roaster" in the UI. */
+  beanRoasterName: string | null;
+  beanFlavors: string[];
 }
 
 /** A flat comment on a tasting. */
@@ -96,6 +108,10 @@ export interface Comment {
   createdAt: string;
   /** ISO timestamp of the last edit; null if never edited. */
   updatedAt: string | null;
+  // Denormalized author (M3·D) so the comment thread needs no global user lookup.
+  authorName: string;
+  authorHandle: string;
+  authorAvatar: string;
 }
 
 // ---- SCA Coffee Taster's Flavor Wheel ----
@@ -116,6 +132,8 @@ export interface AppData {
   tastings: Tasting[];
   /** Tastings authored by users the current viewer follows (server-filtered). */
   followingTastings: Tasting[];
+  /** First page of the Recent feed (keyset-paginated; M3·D). */
+  feed: import("@/lib/pagination").Page<Tasting>;
   /** Current viewer's membership id-lists, to seed the optimistic client Sets. */
   followedUserIds: string[];
   followedRoasterIds: string[];

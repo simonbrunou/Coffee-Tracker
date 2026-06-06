@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
-import { BEAN_COLS, TASTING_COLS, getComments } from "@/lib/queries";
+import { BEAN_COLS, getComments, getTastingById, getCommentById } from "@/lib/queries";
 import { requireUserId } from "@/lib/auth";
 import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
@@ -17,17 +17,20 @@ export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
   const id = `t-${randomUUID()}`;
-  const { rows } = await query<Tasting>(
+  const { rows } = await query<{ id: string }>(
     `insert into tastings
        (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
      select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0
      from beans where id = $3 and user_id = $2
-     returning ${TASTING_COLS}`,
+     returning id`,
     [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
   );
   if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
   revalidatePath("/", "layout");
-  return { ...rows[0], likedByMe: false, savedByMe: false, commentsCount: 0 };
+  // Re-select the denormalized row (author + bean fields) for the client to prepend.
+  const tasting = await getTastingById(userId, id);
+  if (!tasting) throw new Error("Couldn't log a brew for that bag.");
+  return tasting;
 }
 
 /** Add a bag — the rich catalog record, created once. Becomes a real catalog
@@ -72,20 +75,12 @@ export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
     [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
   );
   if (!rowCount) throw new Error("Couldn't update that brew.");
-  // Re-select the updated row (TASTING_COLS carries created_at, which the UPDATE
-  // must not RETURN — it would set off the feed-reorder guard test). Keep the
-  // ownership predicate here too so a row deleted mid-flight can't surface.
-  const { rows } = await query<Tasting>(
-    `select ${TASTING_COLS},
-       (select count(*)::int from comments where comments.tasting_id = tastings.id) as "commentsCount",
-       exists (select 1 from likes where likes.tasting_id = tastings.id and likes.user_id = $2) as "likedByMe",
-       exists (select 1 from tasting_saves where tasting_saves.tasting_id = tastings.id and tasting_saves.user_id = $2) as "savedByMe"
-     from tastings where id = $1 and user_id = $2`,
-    [input.id, userId],
-  );
-  if (rows.length === 0) throw new Error("Couldn't update that brew.");
   revalidatePath("/", "layout");
-  return rows[0];
+  // Re-select the denormalized row (author + bean fields). The UPDATE above
+  // already enforced ownership; a row deleted mid-flight yields null → throw.
+  const tasting = await getTastingById(userId, input.id);
+  if (!tasting) throw new Error("Couldn't update that brew.");
+  return tasting;
 }
 
 export async function deleteBrew(id: string): Promise<void> {
@@ -173,28 +168,28 @@ export async function addComment(rawInput: AddCommentInput): Promise<Comment> {
   const v = validateComment(rawInput);
   if (!v.ok) throw new Error(v.error);
   const id = `c-${randomUUID()}`;
-  const { rows } = await query<Comment>(
-    `insert into comments (id, tasting_id, user_id, body) values ($1, $2, $3, $4)
-     returning id, tasting_id as "tastingId", user_id as "userId", body,
-               created_at as "createdAt", updated_at as "updatedAt"`,
+  await query(
+    `insert into comments (id, tasting_id, user_id, body) values ($1, $2, $3, $4)`,
     [id, v.value.tastingId, userId, v.value.body],
   );
   revalidatePath("/", "layout");
-  return rows[0];
+  const comment = await getCommentById(id);
+  if (!comment) throw new Error("Couldn't add that comment.");
+  return comment;
 }
 export async function updateComment(rawInput: UpdateCommentInput): Promise<Comment> {
   const userId = await requireUserId();
   const v = validateUpdateComment(rawInput);
   if (!v.ok) throw new Error(v.error);
-  const { rows } = await query<Comment>(
-    `update comments set body = $3, updated_at = now() where id = $1 and user_id = $2
-     returning id, tasting_id as "tastingId", user_id as "userId", body,
-               created_at as "createdAt", updated_at as "updatedAt"`,
+  const { rowCount } = await query(
+    `update comments set body = $3, updated_at = now() where id = $1 and user_id = $2`,
     [v.value.id, userId, v.value.body],
   );
-  if (rows.length === 0) throw new Error("Couldn't update that comment.");
+  if (!rowCount) throw new Error("Couldn't update that comment.");
   revalidatePath("/", "layout");
-  return rows[0];
+  const comment = await getCommentById(v.value.id);
+  if (!comment) throw new Error("Couldn't update that comment.");
+  return comment;
 }
 export async function deleteComment(id: string): Promise<void> {
   const userId = await requireUserId();
