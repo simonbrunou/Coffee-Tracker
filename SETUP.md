@@ -64,3 +64,23 @@ openssl rand -base64 33
 - Authorization callback URL: `<origin>/api/auth/callback/github`
 
 For local dev, `<origin>` is `http://localhost:3000`. Real secrets go in `.env.local` only — do **not** commit them.
+
+## Database & migrations (Drizzle)
+
+Schema is managed by **Drizzle + drizzle-kit**; the source of truth is `lib/db/schema.ts` → `drizzle/`. Runtime queries still use raw `pg`.
+
+```bash
+npm run db:setup     # apply migrations (additive, NON-destructive) + seed if empty
+npm run db:reset     # DESTRUCTIVE: drop schema + re-migrate + seed
+```
+
+To change the schema: edit `lib/db/schema.ts`, run `npx drizzle-kit generate`, review the new `drizzle/NNNN_*.sql`, then `npm run db:setup`. (See the `/migration` skill.) `db/schema.sql` is a frozen pre-Drizzle snapshot kept only as the fidelity oracle — do not edit it.
+
+## Integration tests (real Postgres)
+
+```bash
+docker exec coffee-pg createdb -U postgres coffee_tracker_test   # one-time
+npm run test:integration                                          # fidelity gate + constraint tests
+```
+
+`npm test` runs the DB-less unit suite plus the integration tests when a test DB is available (`.env.test` locally, or `DATABASE_URL` in CI); without one, the integration tests self-skip.
