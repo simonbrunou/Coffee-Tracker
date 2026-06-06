@@ -17,7 +17,31 @@
 - `comment-thread.tsx`: `D.user(currentUserId)`→`D.me`.
 - `log-sheet.tsx`: 112 `D.shelf()`→`D.myShelf`; 128 `D.bean`→`D.myShelf` + the directly-passed new bean; 214 `D.roaster` stays.
 
-**Gate (per task):** `npm run typecheck`; `npm test` (both lanes when DB present). NOTE: tsc is necessarily red across screens/pages from the type change (Task 2) until the screen/page conversions land (Tasks 5–7); commit at the green boundary after Task 7.
+**Gate (per task):** `npm run typecheck`; `npm test` (both lanes when DB present).
+
+---
+
+## Adversarial-review corrections (apply these — they override the tasks below where they conflict)
+
+**Execute as a 3-cut to shrink the tsc-red window** (review §7):
+- **Cut A (additive, green):** Task 1 (new scoped/paginated queries) + `getMyTastings` + Task 4 (load-more actions) + their tests. `getAppData`/types/provider/screens UNCHANGED → nothing breaks → commit + (optionally) its own PR.
+- **Cut B (the atomic flip):** Tasks 2,3,5,6 together — slim `getAppData`/type/provider + convert all screens/pages in one commit (tsc can only go green when provider + all consumers flip together).
+- **Cut C:** Task 8 (delete dead queries, retire fidelity gate, fix tests).
+**Guardrail (review §8):** in Cut B, do the **roaster** route first as a full vertical slice (simplest: roaster from provider + one paginated bean list, no search filter), `npm run build` + live payload check on just `/roaster/[id]`, then replicate to bean + discover.
+
+**Concrete blockers/fixes folded in:**
+1. **[BLOCKER] `toPage<Bean>` won't typecheck** — `Bean` has no `createdAt` and `BEAN_COLS` doesn't project it. **Fix:** add `beans.created_at as "createdAt"` to `BEAN_COLS` and `createdAt: string` to the `Bean` type, so `getDiscoverBeansPage`/`getRoasterBeansPage` can keyset + `toPage`. (Tasting pages already have `createdAt`.)
+2. **[BLOCKER] Discover filters must move server-side** — `screens.tsx:566-569` filters `process`/`q` client-side over the full array; with pagination that degrades to "filter only the loaded page." **Fix:** `getDiscoverBeansPage(viewer, { cursor, limit, process, q })` adds WHERE predicates (`process = $ when not 'All'`, `name/origin ILIKE '%q%'`); DiscoverScreen re-fetches page 1 on filter/query change (like FeedScreen's tab `reset`).
+3. **[BLOCKER] `openEditBag` (app-provider.tsx:221) reads `beans.find`** — add it to the Task 3 handler rework: `myShelf.find(x => x.id === beanId)` (owned bags are in `myShelf`).
+4. **[BLOCKER] compute-on-read test** — `getFollowingTastings`/`getTastings`/`getBeans`/`getUsers` greps all break: **delete** the `getFollowingTastings` assertion (its guarantee now lives in `getFeedPage`'s Following branch — repoint there), repoint `getBeans`→`getBean`/`getDiscoverBeansPage`, `getUsers`→`getUserById`, in Task 8.
+5. **[SHOULD-FIX] Next 15 async `params`/`searchParams`** — server pages must `await props.params` / `await props.searchParams` (discover `q`, bean/roaster `id`).
+6. **[SHOULD-FIX] Keep `NotFoundPanel`, not `notFound()`** — `getBean`/`getRoaster` return a **nullable prop**; `BeanDetail`/`RoasterDetail` keep rendering the in-shell `NotFoundPanel` (preserves the persistent-shell back button). Do NOT switch to `app/not-found.tsx`.
+7. **[SHOULD-FIX] addBag hand-off** — rely on the optimistic `myShelf` prepend (`setMyShelf([bean, ...])` in a transition) so `BrewFlow`'s `shelf.find` resolves the new bag; no new LogSheet prop needed.
+8. **[SHOULD-FIX] `likes` seed gap** — rows from detail/discover reviews with `likedByMe=true` aren't in the provider seed Set; have `TastingCard` treat `liked || tasting.likedByMe`-aware (or seed per page). Verify the heart fill for a liked review on a bean-detail page.
+9. **[SHOULD-FIX] `getTrendingBeans` ORDER BY** references the computed `coalesce(r.avg_rating,0)` (left-join alias), not a `beans.avg_rating` column.
+10. **[SHOULD-FIX] `actions-pagination.test.ts` mock** must add `getDiscoverBeansPage`/`getBeanReviewsPage`/`getRoasterBeansPage`.
+11. **[NIT] `comment-thread.tsx`** `D.me` is `User | null` → use `D.me?.name` etc.
+12. **[NOTE] Feed-card delete is already revalidate-only** (the feed renders from `useLoadMore`, not the optimistic array) — `myTastings` optimism only covers journal/profile. Not a regression; verify feed delete via revalidate in Task 9.
 
 ---
 
