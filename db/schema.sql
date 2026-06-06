@@ -5,6 +5,11 @@
 -- Lowercase, snake_case identifiers; Postgres text[] for the ordered
 -- flavor-note and variety lists.
 
+drop table if exists comments        cascade;
+drop table if exists bean_wishlist   cascade;
+drop table if exists tasting_saves   cascade;
+drop table if exists roaster_follows cascade;
+drop table if exists user_follows    cascade;
 drop table if exists accounts cascade;
 drop table if exists likes cascade;
 drop table if exists tastings cascade;
@@ -18,7 +23,6 @@ create table roasters (
   city      text not null,
   founded   int  not null,
   beans     int  not null default 0,
-  followers int  not null default 0,
   blurb     text not null default ''
 );
 
@@ -28,8 +32,6 @@ create table users (
   handle    text not null unique,
   avatar    text not null,                  -- avatar tint (hex)
   tastings  int  not null default 0, -- derived on read; not maintained by the app
-  followers int  not null default 0,
-  following int  not null default 0,
   bio       text not null default '',
   email           text,                              -- display-only; NOT globally unique
   email_verified  timestamptz,
@@ -93,7 +95,6 @@ create table tastings (
   temp       text not null default '—',
   note       text not null default '',
   likes      int  not null default 0, -- derived on read; not maintained by the app
-  comments   int  not null default 0,
   time       text not null default 'now',     -- relative age label
   created_at timestamptz not null default now()
 );
@@ -105,6 +106,44 @@ create table likes (
   primary key (user_id, tasting_id)
 );
 
+create table user_follows (
+  follower_id text not null references users(id) on delete cascade,
+  followee_id text not null references users(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (follower_id, followee_id),
+  constraint no_self_follow check (follower_id <> followee_id)
+);
+
+create table roaster_follows (
+  user_id    text not null references users(id)    on delete cascade,
+  roaster_id text not null references roasters(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, roaster_id)
+);
+
+create table tasting_saves (
+  user_id    text not null references users(id)    on delete cascade,
+  tasting_id text not null references tastings(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, tasting_id)
+);
+
+create table bean_wishlist (
+  user_id    text not null references users(id) on delete cascade,
+  bean_id    text not null references beans(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, bean_id)
+);
+
+create table comments (
+  id         text primary key,
+  tasting_id text not null references tastings(id) on delete cascade,
+  user_id    text not null references users(id)    on delete cascade,
+  body       text not null check (char_length(body) between 1 and 500),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+
 create index beans_user_owned_idx  on beans (user_id, owned);
 create index beans_roaster_idx     on beans (roaster_id);
 create index beans_created_idx     on beans (created_at desc);
@@ -113,3 +152,7 @@ create index tastings_bean_idx     on tastings (bean_id);
 create index accounts_user_idx     on accounts (user_id);
 create index tastings_user_idx  on tastings (user_id);   -- getUsers tastings count
 create index likes_tasting_idx  on likes (tasting_id);   -- per-tasting like count
+create index user_follows_followee_idx   on user_follows   (followee_id);
+create index roaster_follows_roaster_idx  on roaster_follows (roaster_id);
+create index tasting_saves_tasting_idx    on tasting_saves   (tasting_id);
+create index comments_tasting_idx         on comments        (tasting_id);

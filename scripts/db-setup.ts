@@ -37,9 +37,9 @@ async function main() {
     // 2. Roasters
     for (const r of ROASTERS) {
       await client.query(
-        `insert into roasters (id, name, city, founded, beans, followers, blurb)
-         values ($1,$2,$3,$4,$5,$6,$7)`,
-        [r.id, r.name, r.city, r.founded, r.beans, r.followers, r.blurb],
+        `insert into roasters (id, name, city, founded, beans, blurb)
+         values ($1,$2,$3,$4,$5,$6)`,
+        [r.id, r.name, r.city, r.founded, r.beans, r.blurb],
       );
     }
     console.log(`✓ Seeded ${ROASTERS.length} roasters`);
@@ -47,9 +47,9 @@ async function main() {
     // 3. Users
     for (const u of USERS) {
       await client.query(
-        `insert into users (id, name, handle, avatar, tastings, followers, following, bio)
-         values ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [u.id, u.name, u.handle, u.avatar, u.tastings, u.followers, u.following, u.bio],
+        `insert into users (id, name, handle, avatar, tastings, bio)
+         values ($1,$2,$3,$4,$5,$6)`,
+        [u.id, u.name, u.handle, u.avatar, u.tastings, u.bio],
       );
     }
     console.log(`✓ Seeded ${USERS.length} users`);
@@ -83,11 +83,11 @@ async function main() {
       const createdAt = new Date(base - i * 3_600_000);
       await client.query(
         `insert into tastings
-           (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments, time, created_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+           (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, time, created_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           t.id, t.userId, t.beanId, t.rating, t.brew, t.dose, t.ratio, t.temp,
-          t.note, t.likes, t.comments, t.time, createdAt,
+          t.note, t.likes, t.time, createdAt,
         ],
       );
     }
