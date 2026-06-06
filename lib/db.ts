@@ -1,10 +1,13 @@
 import "server-only";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { logger } from "@/lib/logger";
+import { resolveSslConfig } from "@/lib/db-ssl";
 
 /**
- * Shared pg connection pool. The connection string defaults to the repo's
- * local Docker Postgres (`coffee-pg`); override with the DATABASE_URL env var.
- * These are throwaway local-dev credentials — not a secret.
+ * Shared pg connection pool. Defaults to the repo's local Docker Postgres
+ * (`coffee-pg`); override with DATABASE_URL. In production the startup validator
+ * (instrumentation.ts) guarantees DATABASE_URL is set, so the localhost default
+ * is only ever effective in dev. (Throwaway local creds — not a secret.)
  */
 const connectionString =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/coffee_tracker";
@@ -12,8 +15,23 @@ const connectionString =
 // Reuse the pool across HMR reloads in dev so we don't exhaust connections.
 const globalForPool = globalThis as unknown as { __cortadoPool?: Pool };
 
-export const pool =
-  globalForPool.__cortadoPool ?? new Pool({ connectionString, max: 5 });
+function createPool(): Pool {
+  const p = new Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 30000,
+    keepAlive: true,
+    ssl: resolveSslConfig(process.env),
+  });
+  // An idle client erroring (e.g. the server drops the connection) emits 'error'
+  // on the pool; with no handler, node-postgres throws and crashes the process.
+  // Attached once per real pool creation (HMR reuse below skips this).
+  p.on("error", (err) => logger.error("pg_pool_error", { err: err.message }));
+  return p;
+}
+
+export const pool = globalForPool.__cortadoPool ?? createPool();
 
 if (process.env.NODE_ENV !== "production") globalForPool.__cortadoPool = pool;
 

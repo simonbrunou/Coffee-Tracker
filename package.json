@@ -4,7 +4,7 @@
   "private": true,
   "description": "Cortado — a warm, cozy coffee journal. Next.js + TypeScript + Tailwind + Postgres.",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "next dev",
@@ -38,7 +38,7 @@
     "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^22.10.5",
+    "@types/node": "^24.13.1",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
