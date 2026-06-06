@@ -1,7 +1,7 @@
 # M3·A — CI/CD & Quality Gates — Design
 
 **Date:** 2026-06-06
-**Status:** Proposed (design); pending user approval → implementation plan
+**Status:** Implemented (2026-06-06). 3 commits on `feat/m3-ci`; PR #6 CI run PASSED (npm ci -> typecheck -> 83 tests -> eslint -> build, 1m2s). npm audit = 0 vulnerabilities; next bump browser-smoke confirmed reconciliation intact. Branch protection = manual UI step (token lacks admin).
 **Branch:** `feat/m3-ci` (off `main`, M2 merged @ `98f9065`)
 **Council review:** ratified by a focused two-member council (ops/feasibility — Sonnet; contrarian/red-team — Opus), scaled to this config sub-project's lower novelty. The council made three material amendments (see "What the council changed").
 
