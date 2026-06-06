@@ -191,9 +191,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     // Derive willOn from the freshest state inside the updater (a rapid double-tap
     // must not capture a stale closure value for the action arg / rollback).
     let willOn = false;
-    setSet((prev) => { willOn = !prev.has(id); const n = new Set(prev); willOn ? n.add(id) : n.delete(id); return n; });
+    setSet((prev) => { willOn = !prev.has(id); const n = new Set(prev); if (willOn) n.add(id); else n.delete(id); return n; });
     action(id, willOn).catch(() => {
-      setSet((prev) => { const n = new Set(prev); willOn ? n.delete(id) : n.add(id); return n; });
+      setSet((prev) => { const n = new Set(prev); if (willOn) n.delete(id); else n.add(id); return n; });
       toast(failMsg);
     });
   };

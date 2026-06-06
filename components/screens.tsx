@@ -76,7 +76,7 @@ export function FeedScreen({
 }) {
   const D = useData();
   const tabs = ["Recent", "Following", "Popular"];
-  let list = filter === "Following" ? [...D.FOLLOWING]
+  const list = filter === "Following" ? [...D.FOLLOWING]
            : filter === "Popular"   ? [...D.TASTINGS].sort((a, b) => b.likes - a.likes)
            : [...D.TASTINGS];
   const sub =

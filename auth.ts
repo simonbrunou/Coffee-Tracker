@@ -4,7 +4,7 @@ import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
 // Imported so the `next-auth/jwt` module is resolved and its augmentation below
 // is valid under `moduleResolution: bundler`.
-import type { JWT } from "next-auth/jwt";
+import type {} from "next-auth/jwt";
 import { pool, query, withTransaction } from "@/lib/db";
 import { findCredentialUserByEmail, resolveOrCreateOAuthUser, getSessionVersion } from "@/lib/users-repo";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";

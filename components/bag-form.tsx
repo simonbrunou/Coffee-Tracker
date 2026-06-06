@@ -245,7 +245,7 @@ export function BagForm({
         {/* SCA tasting notes — full flavor wheel */}
         <div style={{ height: 22 }} />
         <Label>
-          SCA tasting notes <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· the roaster's notes, by the wheel</span>
+          SCA tasting notes <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· the roaster&rsquo;s notes, by the wheel</span>
         </Label>
         <FlavorWheelPicker value={notes} onChange={setNotes} max={10} />
       </div>
