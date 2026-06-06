@@ -44,4 +44,35 @@ describe("compute-on-read counts", () => {
   it("casts the current-user param to text for null-safety", () => {
     expect(body("getTastings")).toMatch(/\$1::text is not null/);
   });
+  it("getRoasters takes currentUserId, derives followers ::int, exposes followedByMe", () => {
+    const b = body("getRoasters");
+    expect(b).toMatch(/getRoasters\(\s*currentUserId/);
+    expect(b).toMatch(/count\(\*\)[\s\S]*::int/i);
+    expect(b).toMatch(/"followedByMe"/);
+    expect(b).toMatch(/\$1::text is not null/);
+  });
+  it("getUsers derives followers/following ::int (not stored columns) + followedByMe", () => {
+    const b = body("getUsers");
+    expect(b).toMatch(/coalesce\([^)]*followers[^)]*\)::int/i);
+    expect(b).toMatch(/coalesce\([^)]*following[^)]*\)::int/i);
+    expect(b).not.toMatch(/u\.followers/);
+    expect(b).not.toMatch(/u\.following/);
+    expect(b).toMatch(/"followedByMe"/);
+  });
+  it("getTastings replaces stale comments with commentsCount ::int + savedByMe", () => {
+    const b = body("getTastings");
+    expect(b).toMatch(/"commentsCount"/);
+    expect(b).toMatch(/coalesce\([^)]*\)::int as "commentsCount"/i);
+    expect(b).toMatch(/"savedByMe"/);
+    expect(b).not.toMatch(/t\.comments/);
+  });
+  it("getBeans exposes wishlistedByMe (anon-safe)", () => {
+    const b = body("getBeans");
+    expect(b).toMatch(/"wishlistedByMe"/);
+  });
+  it("getFollowingTastings joins the follow graph", () => {
+    const b = body("getFollowingTastings");
+    expect(b).toMatch(/join user_follows/i);
+    expect(b).toMatch(/followee_id = t\.user_id/);
+  });
 });
