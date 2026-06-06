@@ -77,21 +77,20 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/coffee_tracker" npx 
 
 Expected: a new file `drizzle/0002_account_deletion_cascade.sql` is created, and `drizzle/meta/0002_snapshot.json` + `drizzle/meta/_journal.json` are written.
 
-- [ ] **Step 4: Verify the generated SQL is exactly the FK swap**
+- [ ] **Step 4: Verify the generated SQL is the FK swap (substance, not literal text)**
 
-Read `drizzle/0002_account_deletion_cascade.sql`. It MUST contain (order may vary; both tables present), and NOTHING else of substance:
+Read `drizzle/0002_account_deletion_cascade.sql`. It MUST contain exactly **four** `ALTER TABLE` statements — a `DROP CONSTRAINT` and an `ADD CONSTRAINT ... ON DELETE cascade ...` for **each** of `tastings_user_id_users_id_fk` and `likes_user_id_users_id_fk` — and **no other table/column changes**.
+
+Note: drizzle-kit emits all DROPs first, then all ADDs, and attaches `--> statement-breakpoint` *inline* to statements with none after the final one. Statement order and breakpoint placement are NOT significant — do not abort over them. The illustrative shape (yours may order `likes`/`tastings` differently):
 
 ```sql
-ALTER TABLE "tastings" DROP CONSTRAINT "tastings_user_id_users_id_fk";
---> statement-breakpoint
+ALTER TABLE "likes" DROP CONSTRAINT "likes_user_id_users_id_fk";--> statement-breakpoint
+ALTER TABLE "tastings" DROP CONSTRAINT "tastings_user_id_users_id_fk";--> statement-breakpoint
+ALTER TABLE "likes" ADD CONSTRAINT "likes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tastings" ADD CONSTRAINT "tastings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "likes" DROP CONSTRAINT "likes_user_id_users_id_fk";
---> statement-breakpoint
-ALTER TABLE "likes" ADD CONSTRAINT "likes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ```
 
-If the file contains anything else (e.g. unrelated table changes), STOP — the schema drifted; investigate before continuing.
+Only STOP if the file touches any OTHER table's constraints or any column — that would mean the schema drifted; investigate before continuing.
 
 - [ ] **Step 5: Apply the migration to the dev DB**
 
@@ -99,7 +98,7 @@ If the file contains anything else (e.g. unrelated table changes), STOP — the 
 npm run db:setup
 ```
 
-Expected: output shows the `0002_account_deletion_cascade` migration applied (and "seed skipped" / existing-data message). No errors.
+Expected: output shows the `0002_account_deletion_cascade` migration applied, no errors. The seed line may read either "skipped (data present)" or "Seeded" depending on whether the dev DB already has rows — both are fine.
 
 - [ ] **Step 6: Verify the drift check is clean**
 
@@ -232,7 +231,8 @@ vi.mock("@/lib/users-repo", () => ({ getSessionVersion: getSessionVersionMock })
 vi.mock("@/lib/db", () => ({ query: queryMock }));
 
 beforeEach(() => {
-  vi.resetModules(); // fresh module → fresh React.cache() per test, no cross-test memo
+  vi.resetModules(); // fresh module graph re-binds the mocks per test (React.cache
+                     // does not memoize outside an RSC render, so there's no cross-call memo)
   authMock.mockReset();
   getSessionVersionMock.mockReset();
   queryMock.mockReset();
@@ -255,6 +255,8 @@ describe("getCurrentUserId — read-path revocation", () => {
     getSessionVersionMock.mockResolvedValue(3);
     const getCurrentUserId = await loadGetCurrentUserId();
     expect(await getCurrentUserId()).toBe("u-1");
+    // pin that the live lookup actually ran for an authenticated user
+    expect(getSessionVersionMock).toHaveBeenCalledWith({ query: expect.any(Function) }, "u-1");
   });
 
   it("returns null when the session was revoked (version bumped)", async () => {
@@ -276,7 +278,7 @@ describe("getCurrentUserId — read-path revocation", () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run --project unit test/get-current-user-id.test.ts`
-Expected: FAIL — the "anonymous WITHOUT touching the DB" and revoked/deleted cases fail (current `getCurrentUserId` never calls `getSessionVersion`; revoked/deleted still return the id).
+Expected: FAIL — the **revoked** (version bumped) and **deleted** (live null) cases fail because the current `getCurrentUserId` returns the id without checking `session_version`. The anonymous and matching-version cases already pass against the current code (it returns null for anon and the id when present) — they guard against regression.
 
 - [ ] **Step 3: Implement revocation-aware `getCurrentUserId`**
 
@@ -293,9 +295,12 @@ import { isLiveSession, resolveUserOrThrow } from "@/lib/auth-guard";
 // Wrap query so its overloaded signatures align with the Queryable interface.
 const db = { query: (t: string, p?: unknown[]) => query(t, p) };
 
-/** Read-path identity WITH revocation. Memoized per request via React.cache so
- *  the session_version lookup runs at most once even when called from both the
- *  root layout (getAppData) and a page. Anonymous short-circuits before any DB. */
+/** Read-path identity WITH revocation. React.cache dedupes the session_version
+ *  lookup to once per RSC RENDER PASS (e.g. the root layout's getAppData + a page
+ *  rendered together); it does NOT dedupe across Server Actions, which each run
+ *  their own single lookup (fine — one per action). Not memoized in vitest/node
+ *  (no render scope), so dedup is covered by the Task 7 live check, not unit tests.
+ *  Anonymous short-circuits before any DB. */
 export const getCurrentUserId = cache(async (): Promise<string | null> => {
   const s = await auth();
   const id = s?.user?.id ?? null;
@@ -362,19 +367,22 @@ Create `test/account-actions.test.ts`:
 ```ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const requireUserId = vi.fn(async () => "u-me");
-const signOut = vi.fn(async () => {});
-const bumpSessionVersion = vi.fn(async () => {});
-const withTransaction = vi.fn();
-const poolQuery = vi.fn(async () => ({ rows: [] }));
+// Mocks declared via vi.hoisted so they are initialized BEFORE the hoisted
+// vi.mock factories + the static SUT import run. A bare `const x = vi.fn()`
+// referenced directly inside a factory throws a TDZ ReferenceError under
+// vitest's hoisting ("Cannot access 'x' before initialization").
+const { requireUserId, signOut, bumpSessionVersion, withTransaction, poolQuery } = vi.hoisted(() => ({
+  requireUserId: vi.fn(async () => "u-me"),
+  signOut: vi.fn(async () => {}),
+  bumpSessionVersion: vi.fn(async () => {}),
+  withTransaction: vi.fn(),
+  poolQuery: vi.fn(async () => ({ rows: [] })),
+}));
 
 vi.mock("@/lib/auth", () => ({ requireUserId }));
 vi.mock("@/auth", () => ({ signOut }));
 vi.mock("@/lib/users-repo", () => ({ bumpSessionVersion }));
-vi.mock("@/lib/db", () => ({
-  pool: { query: poolQuery },
-  withTransaction: (fn: unknown) => withTransaction(fn),
-}));
+vi.mock("@/lib/db", () => ({ pool: { query: poolQuery }, withTransaction, query: vi.fn() }));
 
 import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
 
@@ -455,8 +463,10 @@ export async function signOutAllDevices(): Promise<void> {
 /** Hard-delete the account. DELETE FROM users cascades to every user-owned row
  *  (accounts, beans→tastings→likes/saves/comments, the user's own tastings/likes,
  *  follows, saves, wishlist, comments). Runs in a tx; signOut is last because its
- *  redirect throws. The brief dangling-cookie window is neutralized by read-path
- *  revocation (the row is gone → getSessionVersion null → getCurrentUserId null). */
+ *  redirect throws. next-auth writes the session-clearing cookie BEFORE the
+ *  redirect throw and JWT signOut needs no DB, so the user is logged out on this
+ *  same response; read-path revocation (row gone → getSessionVersion null →
+ *  getCurrentUserId null) is a backstop only if signOut fails before that write. */
 export async function deleteAccount(): Promise<void> {
   const userId = await requireUserId();
   await withTransaction((c) => c.query("delete from users where id = $1", [userId]));
@@ -591,7 +601,7 @@ Ensure a test Postgres is reachable and `DATABASE_URL` points at it (locally via
 npm run test:integration -- test/integration/account-deletion.test.ts
 ```
 
-Expected: PASS — 2 tests. (If `DATABASE_URL` is unset the suite is skipped, not failed — confirm it actually ran, not skipped.)
+Expected: the output shows **2 passed** (NOT "2 skipped" / "no tests"). The suite uses `describe.skipIf(!hasDb)`, so an unset `DATABASE_URL` silently skips and still exits 0 — explicitly confirm "2 passed" before treating this as green.
 
 - [ ] **Step 3: Run the full integration suite to confirm no regressions**
 

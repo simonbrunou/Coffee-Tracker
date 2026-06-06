@@ -76,7 +76,7 @@ export const getCurrentUserId = cache(async (): Promise<string | null> => {
 ```
 
 - **Anonymous short-circuits before any DB query.**
-- `React.cache()` dedupes to **one PK lookup per request**, even on routes that call it from both the layout (`getAppData`) and the page (`/bean`, `/roaster`, `/discover`).
+- `React.cache()` dedupes the lookup to **once per RSC render pass** — so a route that calls it from both the layout (`getAppData`) and the page (`/bean`, `/roaster`, `/discover`) does a single lookup. Server Actions run outside the render pass, so each does its own single lookup (one per action — correct, just not shared). `cache()` does not memoize outside a render (e.g. in unit tests), so this dedup is verified live, not in unit tests.
 - **Fail-closed is acceptable here:** a DB error throws (treated as failure) — but reads already require the DB (`getAppData` runs ~11 queries; the M3·B error boundary catches an outage). Adding the `sv` lookup introduces no new availability coupling for the logged-in shell, and anonymous browsing is unaffected.
 - `requireUserId` is unchanged structurally (still throws) but now shares `isLiveSession` via `resolveUserOrThrow`.
 
@@ -127,7 +127,7 @@ export async function deleteAccount(): Promise<void> {
 
 - `getCurrentUserId`: anonymous → `null` (no DB); DB error → throws (caught by the existing route error boundaries); revoked/deleted → `null`.
 - `deleteAccount` / `signOutAllDevices`: `requireUserId` throws `"Unauthenticated"`/`"Session revoked"` → surfaced by the form/boundary; the trailing `signOut` redirect-throw is the success path (must be last).
-- UI confirm gates prevent accidental destructive submits; the typed-handle gate on delete prevents one-click mistakes.
+- UI confirm gates prevent accidental destructive submits; the typed-handle gate on delete prevents one-click mistakes. The typed-handle gate is **UX-only** (client-side) — the security boundary is `requireUserId` (deletes only the JWT-derived id; no client input selects the target) plus Next.js Server Action CSRF protection.
 
 ## Testing
 
