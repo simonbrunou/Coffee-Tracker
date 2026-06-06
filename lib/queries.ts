@@ -60,76 +60,6 @@ export async function getRoasters(currentUserId: string | null): Promise<Roaster
   return rows;
 }
 
-export async function getUsers(currentUserId: string | null): Promise<User[]> {
-  const { rows } = await query<User>(
-    `select u.id, u.name, u.handle, u.avatar,
-            coalesce(t.tastings, 0)::int   as tastings,
-            coalesce(fr.followers, 0)::int as followers,
-            coalesce(fg.following, 0)::int as following,
-            u.bio,
-            ($1::text is not null and exists (
-              select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
-            )) as "followedByMe"
-     from users u
-     left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
-     left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
-     left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id
-     order by u.id`,
-    [currentUserId],
-  );
-  return rows;
-}
-
-export async function getBeans(currentUserId: string | null): Promise<Bean[]> {
-  const { rows } = await query<Bean>(
-    `select
-       id, name, roaster_id as "roasterId", roaster_name as "roasterName",
-       origin, process, roast, altitude, varietal,
-       price::float8 as price,
-       coalesce(r.avg_rating, 0)::float8 as "avgRating",
-       coalesce(r.ratings, 0)::int       as ratings,
-       color, flavors, description as "desc", farm, varieties,
-       sca_score::float8 as "scaScore", user_id as "ownerId",
-       created_at as "createdAt",
-       coalesce(owned and user_id = $1, false)        as "owned",
-       case when user_id = $1 then bag_weight end     as "bagWeight",
-       case when user_id = $1 then purchased  end     as "purchased",
-       case when user_id = $1 then remaining::float8 end as "remaining"
-       ,($1::text is not null and exists (
-         select 1 from bean_wishlist w where w.bean_id = beans.id and w.user_id = $1)) as "wishlistedByMe"
-     from beans
-     left join (
-       select bean_id, round(avg(rating), 1) as avg_rating, count(*) as ratings
-       from tastings group by bean_id
-     ) r on r.bean_id = beans.id
-     order by beans.created_at desc, beans.id`,
-    [currentUserId],
-  );
-  return rows;
-}
-
-export async function getTastings(currentUserId: string | null): Promise<Tasting[]> {
-  const { rows } = await query<Tasting>(
-    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
-     order by t.created_at desc, t.id desc`,
-    [currentUserId],
-  );
-  return rows;
-}
-
-/** Tastings authored by users the current viewer follows. Empty for anon. */
-export async function getFollowingTastings(currentUserId: string | null): Promise<Tasting[]> {
-  if (!currentUserId) return [];
-  const { rows } = await query<Tasting>(
-    `select ${TASTING_SELECT_COLS} from tastings t
-       join user_follows uf on uf.followee_id = t.user_id and uf.follower_id = $1
-       ${TASTING_JOINS}
-     order by t.created_at desc, t.id desc`,
-    [currentUserId],
-  );
-  return rows;
-}
-
 /** A single denormalized tasting (for write actions to return their new row). */
 export async function getTastingById(currentUserId: string | null, id: string): Promise<Tasting | null> {
   const { rows } = await query<Tasting>(
@@ -203,9 +133,8 @@ export async function getCommentById(id: string): Promise<Comment | null> {
 
 // ---- M3·D·2: scoped + paginated bean/user queries ----
 
-// Computed bean projection ($1 = viewer for redaction/wishlist), reused by the
-// scoped catalog/shelf/detail queries. (getBeans keeps its own inline copy until
-// it's removed in D·2 Cut C.)
+// Computed bean projection ($1 = viewer for redaction/wishlist), reused by every
+// scoped catalog/shelf/detail query.
 const BEAN_SELECT_COLS = `
   beans.id, beans.name, beans.roaster_id as "roasterId", beans.roaster_name as "roasterName",
   beans.origin, beans.process, beans.roast, beans.altitude, beans.varietal,
