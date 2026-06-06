@@ -125,7 +125,10 @@ function BrewFlow({
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-  const bean = beanId ? D.bean(beanId) ?? shelf.find((b) => b.id === beanId) : null;
+  // Preset/edit bag resolves from the user's shelf (myShelf); logBrew requires
+  // an owned bag, so the target is always on the shelf (optimistically prepended
+  // by handleAddBag for the "& continue" hand-off).
+  const bean = beanId ? shelf.find((b) => b.id === beanId) ?? null : null;
 
   // Await the write before showing success — a failed action surfaces a real
   // error instead of a false "Brew logged!". Only send brew params if the user

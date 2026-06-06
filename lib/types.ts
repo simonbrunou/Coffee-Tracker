@@ -63,6 +63,8 @@ export interface Bean {
   /** Owner (creator) of this bag; null only for a future shared catalog. */
   ownerId?: string | null;
   wishlistedByMe: boolean;
+  /** ISO creation timestamp — the keyset for catalog pagination (M3·D·2). */
+  createdAt: string;
 }
 
 /** A brew/tasting entry — the fast, everyday action logged against a bag. */
@@ -127,13 +129,14 @@ export interface WheelCategory {
 
 export interface AppData {
   roasters: Roaster[];
-  users: User[];
-  beans: Bean[];
-  tastings: Tasting[];
-  /** Tastings authored by users the current viewer follows (server-filtered). */
-  followingTastings: Tasting[];
   /** First page of the Recent feed (keyset-paginated; M3·D). */
   feed: import("@/lib/pagination").Page<Tasting>;
+  /** Bounded per-user data + shell `me` (M3·D·2). */
+  me: User | null;
+  myTastings: Tasting[];
+  myShelf: Bean[];
+  savedTastings: Tasting[];
+  wishlistBeans: Bean[];
   /** Current viewer's membership id-lists, to seed the optimistic client Sets. */
   followedUserIds: string[];
   followedRoasterIds: string[];

@@ -9,6 +9,9 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/queries", () => ({
   isFeedTab: (s: string) => ["Recent", "Following", "Popular"].includes(s),
   getFeedPage: vi.fn(async () => ({ rows: [{ id: "t-1" }], nextCursor: "cur" })),
+  getDiscoverBeansPage: vi.fn(async () => ({ rows: [{ id: "b-1" }], nextCursor: null })),
+  getBeanReviewsPage: vi.fn(async () => ({ rows: [], nextCursor: null })),
+  getRoasterBeansPage: vi.fn(async () => ({ rows: [], nextCursor: null })),
   BEAN_COLS: "",
   getComments: vi.fn(),
   getTastingById: vi.fn(),

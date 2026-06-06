@@ -1,27 +1,14 @@
-"use client";
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { DiscoverScreen } from "@/components/screens";
-import { useShell } from "@/components/app-provider";
+import { getCurrentUserId } from "@/lib/auth";
+import { getDiscoverBeansPage, getTrendingBeans } from "@/lib/queries";
+import { DiscoverClient } from "./discover-client";
 
-function DiscoverInner() {
-  const s = useShell();
-  const router = useRouter();
-  const urlQuery = useSearchParams().get("q") ?? "";
-  // local mirror keeps typing responsive; the URL is the shareable/reloadable source
-  const [query, setQueryLocal] = useState(urlQuery);
-  useEffect(() => setQueryLocal(urlQuery), [urlQuery]);
-  const setQuery = (v: string) => {
-    setQueryLocal(v);
-    router.replace(v ? `/discover?q=${encodeURIComponent(v)}` : "/discover", { scroll: false });
-  };
-  return <DiscoverScreen onOpenBean={s.openBean} onOpenRoaster={s.openRoaster} query={query} setQuery={setQuery} />;
-}
-
-export default function DiscoverPage() {
-  return (
-    <Suspense>
-      <DiscoverInner />
-    </Suspense>
-  );
+// Server component: fetch the catalog's first page + the trending rail. Text/process
+// filtering is applied server-side by the client's load-more on change.
+export default async function DiscoverPage() {
+  const uid = await getCurrentUserId();
+  const [initialBeans, trending] = await Promise.all([
+    getDiscoverBeansPage(uid, {}),
+    getTrendingBeans(uid),
+  ]);
+  return <DiscoverClient initialBeans={initialBeans} trending={trending} />;
 }

@@ -1,17 +1,12 @@
-"use client";
-import { useParams, useRouter } from "next/navigation";
-import { RoasterDetail } from "@/components/detail";
-import { useShell } from "@/components/app-provider";
+import { getCurrentUserId } from "@/lib/auth";
+import { getRoasterBeansPage } from "@/lib/queries";
+import { RoasterClient } from "./roaster-client";
 
-export default function RoasterPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const s = useShell();
-  return (
-    <RoasterDetail
-      roasterId={id}
-      onBack={() => (window.history.length > 1 ? router.back() : router.push("/discover"))}
-      onOpenBean={s.openBean}
-    />
-  );
+// Server component: fetch the roaster's first page of beans (keyset); the roaster
+// identity itself comes from the bounded provider (D.roaster) in the client.
+export default async function RoasterPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const uid = await getCurrentUserId();
+  const initialBeans = await getRoasterBeansPage(uid, id, {});
+  return <RoasterClient roasterId={id} initialBeans={initialBeans} />;
 }
