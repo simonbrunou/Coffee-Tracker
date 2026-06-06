@@ -1,7 +1,7 @@
 # M2 — Social Layer — Design
 
 **Date:** 2026-06-06
-**Status:** Proposed (design); pending user approval → implementation plan
+**Status:** Implemented (2026-06-06). All 8 plan tasks on `feat/m2-social-layer`; 83 unit tests + tsc + build green; security review of queries APPROVED; final review fixes applied; live 2-account browser verification passed (follow→Following feed, save→Journal Saved, comment compose/edit, bidirectional counts, self-follow guard). The live run caught+fixed a logBrew dropped-column bug.
 **Branch:** `feat/m2-social-layer` (off `main`, M1 merged @ `998fdbe`)
 **Council review:** ratified by a model-diverse council (architect/correctness — Opus; implementation/testability — Sonnet; contrarian/red-team — Opus). The council materially amended the plan twice (see "What the council changed"). Amendments folded in below.
 
