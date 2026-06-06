@@ -22,7 +22,7 @@ export function CommentThread({ tastingId }: { tastingId: string }) {
     if (!body || pending) return;
     if (!me) return;
     setPending(true); setError(null);
-    const temp: Comment = { id: `temp-${tastingId}-${body.length}`, tastingId, userId: me, body, createdAt: new Date().toISOString(), updatedAt: null };
+    const temp: Comment = { id: `temp-${crypto.randomUUID()}`, tastingId, userId: me, body, createdAt: new Date().toISOString(), updatedAt: null };
     setList((l) => [...(l ?? []), temp]);
     try {
       const real = await addComment({ tastingId, body });
@@ -37,9 +37,14 @@ export function CommentThread({ tastingId }: { tastingId: string }) {
   };
 
   const remove = async (id: string) => {
-    const prev = list;
-    setList((l) => (l ?? []).filter((c) => c.id !== id));
-    try { await deleteComment(id); } catch { setList(prev); }
+    let removed: Comment | undefined;
+    setList((l) => { removed = (l ?? []).find((c) => c.id === id); return (l ?? []).filter((c) => c.id !== id); });
+    try {
+      await deleteComment(id);
+    } catch {
+      // re-insert (functional updater — don't restore a stale whole-list snapshot)
+      if (removed) setList((l) => [...(l ?? []), removed!].sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)));
+    }
   };
 
   if (list === null) return <div style={{ padding: "8px 16px", fontSize: 13, color: "var(--mocha)" }}>Loading comments…</div>;

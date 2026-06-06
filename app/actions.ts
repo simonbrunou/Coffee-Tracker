@@ -76,12 +76,16 @@ export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
   // must not RETURN — it would set off the feed-reorder guard test). Keep the
   // ownership predicate here too so a row deleted mid-flight can't surface.
   const { rows } = await query<Tasting>(
-    `select ${TASTING_COLS} from tastings where id = $1 and user_id = $2`,
+    `select ${TASTING_COLS},
+       (select count(*)::int from comments where comments.tasting_id = tastings.id) as "commentsCount",
+       exists (select 1 from likes where likes.tasting_id = tastings.id and likes.user_id = $2) as "likedByMe",
+       exists (select 1 from tasting_saves where tasting_saves.tasting_id = tastings.id and tasting_saves.user_id = $2) as "savedByMe"
+     from tastings where id = $1 and user_id = $2`,
     [input.id, userId],
   );
   if (rows.length === 0) throw new Error("Couldn't update that brew.");
   revalidatePath("/", "layout");
-  return { ...rows[0], likedByMe: false, savedByMe: false, commentsCount: 0 };
+  return rows[0];
 }
 
 export async function deleteBrew(id: string): Promise<void> {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useData } from "./data-context";
 import { BeanCard, BeanBag, TastingCard } from "./cards";
+import { useShell } from "./app-provider";
 import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,8 +167,10 @@ export function JournalScreen({
   const [section, setSection] = useState<"brews" | "shelf" | "saved">("brews");
   const [view, setView] = useState<"timeline" | "grid">("timeline");
   const shelf = D.shelf();
-  const savedTastings = D.TASTINGS.filter((t) => t.savedByMe);
-  const wishlistedBeans = D.BEANS.filter((b) => b.wishlistedByMe);
+  // Filter by the optimistic Sets (instant after a Save), not the server snapshot.
+  const { savedTastings: savedSet, wishedBeans: wishedSet } = useShell();
+  const savedTastings = D.TASTINGS.filter((t) => savedSet.has(t.id));
+  const wishlistedBeans = D.BEANS.filter((b) => wishedSet.has(b.id));
   const avg = mine.length ? (mine.reduce((s, t) => s + t.rating, 0) / mine.length).toFixed(1) : "0.0";
   const beansLogged = new Set(mine.map((t) => t.beanId)).size;
 
