@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # Not a secret — only suppresses a next-auth v5 build-time warning.
+          # next build is force-dynamic (no prerender), pg.Pool is lazy, and auth
+          # reads no env at module scope, so CI needs no DB and no real secrets.
+          AUTH_SECRET: "ci-build-placeholder-not-a-secret"

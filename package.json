@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Cortado — a warm, cozy coffee journal. Next.js + TypeScript + Tailwind + Postgres.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
