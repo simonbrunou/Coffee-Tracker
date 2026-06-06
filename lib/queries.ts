@@ -230,23 +230,6 @@ export async function getBean(currentUserId: string | null, id: string): Promise
   return rows[0] ?? null;
 }
 
-/** A single roaster with derived followers + followedByMe ($1 = viewer). */
-export async function getRoaster(currentUserId: string | null, id: string): Promise<Roaster | null> {
-  const { rows } = await query<Roaster>(
-    `select r.id, r.name, r.city, r.founded, r.beans,
-            coalesce(f.followers, 0)::int as followers, r.blurb,
-            ($1::text is not null and exists (
-              select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
-            )) as "followedByMe"
-     from roasters r
-     left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
-       on f.roaster_id = r.id
-     where r.id = $2 limit 1`,
-    [currentUserId, id],
-  );
-  return rows[0] ?? null;
-}
-
 /** Top beans by rating for the Discover "trending" rail (bounded top-N). */
 export async function getTrendingBeans(currentUserId: string | null): Promise<Bean[]> {
   const { rows } = await query<Bean>(
