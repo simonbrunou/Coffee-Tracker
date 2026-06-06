@@ -41,13 +41,13 @@ describe("signOutAllDevices", () => {
 
 describe("deleteAccount", () => {
   it("requires auth, DELETEs the user inside a tx, THEN signs out", async () => {
-    const innerQuery = vi.fn(async (_sql: string, _params?: unknown[]) => ({ rows: [] }));
+    const innerQuery = vi.fn(async () => ({ rows: [] }));
     withTransaction.mockImplementation(async (fn: (c: unknown) => unknown) =>
       fn({ query: innerQuery }),
     );
     await deleteAccount();
     expect(requireUserId).toHaveBeenCalled();
-    const [sql, params] = innerQuery.mock.calls[0];
+    const [sql, params] = innerQuery.mock.calls[0] as unknown as [string, unknown[]];
     expect(sql).toMatch(/delete from users where id = \$1/i);
     expect(params).toEqual(["u-me"]);
     expect(signOut).toHaveBeenCalledWith({ redirectTo: "/" });
