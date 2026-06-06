@@ -63,6 +63,8 @@ export interface Bean {
   /** Owner (creator) of this bag; null only for a future shared catalog. */
   ownerId?: string | null;
   wishlistedByMe: boolean;
+  /** ISO creation timestamp — the keyset for catalog pagination (M3·D·2). */
+  createdAt: string;
 }
 
 /** A brew/tasting entry — the fast, everyday action logged against a bag. */

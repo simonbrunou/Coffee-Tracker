@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
-import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab } from "@/lib/queries";
+import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage } from "@/lib/queries";
 import { requireUserId, getCurrentUserId } from "@/lib/auth";
 import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Page, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
@@ -166,6 +166,25 @@ export async function loadMoreFeed(tab: string, cursor: string | null): Promise<
   if (!isFeedTab(tab)) throw new Error("Invalid feed tab");
   const uid = await getCurrentUserId();
   return getFeedPage(uid, { tab, cursor });
+}
+
+export async function loadMoreBeans(
+  cursor: string | null,
+  process?: string | null,
+  q?: string | null,
+): Promise<Page<Bean>> {
+  const uid = await getCurrentUserId();
+  return getDiscoverBeansPage(uid, { cursor, process, q });
+}
+
+export async function loadMoreBeanReviews(beanId: string, cursor: string | null): Promise<Page<Tasting>> {
+  const uid = await getCurrentUserId();
+  return getBeanReviewsPage(uid, beanId, { cursor });
+}
+
+export async function loadMoreRoasterBeans(roasterId: string, cursor: string | null): Promise<Page<Bean>> {
+  const uid = await getCurrentUserId();
+  return getRoasterBeansPage(uid, roasterId, { cursor });
 }
 
 // ---- Comments ----
