@@ -49,7 +49,9 @@ export async function dropDb(name: string) {
 }
 
 /** Normalize a column_default so cosmetic representations compare equal:
- *  '0'::numeric -> 0, '{}'::text[] -> {}, ''::text -> '', 'now'::text -> now. */
+ *  '0'::numeric -> 0, '{}'::text[] -> {}, ''::text -> '', 'now'::text -> now.
+ *  Assumes default literals contain no embedded "::" (true for this schema); a
+ *  future textual default whose body contains "::" would need a smarter parse. */
 function normDefault(d: string | null): string | null {
   if (d == null) return null;
   return d

@@ -117,6 +117,13 @@ async function seed() {
 async function main() {
   console.log(`→ ${connectionString.replace(/:[^:@/]+@/, ":***@")}`);
 
+  // Safety: never let --reset wipe a production database by accident.
+  if (RESET && process.env.NODE_ENV === "production" && process.env.ALLOW_DESTRUCTIVE_RESET !== "1") {
+    throw new Error(
+      "Refusing destructive --reset with NODE_ENV=production. Set ALLOW_DESTRUCTIVE_RESET=1 to override.",
+    );
+  }
+
   if (RESET) {
     // Must drop the `drizzle` schema too: migrate() keeps its __drizzle_migrations
     // journal there, NOT in public. Dropping only public would leave the journal
