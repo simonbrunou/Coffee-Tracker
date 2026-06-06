@@ -311,7 +311,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
 
   return (
-    <DataProvider roasters={roasters} users={users} beans={beans} tastings={tastings} followingTastings={initialData.followingTastings} currentUserId={currentUserId}>
+    <DataProvider roasters={roasters} users={users} beans={beans} tastings={tastings} followingTastings={initialData.followingTastings} feed={initialData.feed} currentUserId={currentUserId}>
       <ShellContext.Provider value={shell}>
         <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
           {/* ---- Desktop sidebar ---- */}

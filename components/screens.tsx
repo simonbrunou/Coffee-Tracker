@@ -1,14 +1,16 @@
 "use client";
 /* ============ Cortado — Screens (Feed, Journal, Discover) ============ */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "./data-context";
 import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
+import { useLoadMore } from "./use-load-more";
+import { loadMoreFeed } from "@/app/actions";
 import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { relativeTime } from "@/lib/relative-time";
-import type { Bean, Roaster } from "@/lib/types";
+import type { Bean, Roaster, Tasting } from "@/lib/types";
 
 // ---------- Section header ----------
 export function ScreenHead({
@@ -76,9 +78,24 @@ export function FeedScreen({
 }) {
   const D = useData();
   const tabs = ["Recent", "Following", "Popular"];
-  const list = filter === "Following" ? [...D.FOLLOWING]
-           : filter === "Popular"   ? [...D.TASTINGS].sort((a, b) => b.likes - a.likes)
-           : [...D.TASTINGS];
+  // Recent page 1 ships in the server payload (D.feed); load-more + other tabs
+  // fetch keyset pages via the loadMoreFeed action (M3·D).
+  const { rows, loadMore, hasMore, pending, reset } = useLoadMore<Tasting>(D.feed, (c) => loadMoreFeed(filter, c));
+  const [tabLoading, setTabLoading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (filter === "Recent") {
+      reset(D.feed);
+      return;
+    }
+    setTabLoading(true);
+    loadMoreFeed(filter, null)
+      .then((p) => { if (active) reset(p); })
+      .catch(() => { if (active) reset({ rows: [], nextCursor: null }); })
+      .finally(() => { if (active) setTabLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, D.feed]);
   const sub =
     filter === "Following"
       ? "Fresh tastings from the people you follow."
@@ -112,24 +129,35 @@ export function FeedScreen({
           );
         })}
       </div>
-      {filter === "Following" && list.length === 0 ? (
+      {tabLoading ? (
+        <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--mocha)", fontSize: 14 }}>Loading…</div>
+      ) : filter === "Following" && rows.length === 0 ? (
         <FeedEmpty
           title="You're not following anyone yet"
           hint="Find people and roasters to follow over on Discover."
         />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {list.map((t, i) => (
-            <TastingCard
-              key={t.id}
-              tasting={t}
-              delay={i * 50}
-              onOpenBean={onOpenBean}
-              onLike={onLike}
-              liked={likes.has(t.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {rows.map((t, i) => (
+              <TastingCard
+                key={t.id}
+                tasting={t}
+                delay={i * 50}
+                onOpenBean={onOpenBean}
+                onLike={onLike}
+                liked={likes.has(t.id)}
+              />
+            ))}
+          </div>
+          {hasMore && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
+              <Button variant="outline" onClick={loadMore} disabled={pending}>
+                {pending ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
