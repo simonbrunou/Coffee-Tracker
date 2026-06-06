@@ -14,10 +14,10 @@ export async function onRequestError(err: unknown) {
   const e = err as { name?: string; message?: string; digest?: string; errors?: unknown[] };
   // AggregateError (e.g. a Promise.all of DB queries failing) has an EMPTY top-level
   // `message` — the real causes live in `.errors`. Surface those instead of "".
-  const message =
-    e?.message ||
-    (Array.isArray(e?.errors)
-      ? e.errors.map((x) => (x instanceof Error ? x.message : String(x))).join("; ")
-      : String(err));
+  const causes = Array.isArray(e?.errors)
+    ? e.errors.slice(0, 5).map((x) => (x instanceof Error ? x.message : String(x))).join("; ")
+    : "";
+  // Bound the line: an AggregateError could carry many/long nested messages.
+  const message = (e?.message || causes || String(err)).slice(0, 500);
   logger.error("request_error", { name: e?.name, err: message, digest: e?.digest });
 }
