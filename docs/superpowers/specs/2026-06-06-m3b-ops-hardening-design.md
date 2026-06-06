@@ -1,6 +1,7 @@
 # M3·B — Ops / Deploy Hardening — Design
 
 **Date:** 2026-06-06
+**Status:** Implemented (2026-06-06). 12 commits on `feat/m3-ops-hardening`. Live spike PASSED: DB-down → styled `global-error` boundary (browser-confirmed "Something spilled") while `/api/health` stayed 200; the pool `'error'` handler logged idle-client drops as structured JSON instead of crashing the process; the app recovered on its own when the DB returned; env-validation fail-fast refused to boot naming both missing vars; the Docker image (`node:24-alpine`, `next start`) ran against Postgres with `/api/health` 200 and `/` 200. 94 tests green; tsc + eslint + build clean. Two fixes the live spike surfaced: log-level-spoofing hardening (security review) and `onRequestError` now surfaces `AggregateError` causes. (Node bumped 20→24.)
 **Branch:** `feat/m3-ops-hardening` (off `main` @ `df08c94`, the M3·A CI merge)
 **Milestone:** M3·B, the second of M3's four sub-projects (A=CI ✅ merged, **B=Ops**, C=Migrations, D=Pagination)
 **Scope decision (locked by owner):** Full scope — core hardening **+** structured-logging seam **+** env-driven SSL **+** a committed Dockerfile.
