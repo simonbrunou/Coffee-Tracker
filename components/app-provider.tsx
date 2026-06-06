@@ -23,6 +23,10 @@ import {
   deleteBrew as deleteBrewAction,
   updateBag as updateBagAction,
   deleteBag as deleteBagAction,
+  toggleFollowUser as followUserAction,
+  toggleFollowRoaster as followRoasterAction,
+  toggleSaveTasting as saveTastingAction,
+  toggleWishlistBean as wishlistBeanAction,
 } from "@/app/actions";
 import { signOutAction } from "@/app/auth-actions";
 import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
@@ -37,6 +41,14 @@ const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
 interface ShellApi {
   likes: Set<string>;
   toggleLike: (id: string) => void;
+  followedUsers: Set<string>;
+  followedRoasters: Set<string>;
+  savedTastings: Set<string>;
+  wishedBeans: Set<string>;
+  toggleFollowUser: (id: string) => void;
+  toggleFollowRoaster: (id: string) => void;
+  toggleSaveTasting: (id: string) => void;
+  toggleWishlistBean: (id: string) => void;
   openBean: (id: string) => void;
   openRoaster: (id: string) => void;
   openBrew: (beanId?: string) => void;
@@ -70,6 +82,10 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const [likes, setLikes] = useState<Set<string>>(
     () => new Set(initialData.tastings.filter((t) => t.likedByMe).map((t) => t.id)),
   );
+  const [followedUsers, setFollowedUsers] = useState<Set<string>>(() => new Set(initialData.followedUserIds));
+  const [followedRoasters, setFollowedRoasters] = useState<Set<string>>(() => new Set(initialData.followedRoasterIds));
+  const [savedTastings, setSavedTastings] = useState<Set<string>>(() => new Set(initialData.savedTastingIds));
+  const [wishedBeans, setWishedBeans] = useState<Set<string>>(() => new Set(initialData.wishedBeanIds));
   const [, startTransition] = useTransition();
   const [log, setLog] = useState<{ open: boolean; mode: "brew" | "bag"; preset: string | null }>({
     open: false,
@@ -164,6 +180,27 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     });
   };
 
+  const optimisticToggle = (
+    set: Set<string>,
+    setSet: (updater: (prev: Set<string>) => Set<string>) => void,
+    id: string,
+    action: (id: string, on: boolean) => Promise<void>,
+    failMsg: string,
+  ) => {
+    if (!currentUserId) { router.push("/login"); return; }
+    const willOn = !set.has(id);
+    setSet((prev) => { const n = new Set(prev); willOn ? n.add(id) : n.delete(id); return n; });
+    action(id, willOn).catch(() => {
+      setSet((prev) => { const n = new Set(prev); willOn ? n.delete(id) : n.add(id); return n; });
+      toast(failMsg);
+    });
+  };
+
+  const toggleFollowUser = (id: string) => optimisticToggle(followedUsers, setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
+  const toggleFollowRoaster = (id: string) => optimisticToggle(followedRoasters, setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
+  const toggleSaveTasting = (id: string) => optimisticToggle(savedTastings, setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
+  const toggleWishlistBean = (id: string) => optimisticToggle(wishedBeans, setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
+
   const openBrew = (beanId?: string) => {
     if (!currentUserId) return router.push("/login");
     setEdit(null);
@@ -253,6 +290,14 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const shell: ShellApi = {
     likes,
     toggleLike,
+    followedUsers,
+    followedRoasters,
+    savedTastings,
+    wishedBeans,
+    toggleFollowUser,
+    toggleFollowRoaster,
+    toggleSaveTasting,
+    toggleWishlistBean,
     openBean,
     openRoaster,
     openBrew,
@@ -264,7 +309,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
 
   return (
-    <DataProvider roasters={roasters} users={users} beans={beans} tastings={tastings} currentUserId={currentUserId}>
+    <DataProvider roasters={roasters} users={users} beans={beans} tastings={tastings} followingTastings={initialData.followingTastings} currentUserId={currentUserId}>
       <ShellContext.Provider value={shell}>
         <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
           {/* ---- Desktop sidebar ---- */}
