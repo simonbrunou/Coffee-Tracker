@@ -210,6 +210,11 @@ async function followedIds(table: string, selfCol: string, idCol: string, userId
 /** Everything the client shell needs, fetched once on the server. */
 export async function getAppData(): Promise<AppData> {
   const currentUserId = await getCurrentUserId();
+  // D·1 is ADDITIVE: the global users/beans/tastings/followingTastings arrays are
+  // still loaded so un-migrated screens (journal/discover/detail) keep working.
+  // The feed now reads `feed` (keyset page 1); `followingTastings` already has no
+  // live consumer (the Following tab fetches via loadMoreFeed). D·2 slims this to
+  // shell + per-user data and drops the global arrays.
   const [roasters, users, beans, tastings, followingTastings, feed] = await Promise.all([
     getRoasters(currentUserId),
     getUsers(currentUserId),
