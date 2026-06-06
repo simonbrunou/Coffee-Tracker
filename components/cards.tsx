@@ -27,14 +27,11 @@ export function TastingCard({
   const D = useData();
   const shell = useShell();
   const isMine = tasting.userId === D.currentUserId;
-  const user = D.user(tasting.userId);
-  const bean = D.bean(tasting.beanId);
   const saved = shell.savedTastings.has(tasting.id);
   const [showComments, setShowComments] = useState(false);
   const [burst, setBurst] = useState(false);
-
-  if (!user || !bean) return null;
-  const roaster = D.roaster(bean.roasterId);
+  // Author + bean display come denormalized on the row (M3·D) — no global lookup,
+  // so the card renders standalone in a paginated feed.
   const ago = relativeTime(tasting.createdAt);
 
   const doLike = () => {
@@ -54,15 +51,15 @@ export function TastingCard({
         borderRadius: "var(--r-lg)",
         boxShadow: "var(--shadow-sm)",
         overflow: "hidden",
-        animationDelay: delay + "ms",
+        animationDelay: Math.min(delay, 400) + "ms", // cap stagger so appended pages don't sit invisible
       }}
     >
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "14px 16px 12px" }}>
-        <Avatar user={user} size={38} />
+        <Avatar user={{ name: tasting.authorName, avatar: tasting.authorAvatar }} size={38} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <span style={{ fontWeight: 600, fontSize: 14.5 }}>{user.name}</span>
+            <span style={{ fontWeight: 600, fontSize: 14.5 }}>{tasting.authorName}</span>
             {isMine && <Tag accent>You</Tag>}
             {!isMine && D.currentUserId && (
               <Button
@@ -76,7 +73,7 @@ export function TastingCard({
             )}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>
-            @{user.handle} · {ago}
+            @{tasting.authorHandle} · {ago}
           </div>
         </div>
         <BeanRating value={tasting.rating} size={16} />
@@ -87,7 +84,7 @@ export function TastingCard({
 
       {/* bean strip */}
       <button
-        onClick={() => onOpenBean(bean.id)}
+        onClick={() => onOpenBean(tasting.beanId)}
         style={{
           display: "flex",
           alignItems: "center",
@@ -104,13 +101,13 @@ export function TastingCard({
         onMouseEnter={(e) => (e.currentTarget.style.background = "var(--cream-deep)")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
       >
-        <BeanBag color={bean.color} size={46} />
+        <BeanBag color={tasting.beanColor} size={46} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="display" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
-            {bean.name}
+            {tasting.beanName}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--mocha)", marginTop: 2 }}>
-            {(roaster ? roaster.name : bean.roasterName) ?? "My roaster"} · {bean.origin}
+            {tasting.beanRoasterName ?? "My roaster"} · {tasting.beanOrigin}
           </div>
         </div>
         <div style={{ display: "flex", gap: 14, fontSize: 11.5, color: "var(--mocha)", alignItems: "center" }}>
@@ -124,7 +121,7 @@ export function TastingCard({
           {tasting.note}
         </p>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12 }}>
-          {bean.flavors.map((f) => (
+          {tasting.beanFlavors.map((f) => (
             <FlavorChip key={f} flavor={f} small />
           ))}
         </div>

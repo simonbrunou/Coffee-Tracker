@@ -10,6 +10,7 @@ import type { Comment } from "@/lib/types";
 export function CommentThread({ tastingId }: { tastingId: string }) {
   const D = useData();
   const me = D.currentUserId;
+  const meUser = me ? D.user(me) : undefined;
   const [list, setList] = useState<Comment[] | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
@@ -22,7 +23,11 @@ export function CommentThread({ tastingId }: { tastingId: string }) {
     if (!body || pending) return;
     if (!me) return;
     setPending(true); setError(null);
-    const temp: Comment = { id: `temp-${crypto.randomUUID()}`, tastingId, userId: me, body, createdAt: new Date().toISOString(), updatedAt: null };
+    const temp: Comment = {
+      id: `temp-${crypto.randomUUID()}`, tastingId, userId: me, body,
+      createdAt: new Date().toISOString(), updatedAt: null,
+      authorName: meUser?.name ?? "You", authorHandle: meUser?.handle ?? "", authorAvatar: meUser?.avatar ?? "#8a6f4e",
+    };
     setList((l) => [...(l ?? []), temp]);
     try {
       const real = await addComment({ tastingId, body });
@@ -52,7 +57,7 @@ export function CommentThread({ tastingId }: { tastingId: string }) {
   return (
     <div style={{ padding: "4px 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
       {list.map((c) => (
-        <CommentRow key={c.id} c={c} mine={c.userId === me} user={D.user(c.userId)} onDelete={() => remove(c.id)}
+        <CommentRow key={c.id} c={c} mine={c.userId === me} onDelete={() => remove(c.id)}
           onEdit={async (body) => { const real = await updateComment({ id: c.id, body }); setList((l) => (l ?? []).map((x) => (x.id === c.id ? real : x))); }} />
       ))}
       {me ? (
@@ -69,15 +74,15 @@ export function CommentThread({ tastingId }: { tastingId: string }) {
   );
 }
 
-function CommentRow({ c, mine, user, onDelete, onEdit }: {
-  c: Comment; mine: boolean; user: ReturnType<ReturnType<typeof useData>["user"]>;
+function CommentRow({ c, mine, onDelete, onEdit }: {
+  c: Comment; mine: boolean;
   onDelete: () => void; onEdit: (body: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(c.body);
   return (
     <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>
-      <span style={{ fontWeight: 600 }}>{user?.name ?? "Someone"}</span>{" "}
+      <span style={{ fontWeight: 600 }}>{c.authorName}</span>{" "}
       <span style={{ color: "var(--mocha)", fontSize: 12 }}>· {relativeTime(c.createdAt)}{c.updatedAt ? " · edited" : ""}</span>
       {editing ? (
         <div style={{ display: "flex", gap: 6, marginTop: 4 }}>

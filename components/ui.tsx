@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import type { User } from "@/lib/types";
 
 // ---- Avatar (initial on tinted circle) — shadcn Avatar with a tinted fallback ----
-export function Avatar({ user, size = 40 }: { user: User; size?: number }) {
+export function Avatar({ user, size = 40 }: { user: Pick<User, "name" | "avatar">; size?: number }) {
   const initials =
     user.name === "You" ? "You" : user.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
   return (

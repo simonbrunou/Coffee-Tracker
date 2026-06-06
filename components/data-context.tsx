@@ -5,7 +5,7 @@
    the app shell — so logging a brew or adding a bag updates every screen. */
 import { createContext, useContext, useMemo } from "react";
 import { BREW_METHODS, FLAVOR_COLORS, PROCESSES, ROAST_LEVELS } from "@/lib/seed-data";
-import type { Bean, Roaster, Tasting, User } from "@/lib/types";
+import type { Bean, Page, Roaster, Tasting, User } from "@/lib/types";
 
 export interface DataApi {
   ROASTERS: Roaster[];
@@ -13,6 +13,8 @@ export interface DataApi {
   BEANS: Bean[];
   TASTINGS: Tasting[];
   FOLLOWING: Tasting[];
+  /** First keyset page of the Recent feed (M3·D). */
+  feed: Page<Tasting>;
   FLAVORS: Record<string, string>;
   BREW_METHODS: string[];
   ROAST_LEVELS: string[];
@@ -32,6 +34,7 @@ export function DataProvider({
   beans,
   tastings,
   followingTastings,
+  feed,
   currentUserId,
   children,
 }: {
@@ -40,6 +43,7 @@ export function DataProvider({
   beans: Bean[];
   tastings: Tasting[];
   followingTastings: Tasting[];
+  feed: Page<Tasting>;
   currentUserId: string | null;
   children: React.ReactNode;
 }) {
@@ -50,6 +54,7 @@ export function DataProvider({
       BEANS: beans,
       TASTINGS: tastings,
       FOLLOWING: followingTastings,
+      feed,
       FLAVORS: FLAVOR_COLORS,
       BREW_METHODS,
       ROAST_LEVELS,
@@ -60,7 +65,7 @@ export function DataProvider({
       user: (id) => users.find((u) => u.id === id),
       shelf: () => beans.filter((b) => b.owned && b.ownerId === currentUserId),
     }),
-    [roasters, users, beans, tastings, followingTastings, currentUserId],
+    [roasters, users, beans, tastings, followingTastings, feed, currentUserId],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
