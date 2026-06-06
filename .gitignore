@@ -3,6 +3,7 @@
 .env
 .env*.local
 *.local.env
+.env.test
 
 # --- Node / Next.js (for the upcoming app) ---
 node_modules/

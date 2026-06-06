@@ -1,4 +1,8 @@
--- ============ Cortado — Postgres schema ============
+-- ============ Cortado — Postgres schema (FROZEN) ============
+-- FROZEN pre-Drizzle snapshot. Source of truth is the Drizzle baseline in
+-- drizzle/ generated from lib/db/schema.ts. Kept ONLY as the fidelity oracle
+-- (test/integration/schema-fidelity.test.ts). Do NOT edit this to change the
+-- schema — add a Drizzle migration instead (see the /migration skill).
 -- Two core objects, exactly as the design landed:
 --   a Bean/Bag (rich catalog record, created once) and a Tasting/Brew
 --   (the fast everyday action logged against a bag).
