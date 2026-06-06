@@ -1,6 +1,7 @@
 # M3·C — Drizzle Migrations (schema/migrations only) — Design
 
 **Date:** 2026-06-06
+**Status:** Implemented (2026-06-06). PR #15. 10 commits on `feat/m3c-drizzle-migrations`. The schema-fidelity gate is green (Drizzle baseline catalog-equivalent to `db/schema.sql`, faithful on the first iteration bar one `.desc()` NULLS fix); 100 tests (94 unit + 6 integration). Live spike PASSED: app boots on the Drizzle-migrated DB with zero SQL errors; sentinel row survives `db:setup` and is wiped by `db:reset`; generate→migrate→revert round-trip works. Adversarial review caught real blockers pre-execution (gate compared auto-named constraints → now by-def; `--reset` now drops the `drizzle` journal schema; per-worker `setupFile` for env; CI drift guard). Security + code-quality reviews: ship-ready (one prod-guard Low fixed).
 **Branch:** `feat/m3c-drizzle-migrations` (off `main` @ `97eee2c`, the M3·B merge)
 **Milestone:** M3·C, third of M3's four sub-projects (A=CI ✅, B=Ops ✅, **C=Migrations**, D=Pagination).
 **Approach (owner-locked):** Adopt **Drizzle + drizzle-kit for migrations and schema management only**. Runtime queries stay on raw `pg` (`query()`/`withTransaction`) — `lib/queries.ts`, `app/actions.ts`, `auth.ts`, `lib/users-repo.ts` are **never rewritten**. (This is the council contrarian's endorsed path: under "full ORM" the compute-on-read reads collapse into raw `sql\`\`` inside Drizzle anyway, paying the ORM cost for no read-path benefit.)
