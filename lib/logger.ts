@@ -3,7 +3,9 @@
 type Ctx = Record<string, unknown>;
 
 function emit(level: string, msg: string, ctx?: Ctx) {
-  const line = JSON.stringify({ level, msg, ...ctx, ts: new Date().toISOString() });
+  // Spread ctx FIRST so the canonical fields always win — a caller passing
+  // {level} or {msg} in ctx must not be able to spoof the real log level/message.
+  const line = JSON.stringify({ ...ctx, level, msg, ts: new Date().toISOString() });
   if (level === "warn" || level === "error") console.error(line);
   else console.log(line);
 }

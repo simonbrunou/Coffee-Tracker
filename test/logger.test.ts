@@ -12,6 +12,15 @@ describe("logger", () => {
     out.mockRestore();
   });
 
+  it("canonical level/msg win over colliding ctx keys (no log forging)", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.error("boom", { level: "debug", msg: "ok" });
+    const parsed = JSON.parse(err.mock.calls[0][0] as string);
+    expect(parsed.level).toBe("error");
+    expect(parsed.msg).toBe("boom");
+    err.mockRestore();
+  });
+
   it("routes warn/error to console.error and debug/info to console.log", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
