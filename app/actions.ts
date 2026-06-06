@@ -19,8 +19,8 @@ export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
   const id = `t-${randomUUID()}`;
   const { rows } = await query<Tasting>(
     `insert into tastings
-       (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes, comments)
-     select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0
+       (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
+     select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0
      from beans where id = $3 and user_id = $2
      returning ${TASTING_COLS}`,
     [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],

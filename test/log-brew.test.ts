@@ -33,6 +33,9 @@ describe("logBrew ownership guard", () => {
     expect(params).toContain("u-me");
     // and the SQL must carry the ownership guard (catches a refactor that drops it)
     expect(sql).toMatch(/from beans where id = \$3 and user_id = \$2/i);
+    // the `comments` column was dropped in M2 — the insert must not reference it
+    // (mocks can't catch a dropped-column write; the live spike did).
+    expect(sql).not.toMatch(/\bcomments\b/i);
   });
 
   it("rejects an out-of-range rating before touching the db", async () => {
