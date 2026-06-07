@@ -6,6 +6,7 @@ import { hashPassword } from "@/lib/passwords";
 import { randomAvatarTint } from "@/lib/avatar";
 import { validateSignup, type SignupInput } from "@/lib/signup-validation";
 import { createCredentialUser } from "@/lib/users-repo";
+import { sendVerificationEmail } from "@/lib/verify-email";
 import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 import { mapRegisterError } from "@/lib/register-errors";
@@ -25,8 +26,9 @@ export async function registerUser(input: SignupInput): Promise<{ error: string 
   const v = validateSignup(input);
   if (!v.ok) return { error: v.error };
 
+  let userId: string;
   try {
-    await createCredentialUser(poolDb, {
+    userId = await createCredentialUser(poolDb, {
       name: v.value.name,
       email: v.value.email,
       passwordHash: await hashPassword(v.value.password),
@@ -36,6 +38,9 @@ export async function registerUser(input: SignupInput): Promise<{ error: string 
   } catch (err) {
     return { error: mapRegisterError(err) };
   }
+
+  // After a SUCCESSFUL insert only (the unique index throttles repeat-signup bombing).
+  await sendVerificationEmail(userId);
 
   // OUTSIDE the try/catch: signIn throws the Next redirect (the success path),
   // which must NOT be swallowed by the 23505 handler above.
