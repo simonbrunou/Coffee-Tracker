@@ -15,6 +15,9 @@ export interface OAuthProfile {
   name: string | null;
   email: string | null;
   image: string | null;
+  /** True when the provider verified the email (Google email_verified / GitHub
+   *  primary+verified) — stamps users.email_verified so the write-gate passes. */
+  emailVerified?: boolean;
 }
 
 /** Find the user behind an OAuth account, or create a fresh user + account.
@@ -25,13 +28,20 @@ export async function resolveOrCreateOAuthUser(db: Queryable, p: OAuthProfile): 
     `select user_id from accounts where provider = $1 and provider_account_id = $2`,
     [p.provider, p.providerAccountId],
   );
-  if (found.rows.length > 0) return (found.rows[0] as { user_id: string }).user_id;
+  if (found.rows.length > 0) {
+    const userId = (found.rows[0] as { user_id: string }).user_id;
+    // Lazy-backfill email_verified for an existing OAuth user (e.g. predates M4·C).
+    if (p.emailVerified) {
+      await db.query(`update users set email_verified = now() where id = $1 and email_verified is null`, [userId]);
+    }
+    return userId;
+  }
 
   const userId = `u-${randomUUID()}`;
   await db.query(
-    `insert into users (id, name, handle, avatar, email, image, session_version)
-     values ($1, $2, $3, $4, $5, $6, $7)`,
-    [userId, p.name ?? "Coffee drinker", generateHandle(), randomAvatarTint(), p.email, p.image, 0],
+    `insert into users (id, name, handle, avatar, email, image, session_version, email_verified)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [userId, p.name ?? "Coffee drinker", generateHandle(), randomAvatarTint(), p.email, p.image, 0, p.emailVerified ? new Date() : null],
   );
   await db.query(
     `insert into accounts (id, user_id, type, provider, provider_account_id)
@@ -74,4 +84,18 @@ export async function getSessionVersion(db: Queryable, userId: string): Promise<
 
 export async function bumpSessionVersion(db: Queryable, userId: string): Promise<void> {
   await db.query(`update users set session_version = session_version + 1 where id = $1`, [userId]);
+}
+
+export interface SessionState { sessionVersion: number; emailVerified: Date | null; hasPassword: boolean }
+
+/** One-shot fetch of the fields both the revocation check and the write-gate need. */
+export async function getSessionState(db: Queryable, userId: string): Promise<SessionState | null> {
+  const { rows } = await db.query(
+    `select session_version, email_verified, (password_hash is not null) as has_password
+     from users where id = $1`,
+    [userId],
+  );
+  if (!rows.length) return null;
+  const r = rows[0] as { session_version: number; email_verified: Date | null; has_password: boolean };
+  return { sessionVersion: r.session_version, emailVerified: r.email_verified, hasPassword: r.has_password };
 }

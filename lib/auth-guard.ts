@@ -14,3 +14,9 @@ export function resolveUserOrThrow(
   if (!isLiveSession(session.sv, liveVersion)) throw new Error("Session revoked");
   return session.id;
 }
+
+/** Content writes require a verified email for CREDENTIAL users; OAuth users
+ *  (no password) are always allowed. */
+export function isWriteAllowed(hasPassword: boolean, emailVerified: Date | null): boolean {
+  return !(hasPassword && !emailVerified);
+}

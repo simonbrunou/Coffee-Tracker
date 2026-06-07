@@ -29,6 +29,7 @@ import {
   toggleWishlistBean as wishlistBeanAction,
 } from "@/app/actions";
 import { signOutAction } from "@/app/auth-actions";
+import { resendVerification } from "@/app/verify-actions";
 import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 
 const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
@@ -68,7 +69,7 @@ export function useShell(): ShellApi {
 }
 
 export function AppProvider({ initialData, children }: { initialData: AppData; children: React.ReactNode }) {
-  const { roasters, currentUserId } = initialData;
+  const { roasters, currentUserId, needsEmailVerification } = initialData;
 
   // Server truth is the canonical base: useOptimistic re-bases on `initialData`
   // whenever a Server Action's revalidatePath re-runs the force-dynamic layout.
@@ -395,7 +396,15 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 </Button>
               </div>
             </header>
-            <div className="screen-pad">{children}</div>
+            <div className="screen-pad">
+              {needsEmailVerification && (
+                <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
+                  <span style={{ flex: 1 }}>Verify your email to log brews and bags. Check your inbox for the link.</span>
+                  <form action={resendVerification}><Button variant="outline" size="sm" type="submit">Resend</Button></form>
+                </div>
+              )}
+              {children}
+            </div>
             <div style={{ height: 90 }} className="mobile-only-spacer" />
           </main>
 

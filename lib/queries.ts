@@ -1,6 +1,7 @@
 import "server-only";
 import { query } from "./db";
 import { getCurrentUserId } from "./auth";
+import { getSessionState } from "./users-repo";
 import { type Page, decodeCursor, clampLimit, toPage } from "./pagination";
 import type { AppData, Bean, Comment, Roaster, Tasting, User } from "./types";
 
@@ -334,9 +335,16 @@ export async function getAppData(): Promise<AppData> {
         getWishlistBeans(currentUserId),
       ])
     : [null, [], [], [], []];
+  // Write-gate flag for the CURRENT user only (computed here, not in getUserById —
+  // which must stay projection-clean; the projection-guard test enforces that).
+  const sessionState = currentUserId
+    ? await getSessionState({ query: (t, p) => query(t, p) }, currentUserId)
+    : null;
+  const needsEmailVerification = !!sessionState && sessionState.hasPassword && !sessionState.emailVerified;
   return {
     roasters, feed,
     me, myTastings, myShelf, savedTastings, wishlistBeans,
     followedUserIds, followedRoasterIds, savedTastingIds, wishedBeanIds, currentUserId,
+    needsEmailVerification,
   };
 }

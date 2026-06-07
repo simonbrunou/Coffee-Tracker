@@ -143,6 +143,8 @@ export interface AppData {
   savedTastingIds: string[];
   wishedBeanIds: string[];
   currentUserId: string | null;
+  /** Current credential user has an unverified email (write-gated). */
+  needsEmailVerification: boolean;
 }
 
 // ---- Server action payloads ----
