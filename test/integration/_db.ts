@@ -1,4 +1,17 @@
 import { Pool, Client } from "pg";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+/** Concatenate every drizzle/*.sql migration in order — one raw SQL batch for a
+ *  scratch DB. Auto-includes new migrations (no hardcoded list to maintain). */
+export function allMigrationsSql(): string {
+  const dir = join(process.cwd(), "drizzle");
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => readFileSync(join(dir, f), "utf8"))
+    .join("\n");
+}
 
 /** Base test connection string (from .env.test locally or the CI job env). */
 export function baseUrl(): string {

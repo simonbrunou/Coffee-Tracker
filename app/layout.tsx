@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Spectral, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppProvider } from "@/components/app-provider";
@@ -44,10 +45,13 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const initialData = await getAppData();
+  // Per-request nonce set by middleware — forwarded to next-themes so its pre-paint
+  // inline script is allowed under the strict-dynamic CSP.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" suppressHydrationWarning className={`${spectral.variable} ${hanken.variable}`}>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange nonce={nonce}>
           <AppProvider initialData={initialData}>{children}</AppProvider>
           <Toaster position="bottom-center" />
         </ThemeProvider>

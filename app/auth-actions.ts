@@ -6,7 +6,8 @@ import { hashPassword } from "@/lib/passwords";
 import { randomAvatarTint } from "@/lib/avatar";
 import { validateSignup, type SignupInput } from "@/lib/signup-validation";
 import { createCredentialUser } from "@/lib/users-repo";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
+import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 import { mapRegisterError } from "@/lib/register-errors";
 
 const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, params) };
@@ -14,9 +15,12 @@ const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, p
 export async function registerUser(input: SignupInput): Promise<{ error: string }> {
   // Rate-limit the unauthenticated signup endpoint by BOTH email and IP (either blocks).
   const hdrs = await headers();
-  const ip = (hdrs.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-  if (!checkRateLimit(`signup:email:${input.email.toLowerCase()}`)) return { error: "Too many attempts, try again later." };
-  if (!checkRateLimit(`signup:ip:${ip}`)) return { error: "Too many attempts, try again later." };
+  const ip = clientIp(hdrs.get("x-forwarded-for"), TRUSTED_PROXY_HOPS);
+  warnIfUnknownIp(ip);
+  // Cap the email in the key (RFC max 254) so a giant value can't bloat the PK.
+  if (!(await checkRateLimit(`signup:email:${input.email.toLowerCase().slice(0, 254)}`, RL_EMAIL_LIMIT))) return { error: "Too many attempts, try again later." };
+  // Skip the per-IP check when the IP is unknown (see auth.ts rationale).
+  if (ip !== "unknown" && !(await checkRateLimit(`signup:ip:${ip}`, RL_IP_LIMIT))) return { error: "Too many attempts, try again later." };
 
   const v = validateSignup(input);
   if (!v.ok) return { error: v.error };
