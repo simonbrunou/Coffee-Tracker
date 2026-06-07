@@ -8,7 +8,8 @@ import type {} from "next-auth/jwt";
 import { pool, query, withTransaction } from "@/lib/db";
 import { findCredentialUserByEmail, resolveOrCreateOAuthUser, getSessionVersion } from "@/lib/users-repo";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT } from "@/lib/rate-limit";
+import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 
 declare module "next-auth" {
   interface Session {
@@ -45,9 +46,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Rate-limit the unauthenticated login endpoint by BOTH email and IP
         // (either tripping blocks): per-email stops targeted brute force, per-IP
         // stops spraying one password across many emails.
-        const ip = (request?.headers?.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-        if (!checkRateLimit(`login:email:${email.toLowerCase()}`)) return null;
-        if (!checkRateLimit(`login:ip:${ip}`)) return null;
+        const ip = clientIp(request?.headers?.get("x-forwarded-for") ?? null, TRUSTED_PROXY_HOPS);
+        if (!(await checkRateLimit(`login:email:${email.toLowerCase()}`, RL_EMAIL_LIMIT))) return null;
+        // Skip the per-IP check when the IP is unknown — never block on a shared
+        // "unknown" bucket (an XFF misconfig would otherwise lock out everyone).
+        if (ip !== "unknown" && !(await checkRateLimit(`login:ip:${ip}`, RL_IP_LIMIT))) return null;
         const user = await findCredentialUserByEmail(poolDb, email);
         // Always run a bcrypt compare (dummy hash on the no-user path) so timing
         // is identical → no user-enumeration oracle.
