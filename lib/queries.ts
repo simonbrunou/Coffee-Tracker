@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { query } from "./db";
 import { getCurrentUserId } from "./auth";
 import { getSessionState } from "./users-repo";
@@ -348,3 +349,40 @@ export async function getAppData(): Promise<AppData> {
     needsEmailVerification,
   };
 }
+
+// ---- M5·A catalog SEO ----
+
+/** Single roaster by id (mirrors getRoasters' projection). $1 = viewer (for
+ *  followedByMe), $2 = roaster id. Used by generateMetadata / JSON-LD / OG. */
+export async function getRoasterById(currentUserId: string | null, id: string): Promise<Roaster | null> {
+  const { rows } = await query<Roaster>(
+    `select r.id, r.name, r.city, r.founded, r.beans,
+            coalesce(f.followers, 0)::int as followers, r.blurb,
+            ($1::text is not null and exists (
+              select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
+            )) as "followedByMe"
+     from roasters r
+     left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
+       on f.roaster_id = r.id
+     where r.id = $2`,
+    [currentUserId, id],
+  );
+  return rows[0] ?? null;
+}
+
+/** Bounded public-id enumeration for sitemap.ts. No viewer, no PII columns. */
+export async function getBeanIdsForSitemap(): Promise<{ id: string; createdAt: string }[]> {
+  const { rows } = await query<{ id: string; createdAt: string }>(
+    `select id, created_at as "createdAt" from beans order by created_at desc limit 50000`,
+  );
+  return rows;
+}
+export async function getRoasterIdsForSitemap(): Promise<{ id: string }[]> {
+  const { rows } = await query<{ id: string }>(`select id from roasters order by id limit 50000`);
+  return rows;
+}
+
+/** Request-memoized reads so generateMetadata + the page body share ONE query
+ *  (raw pg has no fetch-dedup). Call THESE from both metadata and the page. */
+export const getBeanCached = cache(getBean);
+export const getRoasterByIdCached = cache(getRoasterById);

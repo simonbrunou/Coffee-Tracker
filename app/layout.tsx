@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Spectral, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { getPublicBaseUrl } from "@/lib/public-url";
 import "./globals.css";
 
 // force-dynamic stays at the ROOT so every route (including the (legal) group)
@@ -29,9 +30,17 @@ const hanken = Hanken_Grotesk({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getPublicBaseUrl()),
   title: "Cortado — Coffee Journal",
   description:
     "A warm, cozy coffee journal. Log your bags and brews, taste with the SCA flavor wheel, and discover single-origins and the roasters behind them.",
+  openGraph: {
+    type: "website",
+    siteName: "Cortado",
+    title: "Cortado — Coffee Journal",
+    description: "Log your bags and brews, taste with the SCA flavor wheel, and discover single-origins and the roasters behind them.",
+  },
+  twitter: { card: "summary_large_image", title: "Cortado — Coffee Journal" },
 };
 
 export const viewport: Viewport = {

@@ -3,6 +3,7 @@ import { query } from "@/lib/db";
 import { createVerificationToken } from "@/lib/verification-tokens";
 import { sendEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { getPublicBaseUrl } from "@/lib/public-url";
 
 const db = { query: (t: string, p?: unknown[]) => query(t, p) };
 
@@ -18,8 +19,7 @@ export async function sendVerificationEmail(userId: string): Promise<void> {
   if (!row?.email || row.email_verified) return;
   try {
     const raw = await createVerificationToken(db, userId, row.email);
-    // AUTH_URL is unset in local dev (trustHost) — fall back so the dev link is clickable.
-    const base = (process.env.AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+    const base = getPublicBaseUrl();
     const url = `${base}/api/verify?token=${raw}`;
     // Log the RAW token URL ONLY on the dev-fallback path (no Resend key). In prod the
     // single-use token must never hit the logs — log a tokenless event instead.

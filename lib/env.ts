@@ -7,6 +7,7 @@ export function validateEnv(env: NodeJS.ProcessEnv): void {
   const missing: string[] = [];
   if (!env.AUTH_SECRET) missing.push("AUTH_SECRET");
   if (!env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!env.AUTH_URL) missing.push("AUTH_URL");
   if (missing.length) {
     throw new Error(
       `Missing required environment variable(s) in production: ${missing.join(", ")}. See .env.example.`,
