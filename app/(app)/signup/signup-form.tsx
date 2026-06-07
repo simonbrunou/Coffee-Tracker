@@ -40,6 +40,12 @@ export function SignupForm() {
         <Button type="submit" disabled={pending} style={{ width: "100%" }}>{pending ? "Creating…" : "Sign up"}</Button>
       </form>
 
+      <p style={{ marginTop: 14, fontSize: 12.5, color: "var(--mocha)", lineHeight: 1.5 }}>
+        By creating an account you agree to our{" "}
+        <a href="/terms" style={{ color: "var(--espresso)", fontWeight: 600 }}>Terms</a> and{" "}
+        <a href="/privacy" style={{ color: "var(--espresso)", fontWeight: 600 }}>Privacy Policy</a>.
+      </p>
+
       <p style={{ marginTop: 18, fontSize: 14, color: "var(--mocha)" }}>
         Have an account? <a href="/login" style={{ color: "var(--espresso)", fontWeight: 600 }}>Sign in</a>
       </p>
