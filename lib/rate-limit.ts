@@ -25,13 +25,12 @@ export const RATE_LIMIT_SQL = `insert into rate_limits (key, count, reset_at)
  *  pressure) trips fail-open instead of stalling the auth request. The pool's
  *  connectionTimeoutMillis only bounds connection ACQUISITION, not execution. */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) => {
-      const t = setTimeout(() => reject(new Error("rate_limit_query_timeout")), ms);
-      (t as { unref?: () => void }).unref?.(); // don't keep the event loop alive
-    }),
-  ]);
+  let t: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, reject) => {
+    t = setTimeout(() => reject(new Error("rate_limit_query_timeout")), ms);
+    (t as { unref?: () => void }).unref?.(); // don't keep the event loop alive
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(t));
 }
 
 /** Fixed-window limiter backed by Postgres (shared across instances). Returns true
@@ -51,5 +50,18 @@ export async function checkRateLimit(key: string, limit: number = RL_DEFAULT_LIM
   } catch (err) {
     logger.error("rate_limit_db_error", { err: String(err), key });
     return true; // fail-open
+  }
+}
+
+let warnedUnknownIp = false;
+/** Surface (once) a production misconfig where X-Forwarded-For isn't forwarded, so
+ *  per-IP rate limiting is silently disabled (callers skip the per-IP check on
+ *  an "unknown" IP). Lets an operator catch a broken reverse-proxy config. */
+export function warnIfUnknownIp(ip: string): void {
+  if (ip === "unknown" && !warnedUnknownIp && process.env.NODE_ENV === "production") {
+    warnedUnknownIp = true;
+    logger.warn("rate_limit_unknown_ip", {
+      hint: "X-Forwarded-For absent — per-IP rate limiting is disabled; check the reverse-proxy config",
+    });
   }
 }

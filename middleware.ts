@@ -11,6 +11,9 @@ export function middleware(request: NextRequest) {
   // Behind Traefik, x-forwarded-proto reflects the public scheme; default to https
   // in prod (TLS-terminated) and http in dev.
   const isHttps = (request.headers.get("x-forwarded-proto") ?? (isDev ? "http" : "https")) === "https";
+  // origin (for the report endpoints) is built from the request Host. Behind Traefik
+  // the Host is fixed; a forged Host only redirects the attacker's OWN CSP reports, so
+  // it's not pinned to an env var (and CR/LF in a Host is rejected upstream).
   const host = request.headers.get("host") ?? "localhost";
   const origin = `${isHttps ? "https" : "http"}://${host}`;
   const opts = { isDev, isHttps, origin };

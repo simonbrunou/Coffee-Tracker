@@ -8,7 +8,7 @@ import type {} from "next-auth/jwt";
 import { pool, query, withTransaction } from "@/lib/db";
 import { findCredentialUserByEmail, resolveOrCreateOAuthUser, getSessionVersion } from "@/lib/users-repo";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";
-import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT } from "@/lib/rate-limit";
+import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 
 declare module "next-auth" {
@@ -47,7 +47,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // (either tripping blocks): per-email stops targeted brute force, per-IP
         // stops spraying one password across many emails.
         const ip = clientIp(request?.headers?.get("x-forwarded-for") ?? null, TRUSTED_PROXY_HOPS);
-        if (!(await checkRateLimit(`login:email:${email.toLowerCase()}`, RL_EMAIL_LIMIT))) return null;
+        warnIfUnknownIp(ip);
+        // Cap the email in the key (RFC max 254) so a giant unvalidated value can't
+        // bloat the rate_limits PK; the key is built before validateSignup runs.
+        if (!(await checkRateLimit(`login:email:${email.toLowerCase().slice(0, 254)}`, RL_EMAIL_LIMIT))) return null;
         // Skip the per-IP check when the IP is unknown — never block on a shared
         // "unknown" bucket (an XFF misconfig would otherwise lock out everyone).
         if (ip !== "unknown" && !(await checkRateLimit(`login:ip:${ip}`, RL_IP_LIMIT))) return null;
