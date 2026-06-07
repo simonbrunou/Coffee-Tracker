@@ -54,6 +54,15 @@ export function SettingsScreen() {
           </div>
         )}
       </section>
+
+      <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Legal</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14 }}>
+          <a href="/privacy" style={{ color: "var(--espresso)", fontWeight: 600 }}>Privacy Policy</a>
+          <a href="/terms" style={{ color: "var(--espresso)", fontWeight: 600 }}>Terms of Service</a>
+          <a href="/cookies" style={{ color: "var(--espresso)", fontWeight: 600 }}>Cookie Notice</a>
+        </div>
+      </section>
     </div>
   );
 }
