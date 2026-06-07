@@ -7,6 +7,7 @@ import GitHub from "next-auth/providers/github";
 import type {} from "next-auth/jwt";
 import { pool, query, withTransaction } from "@/lib/db";
 import { findCredentialUserByEmail, resolveOrCreateOAuthUser, getSessionVersion } from "@/lib/users-repo";
+import { githubEmailVerified } from "@/lib/oauth-email";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";
 import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
@@ -71,6 +72,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.uid = (user as { id: string }).id;
           token.sv = (user as unknown as { sessionVersion?: number }).sessionVersion ?? 0;
         } else {
+          // Trust the provider's email-verified signal: Google sets email_verified;
+          // GitHub's bundled provider returns the PRIMARY (not necessarily verified)
+          // email, so confirm via /user/emails. Anything else → unverified.
+          const emailVerified =
+            account.provider === "google"
+              ? profile?.email_verified === true
+              : account.provider === "github" && account.access_token
+                ? await githubEmailVerified(account.access_token)
+                : false;
           const uid = await withTransaction((client) =>
             resolveOrCreateOAuthUser(client, {
               provider: account.provider,
@@ -79,6 +89,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               name: (profile?.name as string) ?? null,
               email: (profile?.email as string) ?? null,
               image: (profile?.picture as string) ?? (profile?.avatar_url as string) ?? null,
+              emailVerified,
             }),
           );
           token.uid = uid;

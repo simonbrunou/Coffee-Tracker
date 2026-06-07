@@ -91,6 +91,24 @@ describe("createCredentialUser", () => {
   });
 });
 
+describe("resolveOrCreateOAuthUser email_verified", () => {
+  it("stamps email_verified (a Date) when emailVerified is true", async () => {
+    const { client, queries } = fakeClient([{ rows: [] }, { rows: [] }, { rows: [] }]);
+    await resolveOrCreateOAuthUser(client, {
+      provider: "google", providerAccountId: "g-1", name: "M", email: "m@e.com", image: null, type: "oidc", emailVerified: true,
+    });
+    expect(queries[1].text).toMatch(/insert into users/i);
+    expect(queries[1].params.some((x) => x instanceof Date)).toBe(true);
+  });
+  it("leaves email_verified null when emailVerified is unset", async () => {
+    const { client, queries } = fakeClient([{ rows: [] }, { rows: [] }, { rows: [] }]);
+    await resolveOrCreateOAuthUser(client, {
+      provider: "github", providerAccountId: "gh-1", name: "T", email: "t@e.com", image: null, type: "oauth",
+    });
+    expect(queries[1].params.some((x) => x instanceof Date)).toBe(false);
+  });
+});
+
 describe("getSessionVersion", () => {
   it("returns the session_version integer when the user exists", async () => {
     const { client } = fakeClient([{ rows: [{ session_version: 5 }] }]);
