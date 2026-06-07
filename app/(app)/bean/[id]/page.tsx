@@ -1,12 +1,44 @@
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUserId } from "@/lib/auth";
-import { getBean, getBeanReviewsPage } from "@/lib/queries";
+import { getBeanCached, getBeanReviewsPage } from "@/lib/queries";
+import { getPublicBaseUrl } from "@/lib/public-url";
+import { beanJsonLd, breadcrumbJsonLd, serializeJsonLd } from "@/lib/json-ld";
+import { beanMetadata } from "@/lib/seo";
 import { BeanClient } from "./bean-client";
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  // getBeanCached dedups with the page body's identical call (same request).
+  return beanMetadata(await getBeanCached(await getCurrentUserId(), id), id);
+}
+
 // Server component: fetch the bean + its first page of reviews (scoped/paginated),
-// then hand off to a client wrapper that wires the shell handlers.
+// emit JSON-LD, then hand off to a client wrapper that wires the shell handlers.
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const uid = await getCurrentUserId();
-  const [bean, initialReviews] = await Promise.all([getBean(uid, id), getBeanReviewsPage(uid, id, {})]);
-  return <BeanClient beanId={id} bean={bean} initialReviews={initialReviews} />;
+  const [bean, initialReviews] = await Promise.all([getBeanCached(uid, id), getBeanReviewsPage(uid, id, {})]);
+  if (!bean) notFound(); // real 404 (not a soft-404 200) for a missing bean
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const base = getPublicBaseUrl();
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd([
+            beanJsonLd(bean, `${base}/bean/${id}`),
+            breadcrumbJsonLd([
+              { name: "Discover", url: `${base}/discover` },
+              { name: bean.name, url: `${base}/bean/${id}` },
+            ]),
+          ]),
+        }}
+      />
+      <BeanClient beanId={id} bean={bean} initialReviews={initialReviews} />
+    </>
+  );
 }

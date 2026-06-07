@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+export const metadata = { title: "Sign in — Cortado", robots: { index: false, follow: false } };
+
 export default async function LoginPage() {
   // Revocation-aware: a revoked/deleted session (stale cookie) must still reach
   // the form to re-authenticate, so check getCurrentUserId, not raw auth().
