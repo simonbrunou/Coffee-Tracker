@@ -38,15 +38,19 @@ describe("beanMetadata / roasterMetadata", () => {
     expect(String(m.title)).toContain("Onyx");
     expect(m.alternates?.canonical).toBe("/bean/b1");
   });
-  it("bean: null → minimal not-found title", () => {
-    expect(beanMetadata(null, "x").title).toBe("Bean not found — Cortado");
+  it("bean: null → minimal not-found title + noindex (reliable soft-404 guard)", () => {
+    const m = beanMetadata(null, "x");
+    expect(m.title).toBe("Bean not found — Cortado");
+    expect((m.robots as { index?: boolean })?.index).toBe(false);
   });
   it("roaster: title + canonical", () => {
     const m = roasterMetadata(roaster, "r1");
     expect(String(m.title)).toContain("Onyx");
     expect(m.alternates?.canonical).toBe("/roaster/r1");
   });
-  it("roaster: null → minimal not-found title", () => {
-    expect(roasterMetadata(null, "x").title).toBe("Roaster not found — Cortado");
+  it("roaster: null → minimal not-found title + noindex", () => {
+    const m = roasterMetadata(null, "x");
+    expect(m.title).toBe("Roaster not found — Cortado");
+    expect((m.robots as { index?: boolean })?.index).toBe(false);
   });
 });
