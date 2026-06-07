@@ -15,7 +15,9 @@ export function generateToken(): { raw: string; hash: string } {
   return { raw, hash: hashToken(raw) };
 }
 
-/** One live link per user: drop prior tokens, insert a fresh one, return the raw token. */
+/** Drop prior tokens for the user, insert a fresh one, return the raw token. Best-effort
+ *  "one live link per user" — two concurrent resends could briefly leave two valid rows
+ *  (both consume atomically + single-use, so this is harmless). */
 export async function createVerificationToken(db: Queryable, userId: string, email: string): Promise<string> {
   const { raw, hash } = generateToken();
   await db.query(`delete from verification_tokens where user_id = $1`, [userId]);
