@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { validateEnv } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 const prod = (extra: Record<string, string> = {}) =>
   ({ NODE_ENV: "production", ...extra }) as unknown as NodeJS.ProcessEnv;
@@ -18,6 +19,23 @@ describe("validateEnv", () => {
   });
 
   it("passes when both are present", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
     expect(() => validateEnv(prod({ AUTH_SECRET: "x", DATABASE_URL: "y" }))).not.toThrow();
+    warn.mockRestore();
+  });
+});
+
+describe("validateEnv — Resend config", () => {
+  it("warns (does not throw) when RESEND_API_KEY/EMAIL_FROM are missing in production", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    expect(() => validateEnv(prod({ AUTH_SECRET: "x", DATABASE_URL: "y" }))).not.toThrow();
+    expect(warn).toHaveBeenCalledWith("email_not_configured", expect.anything());
+    warn.mockRestore();
+  });
+  it("does not warn when Resend is configured", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    validateEnv(prod({ AUTH_SECRET: "x", DATABASE_URL: "y", RESEND_API_KEY: "re_x", EMAIL_FROM: "n@e.com" }));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
