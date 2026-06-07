@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Spectral, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AppProvider } from "@/components/app-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { getAppData } from "@/lib/queries";
 import "./globals.css";
 
-// Read fresh from Postgres on each full load; the AppProvider's client state
-// then persists across client-side route navigation.
+// force-dynamic stays at the ROOT so every route (including the (legal) group)
+// is dynamically rendered — required by the per-request nonce CSP (see
+// middleware.ts). The root no longer reads Postgres: the per-user data load
+// moved to app/(app)/layout.tsx, so legal pages render even when the DB is down.
 export const dynamic = "force-dynamic";
 
 // Display serif — characterful, used for headings, bean names, stats.
@@ -38,13 +38,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // theme-color is set client-side in AppProvider to follow the in-app theme toggle
+  // theme-color is set client-side by the app shell to follow the in-app theme toggle
 };
 
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const initialData = await getAppData();
   // Per-request nonce set by middleware — forwarded to next-themes so its pre-paint
   // inline script is allowed under the strict-dynamic CSP.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
@@ -52,7 +51,7 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${spectral.variable} ${hanken.variable}`}>
       <body>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange nonce={nonce}>
-          <AppProvider initialData={initialData}>{children}</AppProvider>
+          {children}
           <Toaster position="bottom-center" />
         </ThemeProvider>
       </body>
