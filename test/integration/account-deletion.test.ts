@@ -1,25 +1,13 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { freshDbWithSql, dropDb } from "./_db";
+import { freshDbWithSql, dropDb, allMigrationsSql } from "./_db";
 
 const hasDb = !!process.env.DATABASE_URL;
-
-/** Concatenate all migrations in order → one raw SQL batch for a scratch DB.
- *  (`--> statement-breakpoint` lines are `--` SQL comments, so a simple-query
- *  batch runs the whole thing; mirrors constraints.test.ts applying 0000.) */
-function allMigrations(): string {
-  const dir = join(process.cwd(), "drizzle");
-  return ["0000_init.sql", "0001_pagination_indexes.sql", "0002_account_deletion_cascade.sql"]
-    .map((f) => readFileSync(join(dir, f), "utf8"))
-    .join("\n");
-}
 
 describe.skipIf(!hasDb)("account deletion cascade", () => {
   const DB = "cortado_account_deletion";
   afterAll(() => dropDb(DB));
   async function client() {
-    return freshDbWithSql(DB, allMigrations());
+    return freshDbWithSql(DB, allMigrationsSql());
   }
 
   it("tastings.user_id and likes.user_id are ON DELETE CASCADE (confdeltype 'c')", async () => {
