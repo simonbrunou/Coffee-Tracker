@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({
   requireUserId: vi.fn(async () => "u-me"),
+  requireVerifiedUserId: vi.fn(async () => "u-me"),
   getCurrentUserId: vi.fn(async () => "u-me"),
 }));
 const queryMock = vi.fn();
