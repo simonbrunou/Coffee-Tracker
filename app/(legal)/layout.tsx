@@ -14,7 +14,7 @@ export default function LegalLayout({ children }: Readonly<{ children: React.Rea
       </header>
       <main className={styles.main}>
         <div className={styles.disclaimer} role="note">
-          ⚠️ <strong>Template.</strong> This is draft content for review with qualified counsel before you rely on it.
+          <span aria-hidden="true">⚠️</span> <strong>Template.</strong> This is draft content for review with qualified counsel before you rely on it.
         </div>
         <article className={styles.prose}>{children}</article>
       </main>
