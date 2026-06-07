@@ -36,7 +36,7 @@ Two independent production-hardening cuts: (A) add HTTP **security headers** inc
   - `style-src 'self' 'unsafe-inline'` — **nonce-free** (a style nonce would cancel `'unsafe-inline'` and break inline style attributes).
   - `img-src 'self' data:` · `font-src 'self'` · `connect-src 'self'`
   - `base-uri 'self'` · `form-action 'self'` · `object-src 'none'` · `frame-ancestors 'none'`
-  - `report-uri /api/csp-report` (+ a `Reporting-Endpoints` response header + `report-to` group for modern browsers).
+  - `report-uri <origin>/api/csp-report` + `report-to csp-endpoint`, with an **absolute** `Reporting-Endpoints` response header (relative report URLs are ignored by browsers, silently killing `report-to`). The middleware derives `<origin>` from the request host + proto.
   - `upgrade-insecure-requests` only when serving HTTPS (gate on `x-forwarded-proto`).
 - Static headers (all responses): `Strict-Transport-Security: max-age=15552000; includeSubDomains` (**no `preload`** initially; set only when `x-forwarded-proto === 'https'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()`.
 - **Matcher** excludes static assets: `['/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)']`. `/api/*` stays in scope (gets the static headers; the nonce is harmless there).
@@ -75,7 +75,7 @@ RETURNING count
 ```
   Called with `[key, '15 minutes']`. PK row-lock makes this race-safe across instances; `now()` is statement-stable so the reset is atomic.
 - **Fail-open:** wrap in try/catch → `logger.error("rate_limit_db_error", {err, key})` → return `true`.
-- **Bound the query:** prefix with `set local statement_timeout = '1000ms'` inside a short transaction (or a one-shot `query` with a timeout) so app-pool pressure can't hang the limiter — a timeout throws → fail-open.
+- **Bound the query:** wrap the upsert in a 1s `Promise.race` timeout (`connectionTimeoutMillis` only bounds connection *acquisition*, not execution) so a hung query rejects → fail-open, keeping the auth path responsive.
 - **Cleanup (bound table growth from the user-controlled key space):** opportunistic prune — a low-probability (`~1%`) `DELETE FROM rate_limits WHERE reset_at < now()` on the write path, so stale rows from email/IP enumeration don't accumulate without a cron.
 - Remove `__resetRateLimit` and the `clock` seam (time now comes from Postgres).
 
@@ -87,8 +87,8 @@ export const RL_DEFAULT_LIMIT = RL_IP_LIMIT;
 ```
 With the XFF fix, the per-IP limit is trustworthy and is the chokepoint; the per-email limit at `20` still catches sustained single-account attacks but requires an attacker to spread across ≥2 distinct *real* IPs (each capped at 10) to lock one email — removing the cheap forge-one-header lockout.
 
-**`lib/request-ip.ts`** (new, small + unit-testable) — `clientIp(xff: string | null): string`:
-- Returns the **right-most non-empty** `x-forwarded-for` entry (the hop Traefik appends = the real client IP under a single trusted proxy), or `"unknown"`. Documented single-trusted-proxy assumption.
+**`lib/request-ip.ts`** (new, small + unit-testable) — `clientIp(xff, trustedHops = 1): string`:
+- Returns the `trustedHops`-th-from-right `x-forwarded-for` entry (the hop Traefik appends = the real client IP under a single trusted proxy), or `"unknown"` when XFF is absent/too short. `TRUSTED_PROXY_HOPS` (env, default 1) lets a future CDN/extra-proxy topology bump the trusted hop in one place. **Call sites skip the per-IP check when the IP is `"unknown"`** — never block on a shared bucket (an XFF misconfig must not lock everyone out).
 
 **Call sites** (both already `async`):
 - `auth.ts:48-50`: `const ip = clientIp(request?.headers?.get("x-forwarded-for") ?? null);` then `if (!(await checkRateLimit(\`login:email:${email}\`, RL_EMAIL_LIMIT))) return null;` and `if (!(await checkRateLimit(\`login:ip:${ip}\`, RL_IP_LIMIT))) return null;`
@@ -128,5 +128,5 @@ With the XFF fix, the per-IP limit is trustworthy and is the chokepoint; the per
 ## Risks
 - **Nonce mis-wiring** is the top risk: if the CSP isn't set on the *request* header or the nonce isn't base64, Next's scripts get blocked under `strict-dynamic` → blank page. Mitigated by following the verified pattern + the live console check (the canary: blank page = request-header/nonce bug; theme flash only = ThemeProvider nonce missing).
 - **`global-error.tsx`** is an easy blind spot — verify it renders (styled, scripts run) during the live pass, not just happy-path routes.
-- **Trusted-proxy assumption:** the XFF fix assumes exactly one proxy (Coolify/Traefik) in front of the app. Documented in `lib/request-ip.ts`; if the topology gains hops, the hop index must change.
+- **Trusted-proxy assumption:** the XFF fix assumes one proxy (Coolify/Traefik). `TRUSTED_PROXY_HOPS` (env, default 1) makes adding a CDN a one-line config change rather than a silent regression; and `clientIp` returning `"unknown"` makes callers **skip** the per-IP check rather than share one bucket (fail-safe, not a global lockout).
 - **Cookie posture (adjacent):** confirm during live verification that the Auth.js session cookie is `Secure; HttpOnly; SameSite=Lax` behind HTTPS (depends on Traefik forwarding `X-Forwarded-Proto: https`). Not changed by this work, but the headers pass is a good moment to verify.

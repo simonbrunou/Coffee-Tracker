@@ -57,6 +57,12 @@ describe("clientIp", () => {
   it("handles a single hop", () => {
     expect(clientIp("10.0.0.5")).toBe("10.0.0.5");
   });
+  it("with 2 trusted hops (e.g. CDN + Traefik), takes the 2nd-from-right", () => {
+    expect(clientIp("9.9.9.9, 10.0.0.5, 172.16.0.1", 2)).toBe("10.0.0.5");
+  });
+  it("returns 'unknown' when there are fewer hops than trusted proxies", () => {
+    expect(clientIp("10.0.0.5", 2)).toBe("unknown");
+  });
   it("returns 'unknown' for null/empty/garbage", () => {
     expect(clientIp(null)).toBe("unknown");
     expect(clientIp("")).toBe("unknown");
@@ -75,15 +81,24 @@ Expected: FAIL — cannot resolve `@/lib/request-ip`.
 Create `lib/request-ip.ts`:
 
 ```ts
-/** Client IP from X-Forwarded-For under a SINGLE trusted reverse proxy
- *  (Coolify/Traefik). Traefik APPENDS the real client IP as the right-most hop,
- *  so the left-most entries are attacker-controlled — take the right-most. If the
- *  deployment ever gains additional proxy hops, change which hop is trusted. */
-export function clientIp(xff: string | null): string {
+const DEFAULT_TRUSTED_HOPS = 1;
+
+/** Client IP from X-Forwarded-For. The reverse proxy appends the real client IP
+ *  as the right-most hop, so the left-most entries are attacker-controlled. With
+ *  `trustedHops` proxies in front (1 = just Traefik/Coolify; set 2 if a CDN like
+ *  Cloudflare is added), the real client IP is the `trustedHops`-th from the right.
+ *  Returns "unknown" when XFF is absent or shorter than trustedHops — callers MUST
+ *  NOT treat "unknown" as a shared rate-limit bucket (skip the per-IP check). */
+export function clientIp(xff: string | null, trustedHops: number = DEFAULT_TRUSTED_HOPS): string {
   if (!xff) return "unknown";
   const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "unknown";
+  const idx = parts.length - trustedHops;
+  return idx >= 0 && parts[idx] ? parts[idx] : "unknown";
 }
+
+/** Trusted reverse-proxy hop count (1 = Traefik/Coolify only). Override via the
+ *  TRUSTED_PROXY_HOPS env var if a CDN/extra proxy is ever added in front. */
+export const TRUSTED_PROXY_HOPS = Number(process.env.TRUSTED_PROXY_HOPS ?? 1) || 1;
 ```
 
 - [ ] **Step 4: Run it — verify it passes**
@@ -152,6 +167,8 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/coffee_tracker" npx 
 
 Expected: setup applies `0003_rate_limits` with no errors; the second generate prints `No schema changes, nothing to migrate`.
 
+> Fallback: `db:setup` runs drizzle's `migrate()`, which expects the dev DB's `__drizzle_migrations` journal to match the committed migrations. If it errors with an "already exists" or hash-mismatch (e.g. the local DB drifted from earlier integration runs), run `npm run db:reset` (drops public+drizzle schemas, re-applies 0000–0003, re-seeds), then re-run the drift check. This is a local-env recovery, not a logic error in 0003.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -178,7 +195,7 @@ EOF
 Replace the entire contents of `test/rate-limit.test.ts`:
 
 ```ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const queryMock = vi.fn();
 vi.mock("@/lib/db", () => ({ query: (...a: unknown[]) => queryMock(...a) }));
@@ -189,36 +206,63 @@ vi.mock("@/lib/logger", () => ({
 
 import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, RATE_LIMIT_SQL } from "@/lib/rate-limit";
 
-beforeEach(() => { queryMock.mockReset(); errorMock.mockReset(); });
+beforeEach(() => {
+  // mockResolvedValue (persistent) so a stray opportunistic-cleanup call also gets a
+  // thenable — never undefined — keeping the suite deterministic regardless of the 1% gate.
+  queryMock.mockReset();
+  queryMock.mockResolvedValue({ rows: [{ count: 1 }] });
+  errorMock.mockReset();
+});
+afterEach(() => vi.restoreAllMocks());
 
 describe("checkRateLimit (Postgres-backed)", () => {
+  it("returns a Promise (the async contract the call sites await)", () => {
+    expect(checkRateLimit("k")).toBeInstanceOf(Promise);
+  });
   it("runs the atomic upsert and allows when count <= limit", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ count: 3 }] });
+    queryMock.mockResolvedValue({ rows: [{ count: 3 }] });
     const ok = await checkRateLimit("login:ip:1.2.3.4");
     expect(ok).toBe(true);
     const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
-    expect(sql).toBe(RATE_LIMIT_SQL);
+    expect(sql).toBe(RATE_LIMIT_SQL); // shape-only: pins that the impl uses the shared SQL const
     expect(sql).toMatch(/insert into rate_limits/i);
     expect(sql).toMatch(/on conflict \(key\) do update/i);
     expect(sql).toMatch(/returning count/i);
     expect(params).toEqual(["login:ip:1.2.3.4", "15 minutes"]);
   });
   it("blocks when the returned count exceeds the limit", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ count: RL_IP_LIMIT + 1 }] });
+    queryMock.mockResolvedValue({ rows: [{ count: RL_IP_LIMIT + 1 }] });
     expect(await checkRateLimit("login:ip:x")).toBe(false);
   });
   it("allows exactly at the limit boundary", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ count: RL_IP_LIMIT }] });
+    queryMock.mockResolvedValue({ rows: [{ count: RL_IP_LIMIT }] });
     expect(await checkRateLimit("login:ip:x")).toBe(true);
   });
   it("honors a higher per-email limit (softened lockout)", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ count: RL_IP_LIMIT + 5 }] }); // 15
+    queryMock.mockResolvedValue({ rows: [{ count: RL_IP_LIMIT + 5 }] }); // 15
     expect(await checkRateLimit("login:email:a@b.com", RL_EMAIL_LIMIT)).toBe(true); // 15 <= 20
   });
+  it("fires the opportunistic cleanup without affecting the decision", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // force the cleanup branch
+    queryMock.mockResolvedValue({ rows: [{ count: RL_IP_LIMIT + 1 }] });
+    expect(await checkRateLimit("login:ip:x")).toBe(false); // decision unaffected
+    expect(queryMock.mock.calls.some(([sql]) => /delete from rate_limits/i.test(sql as string))).toBe(true);
+  });
   it("fails OPEN and logs when the store errors", async () => {
+    queryMock.mockReset();
     queryMock.mockRejectedValueOnce(new Error("db down"));
     expect(await checkRateLimit("login:ip:x")).toBe(true);
     expect(errorMock).toHaveBeenCalled();
+  });
+  it("fails OPEN if the query exceeds the timeout", async () => {
+    vi.useFakeTimers();
+    queryMock.mockReset();
+    queryMock.mockReturnValueOnce(new Promise(() => {})); // never settles
+    const p = checkRateLimit("login:ip:x");
+    await vi.advanceTimersByTimeAsync(1001);
+    expect(await p).toBe(true);
+    expect(errorMock).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 ```
@@ -226,7 +270,7 @@ describe("checkRateLimit (Postgres-backed)", () => {
 - [ ] **Step 2: Run it — verify it fails**
 
 Run: `npx vitest run --project unit test/rate-limit.test.ts`
-Expected: FAIL — the new exports (`RL_IP_LIMIT`, `RATE_LIMIT_SQL`, async signature) don't exist yet.
+Expected: FAIL — the old in-memory impl never calls `query` (so `queryMock.mock.calls[0]` is undefined) and the new exports (`RATE_LIMIT_SQL`, `RL_IP_LIMIT`) resolve to `undefined`. (Against the old sync impl `await checkRateLimit(...)` still returns true, so the allow-path fails on the missing `query` call, not on the boolean.)
 
 - [ ] **Step 3: Rewrite the implementation**
 
@@ -244,6 +288,7 @@ export const RL_IP_LIMIT = 10;
 export const RL_EMAIL_LIMIT = 20;
 export const RL_DEFAULT_LIMIT = RL_IP_LIMIT;
 const WINDOW = "15 minutes";
+const QUERY_TIMEOUT_MS = 1000;
 
 /** Atomic fixed-window upsert: resets an expired window or increments, in one
  *  statement. PK row-lock serializes concurrent callers across instances; now()
@@ -255,17 +300,31 @@ export const RATE_LIMIT_SQL = `insert into rate_limits (key, count, reset_at)
              reset_at = case when rate_limits.reset_at <= now() then now() + $2::interval else rate_limits.reset_at end
        returning count`;
 
+/** Reject if `p` doesn't settle within `ms`, so a hung query (lock contention, DB
+ *  pressure) trips fail-open instead of stalling the auth request. The pool's
+ *  connectionTimeoutMillis only bounds connection ACQUISITION, not execution. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => {
+      const t = setTimeout(() => reject(new Error("rate_limit_query_timeout")), ms);
+      (t as { unref?: () => void }).unref?.(); // don't keep the event loop alive
+    }),
+  ]);
+}
+
 /** Fixed-window limiter backed by Postgres (shared across instances). Returns true
- *  if allowed (and records the attempt). Fail-OPEN on any store error: the auth
- *  attempt still needs the DB to succeed, so this opens no usable brute-force window.
- *  Store pressure is bounded by the pool's connectionTimeoutMillis → throw → fail-open. */
+ *  if allowed (and records the attempt). Fail-OPEN on any store error/timeout: the
+ *  auth attempt still needs the DB to succeed, so this opens no usable brute-force
+ *  window. Callers skip the per-IP check when the IP is "unknown" (see request-ip). */
 export async function checkRateLimit(key: string, limit: number = RL_DEFAULT_LIMIT): Promise<boolean> {
   try {
-    const { rows } = await query<{ count: number }>(RATE_LIMIT_SQL, [key, WINDOW]);
-    // Opportunistic, best-effort cleanup so the user-controlled key space can't
-    // bloat the table without a cron. Fire-and-forget — never affects the decision.
+    const { rows } = await withTimeout(query<{ count: number }>(RATE_LIMIT_SQL, [key, WINDOW]), QUERY_TIMEOUT_MS);
+    // Opportunistic, best-effort cleanup so the user-controlled key space can't bloat
+    // the table without a cron. Promise.resolve guards a non-promise return (e.g. a
+    // test mock) so a stray cleanup can never throw into the decision path.
     if (Math.random() < 0.01) {
-      query(`delete from rate_limits where reset_at < now()`).catch(() => {});
+      Promise.resolve(query(`delete from rate_limits where reset_at < now()`)).catch(() => {});
     }
     return rows[0].count <= limit;
   } catch (err) {
@@ -308,7 +367,7 @@ In `auth.ts`, change the rate-limit import line (currently `import { checkRateLi
 
 ```ts
 import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT } from "@/lib/rate-limit";
-import { clientIp } from "@/lib/request-ip";
+import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 ```
 
 - [ ] **Step 2: Update the login authorize block**
@@ -324,9 +383,11 @@ In `auth.ts`, replace the IP derivation + the two checks (currently lines ~48-50
 with:
 
 ```ts
-        const ip = clientIp(request?.headers?.get("x-forwarded-for") ?? null);
+        const ip = clientIp(request?.headers?.get("x-forwarded-for") ?? null, TRUSTED_PROXY_HOPS);
         if (!(await checkRateLimit(`login:email:${email.toLowerCase()}`, RL_EMAIL_LIMIT))) return null;
-        if (!(await checkRateLimit(`login:ip:${ip}`, RL_IP_LIMIT))) return null;
+        // Skip the per-IP check when the IP is unknown — never block on a shared
+        // "unknown" bucket (an XFF misconfig would otherwise lock out everyone).
+        if (ip !== "unknown" && !(await checkRateLimit(`login:ip:${ip}`, RL_IP_LIMIT))) return null;
 ```
 
 - [ ] **Step 3: Update `app/auth-actions.ts` imports**
@@ -335,7 +396,7 @@ Change `import { checkRateLimit } from "@/lib/rate-limit";` to:
 
 ```ts
 import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT } from "@/lib/rate-limit";
-import { clientIp } from "@/lib/request-ip";
+import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 ```
 
 - [ ] **Step 4: Update the signup block**
@@ -351,9 +412,10 @@ In `app/auth-actions.ts`, replace (currently lines ~17-19):
 with:
 
 ```ts
-  const ip = clientIp(hdrs.get("x-forwarded-for"));
+  const ip = clientIp(hdrs.get("x-forwarded-for"), TRUSTED_PROXY_HOPS);
   if (!(await checkRateLimit(`signup:email:${input.email.toLowerCase()}`, RL_EMAIL_LIMIT))) return { error: "Too many attempts, try again later." };
-  if (!(await checkRateLimit(`signup:ip:${ip}`, RL_IP_LIMIT))) return { error: "Too many attempts, try again later." };
+  // Skip the per-IP check when the IP is unknown (see auth.ts rationale).
+  if (ip !== "unknown" && !(await checkRateLimit(`signup:ip:${ip}`, RL_IP_LIMIT))) return { error: "Too many attempts, try again later." };
 ```
 
 - [ ] **Step 5: Typecheck + full unit suite**
@@ -512,8 +574,10 @@ describe("generateNonce", () => {
   });
 });
 
+const O = "https://x.test"; // absolute origin the middleware supplies
+
 describe("buildCsp", () => {
-  const csp = buildCsp("NONCE", { isDev: false, isHttps: true });
+  const csp = buildCsp("NONCE", { isDev: false, isHttps: true, origin: O });
   it("uses nonce + strict-dynamic for scripts and NO unsafe-inline in script-src", () => {
     expect(csp).toMatch(/script-src 'self' 'nonce-NONCE' 'strict-dynamic'/);
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
@@ -527,30 +591,30 @@ describe("buildCsp", () => {
       expect(csp).toContain(d);
     }
   });
-  it("points reporting at /api/csp-report", () => {
-    expect(csp).toMatch(/report-uri \/api\/csp-report/);
+  it("points reporting at an ABSOLUTE /api/csp-report URL", () => {
+    expect(csp).toContain(`report-uri ${O}/api/csp-report`);
     expect(csp).toMatch(/report-to csp-endpoint/);
   });
   it("adds unsafe-eval only in dev", () => {
-    expect(buildCsp("N", { isDev: true, isHttps: true })).toMatch(/script-src[^;]*'unsafe-eval'/);
-    expect(buildCsp("N", { isDev: false, isHttps: true })).not.toMatch(/'unsafe-eval'/);
+    expect(buildCsp("N", { isDev: true, isHttps: true, origin: O })).toMatch(/script-src[^;]*'unsafe-eval'/);
+    expect(buildCsp("N", { isDev: false, isHttps: true, origin: O })).not.toMatch(/'unsafe-eval'/);
   });
   it("adds upgrade-insecure-requests only over https", () => {
-    expect(buildCsp("N", { isDev: false, isHttps: true })).toMatch(/upgrade-insecure-requests/);
-    expect(buildCsp("N", { isDev: false, isHttps: false })).not.toMatch(/upgrade-insecure-requests/);
+    expect(buildCsp("N", { isDev: false, isHttps: true, origin: O })).toMatch(/upgrade-insecure-requests/);
+    expect(buildCsp("N", { isDev: false, isHttps: false, origin: O })).not.toMatch(/upgrade-insecure-requests/);
   });
 });
 
 describe("staticSecurityHeaders", () => {
-  it("includes the standard headers; HSTS only over https", () => {
-    const https = new Map(staticSecurityHeaders({ isDev: false, isHttps: true }));
+  it("includes the standard headers (absolute Reporting-Endpoints); HSTS only over https", () => {
+    const https = new Map(staticSecurityHeaders({ isDev: false, isHttps: true, origin: O }));
     expect(https.get("X-Frame-Options")).toBe("DENY");
     expect(https.get("X-Content-Type-Options")).toBe("nosniff");
     expect(https.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     expect(https.get("Permissions-Policy")).toMatch(/camera=\(\)/);
-    expect(https.get("Reporting-Endpoints")).toMatch(/csp-endpoint/);
+    expect(https.get("Reporting-Endpoints")).toBe(`csp-endpoint="${O}/api/csp-report"`);
     expect(https.get("Strict-Transport-Security")).toMatch(/max-age=/);
-    expect(new Map(staticSecurityHeaders({ isDev: false, isHttps: false })).has("Strict-Transport-Security")).toBe(false);
+    expect(new Map(staticSecurityHeaders({ isDev: false, isHttps: false, origin: O })).has("Strict-Transport-Security")).toBe(false);
   });
 });
 ```
@@ -568,6 +632,10 @@ Create `lib/security-headers.ts`:
 export interface HeaderOpts {
   isDev: boolean;
   isHttps: boolean;
+  /** Absolute origin (e.g. "https://cortado.example.com"), from the request, for the
+   *  report endpoints. Reporting-Endpoints requires an ABSOLUTE URL or browsers ignore
+   *  it (which would silently kill the modern report-to channel). */
+  origin: string;
 }
 
 /** Per-request nonce. base64 of a UUID — satisfies Next's nonce token regex
@@ -593,7 +661,7 @@ export function buildCsp(nonce: string, opts: HeaderOpts): string {
     `form-action 'self'`,
     `object-src 'none'`,
     `frame-ancestors 'none'`,
-    `report-uri /api/csp-report`,
+    `report-uri ${opts.origin}/api/csp-report`,
     `report-to csp-endpoint`,
   ];
   if (opts.isHttps) directives.push("upgrade-insecure-requests");
@@ -607,7 +675,7 @@ export function staticSecurityHeaders(opts: HeaderOpts): Array<[string, string]>
     ["X-Content-Type-Options", "nosniff"],
     ["Referrer-Policy", "strict-origin-when-cross-origin"],
     ["Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()"],
-    ["Reporting-Endpoints", `csp-endpoint="/api/csp-report"`],
+    ["Reporting-Endpoints", `csp-endpoint="${opts.origin}/api/csp-report"`],
   ];
   if (opts.isHttps) {
     headers.push(["Strict-Transport-Security", "max-age=15552000; includeSubDomains"]);
@@ -655,7 +723,7 @@ import { middleware } from "@/middleware";
 describe("middleware security headers", () => {
   it("sets a nonce CSP + static headers on the response (https)", () => {
     const req = new NextRequest(new URL("http://localhost/"), {
-      headers: { "x-forwarded-proto": "https" },
+      headers: { "x-forwarded-proto": "https", host: "x.test" },
     });
     const res = middleware(req);
     const csp = res.headers.get("content-security-policy");
@@ -672,7 +740,7 @@ describe("middleware security headers", () => {
 });
 ```
 
-> If `NextRequest` cannot be constructed in the vitest node env (import/runtime error), DELETE this test file — the pure builders (Task 6) carry the unit coverage and the middleware wiring is verified in the Task 10 live browser pass. Note the removal in the commit.
+> Note: the adversarial review verified this test runs in the vitest `unit` (node) project — `NextRequest` constructs and `NextResponse.next()` round-trips headers. Do NOT delete it; it is the only automated check that the request+response wiring actually emits the headers. `middleware()` is synchronous (returns a `NextResponse`, not a Promise), so the un-awaited `const res = middleware(req)` is correct.
 
 - [ ] **Step 2: Run it — verify it fails**
 
@@ -687,13 +755,20 @@ Create `middleware.ts` (repo root):
 import { NextResponse, type NextRequest } from "next/server";
 import { generateNonce, buildCsp, staticSecurityHeaders } from "@/lib/security-headers";
 
+// NOTE: this strict nonce CSP requires every route to be DYNAMICALLY rendered (the
+// root layout's force-dynamic cascades). If a route ever opts back into static
+// rendering (force-static / ISR), Next stops applying per-request nonces and the
+// enforced CSP will blank that route — move such a route to a hash-based CSP.
 export function middleware(request: NextRequest) {
   const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === "development";
   // Behind Traefik, x-forwarded-proto reflects the public scheme; default to https
   // in prod (TLS-terminated) and http in dev.
   const isHttps = (request.headers.get("x-forwarded-proto") ?? (isDev ? "http" : "https")) === "https";
-  const csp = buildCsp(nonce, { isDev, isHttps });
+  const host = request.headers.get("host") ?? "localhost";
+  const origin = `${isHttps ? "https" : "http"}://${host}`;
+  const opts = { isDev, isHttps, origin };
+  const csp = buildCsp(nonce, opts);
 
   // Next reads the nonce from the REQUEST Content-Security-Policy header and
   // applies it to its own injected scripts — so set it on the forwarded request.
@@ -703,13 +778,23 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
-  for (const [k, v] of staticSecurityHeaders({ isDev, isHttps })) response.headers.set(k, v);
+  for (const [k, v] of staticSecurityHeaders(opts)) response.headers.set(k, v);
   return response;
 }
 
 export const config = {
-  // Run on pages + API for the headers; skip static assets and metadata files.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)"],
+  // Run on pages + API for the headers; skip static assets, metadata files, and
+  // router PREFETCHes (a prefetch render gets a different nonce than the real nav,
+  // which can blank the page — per the official Next CSP matcher).
+  matcher: [
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };
 ```
 
@@ -901,7 +986,9 @@ Start dev (`PORT=<free> npm run dev`), open the app, and verify against the coun
 3. View-source: the Next bootstrap `<script nonce="…">` and the next-themes `<script nonce="…">` share the same nonce; a reload shows a **different** nonce.
 4. No theme flash on hard reload; toggling dark/light produces no console style violation.
 5. A Server Action works (sign in, then like a brew / log a brew) → confirms `connect-src`/`form-action`.
-6. Visit a non-existent route to trigger the error boundary / `global-error` → it renders styled with no console CSP errors.
+6. **global-error hydration (highest-risk path):** force `global-error` (in a production build, stop Postgres so `getAppData()` throws; dev shows the Next overlay instead) → it must render styled AND the "Try again" button must **work when clicked** (proves its bootstrap scripts hydrated under the nonce, not just painted). View-source: its `<script>` tags carry a nonce.
+7. **Reporting works:** trigger a deliberate violation → confirm exactly one `csp_violation` line is logged via `/api/csp-report` (not a storm, not zero — proves the absolute report URL is honored).
+8. **OAuth (if configured locally):** a Google/GitHub sign-in round-trip is not blocked by the headers. If OAuth isn't set up in the test env, note it unverified (credentials sign-in is covered by item 5).
 
 - [ ] **Step 4: Live verification — rate limiter + trusted IP**
 
@@ -935,4 +1022,6 @@ Announce and use **superpowers:finishing-a-development-branch** → push + open 
 
 **3. Type/name consistency:** `clientIp(xff: string|null)` signature identical in Tasks 1/4. `checkRateLimit(key, limit?)` + `RL_IP_LIMIT`/`RL_EMAIL_LIMIT`/`RATE_LIMIT_SQL` consistent across Tasks 3/4/5. `buildCsp(nonce, {isDev,isHttps})` + `staticSecurityHeaders` + `generateNonce` consistent across Tasks 6/7. `allMigrationsSql()` defined in Task 5 Step 1, used in Steps 2/4. Migration `0003_rate_limits` consistent across Tasks 2/5/10.
 
-**Spec note (deliberate simplification):** the spec mentioned a per-statement `statement_timeout` to bound the limiter query. The plan relies on the pool's existing `connectionTimeoutMillis` (5s) + fail-open instead — a `SET LOCAL statement_timeout` would require wrapping each check in an explicit transaction (≈4× the round-trips on the auth hot path) for a contention case that the atomic single-statement upsert already makes sub-millisecond. This stays within the spec's stated intent ("a one-shot query … so app-pool pressure can't hang the limiter").
+**Query-timeout approach:** the spec calls for bounding the limiter query so store pressure can't hang the auth path. `connectionTimeoutMillis` only bounds connection *acquisition*, not execution — so the limiter wraps the upsert in `withTimeout` (a 1s `Promise.race`): a hung query rejects → fail-open fires. This bounds the auth-request latency with no extra DB round-trips on the happy path (a server-side `SET LOCAL statement_timeout` would cost ~4× round-trips per check; the race degrades to pool-exhaustion fail-open under sustained pressure, acceptable at this scale).
+
+**Adversarial review fixes folded in (review `wf_333ed3ae`):** `clientIp` skip-on-`"unknown"` at the call sites (no shared-bucket lockout) + configurable `TRUSTED_PROXY_HOPS`; absolute report URLs (a relative `Reporting-Endpoints` is ignored by browsers, which would kill `report-to`); `Promise.resolve`-guarded cleanup + deterministic / forced-cleanup / timeout unit tests; prefetch-excluding matcher; the middleware test is kept (the review verified it runs); a `db:reset` fallback for a dirty local journal; a stronger `global-error` hydration live-check.
