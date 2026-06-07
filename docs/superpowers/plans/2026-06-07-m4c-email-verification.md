@@ -183,7 +183,7 @@ Expected: `drizzle/0004_verification_tokens.sql` + meta written.
 
 - [ ] **Step 3: Verify the SQL**
 
-Read `drizzle/0004_verification_tokens.sql`. It MUST be a single `CREATE TABLE "verification_tokens"` (columns `id` PK, `user_id` FK→users ON DELETE cascade, `email`, `token_hash`, `expires_at`, `created_at`) + the three indexes, and no other table changes. If it touches anything else, STOP.
+Read `drizzle/0004_verification_tokens.sql`. It MUST contain (all targeting `verification_tokens`): one `CREATE TABLE "verification_tokens"`, one `ALTER TABLE "verification_tokens" ADD CONSTRAINT … FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade` (drizzle emits the FK as a separate statement — expected), and three index statements (`CREATE UNIQUE INDEX vt_token_hash_uq` + `CREATE INDEX vt_user_id_idx` + `CREATE INDEX vt_expires_at_idx`). STOP only if it touches a DIFFERENT table.
 
 - [ ] **Step 4: Apply + drift check**
 
@@ -309,6 +309,11 @@ export async function createVerificationToken(db: Queryable, userId: string, ema
      values ($1, $2, $3, $4, now() + $5::interval)`,
     [`vt-${randomUUID()}`, userId, email, hash, TTL],
   );
+  // Opportunistic prune (~1%) of globally-expired rows so abandoned signups don't
+  // accumulate (mirrors lib/rate-limit.ts). Fire-and-forget; never affects the result.
+  if (Math.random() < 0.01) {
+    Promise.resolve(db.query(`delete from verification_tokens where expires_at < now()`)).catch(() => {});
+  }
   return raw;
 }
 
@@ -467,6 +472,8 @@ Append to `.env.example`:
 ```
 # Email (Resend) — optional in dev (the verification link is logged instead).
 # Required to actually send in production; EMAIL_FROM must be on a Resend-verified domain.
+# AUTH_URL (above) must also be your public origin in production so the verification
+# link in the email is absolute (it falls back to http://localhost:3000 in dev).
 RESEND_API_KEY=
 EMAIL_FROM=
 ```
@@ -561,8 +568,13 @@ export async function sendVerificationEmail(userId: string): Promise<void> {
   if (!row?.email || row.email_verified) return;
   try {
     const raw = await createVerificationToken(db, userId, row.email);
-    const url = `${process.env.AUTH_URL ?? ""}/api/verify?token=${raw}`;
-    logger.info("verify_link", { userId, url }); // dev convenience; also the dev-fallback path
+    // AUTH_URL is unset in local dev (trustHost) — fall back so the dev link is clickable.
+    const base = (process.env.AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+    const url = `${base}/api/verify?token=${raw}`;
+    // Log the RAW token URL ONLY on the dev-fallback path (no Resend key). In prod the
+    // single-use token must never hit the logs — log a tokenless event instead.
+    if (!process.env.RESEND_API_KEY) logger.info("verify_link", { userId, url });
+    else logger.info("verify_email_sent", { userId });
     await sendEmail(
       row.email,
       "Verify your Cortado email",
@@ -748,7 +760,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const requireUserId = vi.fn(async () => "u-me");
 vi.mock("@/lib/auth", () => ({ requireUserId }));
 const checkRateLimit = vi.fn(async () => true);
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: (...a: unknown[]) => checkRateLimit(...a), RL_EMAIL_LIMIT: 20 }));
+vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: (...a: unknown[]) => checkRateLimit(...a) }));
 const sendVerificationEmail = vi.fn(async () => {});
 vi.mock("@/lib/verify-email", () => ({ sendVerificationEmail: (...a: unknown[]) => sendVerificationEmail(...a) }));
 
@@ -955,12 +967,32 @@ In `auth.ts`, add the import `import { githubEmailVerified } from "@/lib/oauth-e
 
 - [ ] **Step 7: Update `users-repo.test.ts` for the new INSERT shape**
 
-The "creates a user + account" test asserts `queries[1].text` matches `insert into users` and `queries[1].params` contains `0` (session_version). That still holds (the INSERT now has 8 params incl. `email_verified`). Add an assertion that a verified create stamps it: add a test that calls `resolveOrCreateOAuthUser(client, { ...profile, emailVerified: true })` with `responses=[{rows:[]},{rows:[]},{rows:[]}]` and asserts `queries[1].params` has a `Date` (the email_verified value) — i.e. `expect(queries[1].params.some((x) => x instanceof Date)).toBe(true)`. For the `emailVerified: false`/unset case, assert the last param is `null`.
+The existing "creates a user + account" test still passes (the users INSERT now has 8 params incl. `email_verified`; it still matches `/insert into users/i` and still contains `0`). The existing "reuses the existing user" test (`responses = [{ rows: [{ user_id: "u-existing" }] }]`, asserts `queries.toHaveLength(1)`) also still holds — the lazy-backfill UPDATE only runs when `emailVerified` is truthy, and that test passes no `emailVerified`. Add a `describe` for the stamping:
+
+```ts
+describe("resolveOrCreateOAuthUser email_verified", () => {
+  it("stamps email_verified (a Date) when emailVerified is true", async () => {
+    const { client, queries } = fakeClient([{ rows: [] }, { rows: [] }, { rows: [] }]);
+    await resolveOrCreateOAuthUser(client, {
+      provider: "google", providerAccountId: "g-1", name: "M", email: "m@e.com", image: null, type: "oidc", emailVerified: true,
+    });
+    expect(queries[1].text).toMatch(/insert into users/i);
+    expect(queries[1].params.some((x) => x instanceof Date)).toBe(true);
+  });
+  it("leaves email_verified null when emailVerified is unset", async () => {
+    const { client, queries } = fakeClient([{ rows: [] }, { rows: [] }, { rows: [] }]);
+    await resolveOrCreateOAuthUser(client, {
+      provider: "github", providerAccountId: "gh-1", name: "T", email: "t@e.com", image: null, type: "oauth",
+    });
+    expect(queries[1].params.some((x) => x instanceof Date)).toBe(false);
+  });
+});
+```
 
 - [ ] **Step 8: Run tests + typecheck**
 
 Run: `npx vitest run --project unit test/oauth-email.test.ts test/users-repo.test.ts && npm run typecheck`
-Expected: PASS; tsc clean. (`profile.email_verified` is read via `profile?.email_verified` — `profile` is typed loosely in the callback; cast if tsc complains: `(profile as { email_verified?: boolean })?.email_verified === true`.)
+Expected: PASS; tsc clean. (`email_verified` is declared `boolean | null` on Auth.js's `Profile` type, so `profile?.email_verified === true` typechecks with no cast.)
 
 - [ ] **Step 9: Commit**
 
@@ -1188,12 +1220,14 @@ Expected: FAIL — the actions still call `requireUserId()`.
 
 - [ ] **Step 3: Swap the gate in the content writes**
 
-In `app/actions.ts`, change the import to include `requireVerifiedUserId` (keep `requireUserId` if still used elsewhere), then replace `const userId = await requireUserId();` (or `await requireUserId()`) with `requireVerifiedUserId()` **in exactly these 14 functions**: `logBrew, addBag, updateBrew, deleteBrew, updateBag, deleteBag, toggleLike, toggleFollowUser, toggleFollowRoaster, toggleSaveTasting, toggleWishlistBean, addComment, updateComment, deleteComment`. Do NOT change the `loadMore*` read actions (they use `getCurrentUserId`) and do NOT change `app/account-actions.ts`.
+In `app/actions.ts`, change the import to include `requireVerifiedUserId` (keep `requireUserId` if still used elsewhere), then replace `const userId = await requireUserId();` with `const userId = await requireVerifiedUserId();` (**keep the `const userId = await` binding** — the actions use `userId` later) **in exactly these 14 functions**: `logBrew, addBag, updateBrew, deleteBrew, updateBag, deleteBag, toggleLike, toggleFollowUser, toggleFollowRoaster, toggleSaveTasting, toggleWishlistBean, addComment, updateComment, deleteComment`. Do NOT change the `loadMore*` read actions (they use `getCurrentUserId`) and do NOT change `app/account-actions.ts`.
 
-- [ ] **Step 4: Run the coverage test + full unit suite**
+- [ ] **Step 4: Update the `@/lib/auth` mocks, then run the coverage test + full unit suite**
+
+**Required edit first:** every test that mocks `@/lib/auth` and exercises a now-gated action must add `requireVerifiedUserId: vi.fn(async () => "u-me")` to its `vi.mock("@/lib/auth", …)` factory — otherwise the gated action calls `undefined()` → `"requireVerifiedUserId is not a function"`. Add that line to the factory in **all three** of: `test/actions-edit-delete.test.ts`, `test/log-brew.test.ts`, `test/actions-social.test.ts` (each calls gated actions). `test/actions-pagination.test.ts` (only `loadMoreFeed`, a read) and `test/account-actions.test.ts` (only non-gated `requireUserId` actions) do NOT need it.
 
 Run: `npx vitest run --project unit test/write-gate-coverage.test.ts && npm run test`
-Expected: coverage PASS; the existing `actions-edit-delete.test.ts` / `log-brew.test.ts` still pass (they mock `@/lib/auth` — update those mocks to also export `requireVerifiedUserId: vi.fn(async () => "u-me")` if a test references a now-gated action and currently only mocks `requireUserId`).
+Expected: coverage PASS; full unit suite green.
 
 - [ ] **Step 5: Typecheck**
 
@@ -1203,7 +1237,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/actions.ts test/write-gate-coverage.test.ts test/actions-edit-delete.test.ts test/log-brew.test.ts
+git add app/actions.ts test/write-gate-coverage.test.ts test/actions-edit-delete.test.ts test/log-brew.test.ts test/actions-social.test.ts
 git commit -m "$(cat <<'EOF'
 feat(auth): gate content writes behind email verification (m4c)
 
@@ -1245,33 +1279,30 @@ and include `needsEmailVerification` in the returned object. (`query` is already
 Run: `npx vitest run --project unit test/projection-guard.test.ts`
 Expected: PASS — `getUserById` is unchanged (the `email_verified` read lives in `getAppData`, not `getUserById`).
 
-- [ ] **Step 4: Expose it through the data context**
+- [ ] **Step 4: Render the banner from `initialData` (NOT `useData`)**
 
-In `components/data-context.tsx`, add `needsEmailVerification: boolean` to the `DataApi` interface and thread it from `initialData` (mirror how `currentUserId` is passed through).
+`AppProvider` is the component that *renders* `<DataProvider>`, so calling `useData()` in its body throws "useData must be used within a DataProvider" (the hook resolves context from `AppProvider`'s position, which is above its own provider) — it would crash the shell. `AppProvider` already destructures `initialData` (e.g. `currentUserId` at `components/app-provider.tsx:71`); read the flag there. No `data-context.tsx` change is needed (the banner reads `initialData` directly; `needsEmailVerification` is on `AppData` from Steps 1–2).
 
-- [ ] **Step 5: Render the banner**
-
-In `components/app-provider.tsx`, read `needsEmailVerification` from the data context and, when true, render a dismissible-free banner above `{children}` in the main scroll area:
+In `components/app-provider.tsx`: add `needsEmailVerification` to the `initialData` destructure (`const { …, currentUserId, needsEmailVerification } = initialData;`), add `import { resendVerification } from "@/app/verify-actions";` (`Button` is already imported), and render the banner inside the `<div className="screen-pad">` wrapper, before `{children}`:
 
 ```tsx
-{D.needsEmailVerification && (
+{needsEmailVerification && (
   <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
     <span style={{ flex: 1 }}>Verify your email to log brews and bags. Check your inbox for the link.</span>
     <form action={resendVerification}><Button variant="outline" size="sm" type="submit">Resend</Button></form>
   </div>
 )}
 ```
-Add `import { resendVerification } from "@/app/verify-actions";` and read `D` via `useData()` (already used in this file or import it). Place the banner inside the `<div className="screen-pad">` wrapper, before `{children}`.
 
-- [ ] **Step 6: Typecheck + lint**
+- [ ] **Step 5: Typecheck + lint**
 
 Run: `npm run typecheck && npm run lint`
 Expected: no errors.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add lib/types.ts lib/queries.ts components/data-context.tsx components/app-provider.tsx
+git add lib/types.ts lib/queries.ts components/app-provider.tsx
 git commit -m "$(cat <<'EOF'
 feat(ui): email-verification banner + needsEmailVerification (m4c)
 
@@ -1340,4 +1371,6 @@ Announce + use **superpowers:finishing-a-development-branch** → push + PR agai
 
 **3. Type/name consistency:** `sendEmail(to,subject,html)`, `generateToken→{raw,hash}`, `createVerificationToken(db,userId,email)→raw`, `consumeVerificationToken(db,raw)→{userId}|null`, `sendVerificationEmail(userId)`, `getSessionState→{sessionVersion,emailVerified,hasPassword}`, `isWriteAllowed(hasPassword,emailVerified)`, `requireVerifiedUserId()`, `githubEmailVerified(token)`, `needsEmailVerification` — all consistent across tasks. Migration `0004_verification_tokens` consistent (Tasks 2/3/12).
 
-**Deviation from spec (deliberate):** the spec mentioned an opportunistic ~1% global expired-token prune like the rate limiter; the plan instead drops prior tokens per-user on each (re)send (`createVerificationToken`), which bounds the table to ≈one row per pending user. A global prune can be added later if needed; this is simpler and sufficient.
+**Deviations from spec (deliberate):** (1) Resend rate-limiting uses a single `verify:user:<uid>` key instead of the spec's `verify:email`/`verify:ip` — the resend action is authenticated, so per-user keying is the correct, enumeration-free surface. (2) The spec's opportunistic ~1% global expired-token prune IS kept — folded into `createVerificationToken` (Task 3) alongside the per-user delete, so abandoned-signup rows don't accumulate.
+
+**Adversarial review fixes folded in (review `wf_a4f40928`):** banner reads `initialData.needsEmailVerification` (calling `useData()` inside `AppProvider` would throw — it renders the provider); the three `@/lib/auth`-mocking test files (`actions-edit-delete`, `log-brew`, `actions-social`) get `requireVerifiedUserId` added before the gate swap; the `verify_link` raw-token log is gated to the dev-fallback path only (no token in prod logs); an `AUTH_URL` localhost fallback makes the dev link clickable; the Task 2 migration gate now expects drizzle's separate FK `ALTER TABLE`; Task 8 step 7 ships concrete test code.
