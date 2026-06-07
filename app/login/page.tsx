@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
-import { auth, signIn } from "@/auth";
+import { signIn } from "@/auth";
+import { getCurrentUserId } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default async function LoginPage() {
-  if (await auth()) redirect("/");
+  // Revocation-aware: a revoked/deleted session (stale cookie) must still reach
+  // the form to re-authenticate, so check getCurrentUserId, not raw auth().
+  if (await getCurrentUserId()) redirect("/");
 
   async function loginWithCredentials(formData: FormData) {
     "use server";

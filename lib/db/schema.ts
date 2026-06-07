@@ -99,7 +99,7 @@ export const tastings = pgTable(
   "tastings",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id").notNull().references(() => users.id), // NO cascade
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     beanId: text("bean_id").notNull().references(() => beans.id, { onDelete: "cascade" }),
     rating: integer("rating").notNull(),
     brew: text("brew").notNull().default(""),
@@ -123,7 +123,7 @@ export const tastings = pgTable(
 export const likes = pgTable(
   "likes",
   {
-    userId: text("user_id").notNull().references(() => users.id), // NO cascade
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     tastingId: text("tasting_id").notNull().references(() => tastings.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

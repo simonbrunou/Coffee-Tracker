@@ -357,6 +357,15 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                       <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@{me.handle}</div>
                     </div>
                   </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => router.push("/settings")}
+                    title="Settings"
+                    aria-label="Settings"
+                  >
+                    <Icon name="settings" size={20} />
+                  </Button>
                   <form action={signOutAction}>
                     <Button variant="ghost" size="sm" type="submit">Sign out</Button>
                   </form>
