@@ -698,3 +698,75 @@ git add -A && git commit -m "feat(m5a): OG + twitter images (static default + dy
 - **Spec coverage:** helper+env (Task 1) ↔ Foundations; cached reads+getRoasterById+bounded queries (Task 2) ↔ Foundations; metadataBase (3); robots (4); sitemap (5); bean/roaster metadata+JSON-LD (6,7); noindex/discover (8); OG static+dynamic (9–11); live (12). Risk table: double-fetch→Task 2 cache; AUTH_URL→Task 1 fail-fast; OG static-optimize→Task 10/11 force-dynamic + Task 11 build check; edge/pg→no edge export (asserted in og-routes test); JSON-LD CSP→nonce (Task 6/7 + live Step 4); sitemap unbounded→Task 2 LIMIT; PII→catalog-only queries (asserted no email/user_id in Task 2).
 - **Font:** v1 uses next/og's default font — no TTF/Dockerfile change (lean path the user endorsed; spec lists this as the accepted fallback). Brand TTF deferred.
 - **Type/name consistency:** `getBeanCached`/`getRoasterByIdCached` used in both metadata and page; `getBeanIdsForSitemap`/`getRoasterIdsForSitemap` names match between Task 2 and Task 5; `beanJsonLd`/`roasterJsonLd`/`breadcrumbJsonLd` match between Task 6 and Tasks 6/7. Verify `Bean.roasterName` exists in `lib/types.ts` during Task 6.
+
+---
+
+## Revisions from the adversarial plan review (AUTHORITATIVE — supersede the tasks above where they conflict)
+
+The 4-lens `m5a-plan-review` found build-breakers, an XSS hole, and test gaps. Apply ALL of the following.
+
+### R1 — Task 1: update `test/env.test.ts` when `AUTH_URL` becomes required (BLOCKER)
+Adding `AUTH_URL` to `validateEnv` breaks existing passing cases. After editing `lib/env.ts`, **add `AUTH_URL: "https://h"` to every `prod({...})` call in `test/env.test.ts` that asserts `.not.toThrow()`** (the "passes when present" + the two Resend cases), and add a case asserting it **throws** when `AUTH_URL` is missing. Run the full `env.test.ts` green before moving on.
+
+### R2 — Tasks 4 & 5: `robots.ts` and `sitemap.ts` must be `force-dynamic` (BLOCKER)
+Both static-generate by default → `sitemap()` would hit the DB at build (no DB → build fails) and `robots()` would bake the build-time `localhost`. Add to **both** files:
+```ts
+export const dynamic = "force-dynamic";
+```
+Also **drop the `host` field** from `robots.ts` (non-standard; lint noise). Add to `test/robots.test.ts` and `test/sitemap.test.ts`: `expect(readFileSync(...,"utf8")).toMatch(/export const dynamic = "force-dynamic"/)`. Add `afterEach(() => { delete process.env.AUTH_URL; })` to both test files (and capture `orig` in `beforeEach` in `public-url.test.ts`).
+
+### R3 — Task 6: escape JSON-LD against script-injection (BLOCKER / XSS)
+`bean.name`/`bean.roasterName`/`roaster.blurb` are user content; `JSON.stringify` alone lets `</script>` break out. Add a serializer to `lib/json-ld.ts` and use it for the `__html`:
+```ts
+/** Escape a JSON-LD payload for safe inlining in <script type="application/ld+json">.
+ *  JSON.stringify does NOT escape <, >, &, U+2028/U+2029 — without this a bean named
+ *  "</script>…" (user content) breaks out of the script element. */
+export function serializeJsonLd(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/ /g, "\\u2028")
+    .replace(/ /g, "\\u2029");
+}
+```
+In both pages use `dangerouslySetInnerHTML={{ __html: serializeJsonLd([...]) }}`. Add a test feeding `name: "x</script><img src=x onerror=alert(1)>"` asserting the output contains no literal `</script` and no raw `onerror=` breakout (i.e. `<`/`>` are escaped).
+
+### R4 — Task 2: mock `@/lib/auth` in `queries-seo.test.ts` + assert cache-wrapping (BLOCKER + spec)
+`lib/queries` imports `getCurrentUserId` from `./auth` → importing it pulls next-auth and fails. Prepend:
+```ts
+vi.mock("@/lib/auth", () => ({ getCurrentUserId: vi.fn(async () => null), requireUserId: vi.fn(), requireVerifiedUserId: vi.fn() }));
+```
+And add the spec-required structural assertion (readFileSync `lib/queries.ts`): `expect(src).toMatch(/export const getBeanCached = cache\(/)` and `…getRoasterByIdCached = cache\(/`.
+
+### R5 — Tasks 6 & 7: `notFound()` for missing bean/roaster (kills soft-404)
+The pages currently 200 with a client panel. In **both** page bodies, after the fetch:
+```ts
+import { notFound } from "next/navigation";
+// bean page:
+if (!bean) notFound();
+// roaster page:
+if (!roaster) notFound();
+```
+This returns a real 404. `generateMetadata` keeps its minimal-title null branch (runs before the body). With `notFound()` guaranteeing non-null, the JSON-LD `{bean && …}` guard can stay (defensive) but bean/roaster are non-null at render.
+
+### R6 — Task 7: drop the dead RoasterClient prop threading
+`RoasterDetail` resolves identity internally via `D.roaster(roasterId)` (provider, populated by the unbounded `getRoasters`), so passing a `roaster` prop to `RoasterClient` alone is dead code. **Do NOT thread the prop.** The server-fetched `getRoasterByIdCached` result is used ONLY for `generateMetadata`, JSON-LD, and `notFound()`. Leave `RoasterClient`/`RoasterDetail` unchanged (the client body keeps using the provider for the heading). Revise Task 7 Step 2 accordingly (no `roaster-client.tsx`/`detail.tsx` edit).
+
+### R7 — Tasks 9–11: OG image fixes
+- **Remove the `☕` emoji** from all OG images — satori's default font renders it as a blank box. Use text only (e.g. `Cortado`).
+- **Pass `null` as the viewer** in the dynamic OG routes: `getBeanCached(null, id)` / `getRoasterByIdCached(null, id)` — OG cards need only catalog fields, and this drops a session/DB lookup on every crawl. Remove the `getCurrentUserId` import from those routes.
+- Add `export const dynamic = "force-static"` to the **static** `app/opengraph-image.tsx` (no DB/headers — makes the static intent explicit and immune to the root `force-dynamic` cascade).
+- Add a structural assertion that the dynamic `twitter-image.tsx` re-exports include `dynamic`.
+
+### R8 — Task 8: add a real `generateMetadata` unit test (spec-required)
+In `test/seo-metadata.test.ts`, mock `@/lib/auth` + `@/lib/queries`, import the bean page's `generateMetadata`, and assert: title contains the bean name; `alternates.canonical === "/bean/b1"`; and the null case returns `{ title: "Bean not found — Cortado" }`. (Same shape for roaster.)
+
+### R9 — Task 3: preserve the existing `viewport` export
+When editing `app/layout.tsx`, **only add `metadataBase` + `openGraph`/`twitter` to the `metadata` export** — keep `export const viewport: Viewport = {…}` intact.
+
+### R10 — Bean-indexing privacy note (documented decision)
+Every bean today is a user-created bag, but a bean page is **coffee-keyed** (name/roaster/origin/flavors + public reviews), not **person-keyed** — it exposes no owner identity or private inventory (`getBean` redacts owner-only fields for non-owners). That is materially less sensitive than a profile (which aggregates a person's identity + full history), so indexing beans/roasters is consistent with the catalog-only scope and the privacy policy's "public to anyone". Profiles remain deferred. No code change — this records the decision.
+
+### R11 — minor doc accuracy
+The unit cache test only asserts the wrapper exists; true request-dedup is verified live (Cut 4). The `og-routes` test goes fully green only after Task 11 (the static `it` passes at Task 9; the dynamic `it` at Task 11). The spec's "`WHERE r.id = $1`" is a typo — the plan's `$2` (with `$1` = viewer) is authoritative.
