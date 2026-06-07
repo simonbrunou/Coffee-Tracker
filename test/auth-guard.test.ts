@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveUserOrThrow, isLiveSession } from "@/lib/auth-guard";
+import { resolveUserOrThrow, isLiveSession, isWriteAllowed } from "@/lib/auth-guard";
 
 describe("resolveUserOrThrow", () => {
   it("throws when there is no session", () => {
@@ -31,5 +31,17 @@ describe("isLiveSession", () => {
   });
   it("is false when both are absent", () => {
     expect(isLiveSession(undefined, null)).toBe(false);
+  });
+});
+
+describe("isWriteAllowed", () => {
+  it("blocks a credential user with no verified email", () => {
+    expect(isWriteAllowed(true, null)).toBe(false);
+  });
+  it("allows a verified credential user", () => {
+    expect(isWriteAllowed(true, new Date())).toBe(true);
+  });
+  it("allows an OAuth user (no password) regardless", () => {
+    expect(isWriteAllowed(false, null)).toBe(true);
   });
 });

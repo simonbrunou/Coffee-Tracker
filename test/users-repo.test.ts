@@ -5,6 +5,7 @@ import {
   createCredentialUser,
   getSessionVersion,
   bumpSessionVersion,
+  getSessionState,
 } from "@/lib/users-repo";
 
 function fakeClient(responses: Array<{ rows: unknown[] }>) {
@@ -129,5 +130,16 @@ describe("bumpSessionVersion", () => {
     await bumpSessionVersion(client, "u-1");
     expect(queries[0].text).toMatch(/update users set session_version = session_version \+ 1/i);
     expect(queries[0].params).toEqual(["u-1"]);
+  });
+});
+
+describe("getSessionState", () => {
+  it("returns sv + emailVerified + hasPassword", async () => {
+    const { client } = fakeClient([{ rows: [{ session_version: 2, email_verified: null, has_password: true }] }]);
+    expect(await getSessionState(client, "u-1")).toEqual({ sessionVersion: 2, emailVerified: null, hasPassword: true });
+  });
+  it("returns null when no row", async () => {
+    const { client } = fakeClient([{ rows: [] }]);
+    expect(await getSessionState(client, "x")).toBeNull();
   });
 });

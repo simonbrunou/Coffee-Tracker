@@ -2,8 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { auth } from "@/auth";
 import { query } from "@/lib/db";
-import { getSessionVersion } from "@/lib/users-repo";
-import { isLiveSession, resolveUserOrThrow } from "@/lib/auth-guard";
+import { getSessionVersion, getSessionState } from "@/lib/users-repo";
+import { isLiveSession, resolveUserOrThrow, isWriteAllowed } from "@/lib/auth-guard";
 
 // Wrap query so its overloaded signatures align with the Queryable interface.
 const db = { query: (t: string, p?: unknown[]) => query(t, p) };
@@ -30,4 +30,17 @@ export async function requireUserId(): Promise<string> {
   if (!id) throw new Error("Unauthenticated");
   const liveVersion = await getSessionVersion(db, id);
   return resolveUserOrThrow({ id, sv: s!.sessionVersion }, liveVersion);
+}
+
+/** Write-path gate for CONTENT writes: auth + revocation + verified-email, in one
+ *  DB read (live, never a stale JWT flag). Credential users must be verified;
+ *  OAuth users (no password) always pass. */
+export async function requireVerifiedUserId(): Promise<string> {
+  const s = await auth();
+  const id = s?.user?.id ?? null;
+  if (!id) throw new Error("Unauthenticated");
+  const state = await getSessionState(db, id);
+  resolveUserOrThrow({ id, sv: s!.sessionVersion }, state?.sessionVersion ?? null); // revocation first
+  if (!state || !isWriteAllowed(state.hasPassword, state.emailVerified)) throw new Error("Email not verified");
+  return id;
 }

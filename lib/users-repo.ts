@@ -85,3 +85,17 @@ export async function getSessionVersion(db: Queryable, userId: string): Promise<
 export async function bumpSessionVersion(db: Queryable, userId: string): Promise<void> {
   await db.query(`update users set session_version = session_version + 1 where id = $1`, [userId]);
 }
+
+export interface SessionState { sessionVersion: number; emailVerified: Date | null; hasPassword: boolean }
+
+/** One-shot fetch of the fields both the revocation check and the write-gate need. */
+export async function getSessionState(db: Queryable, userId: string): Promise<SessionState | null> {
+  const { rows } = await db.query(
+    `select session_version, email_verified, (password_hash is not null) as has_password
+     from users where id = $1`,
+    [userId],
+  );
+  if (!rows.length) return null;
+  const r = rows[0] as { session_version: number; email_verified: Date | null; has_password: boolean };
+  return { sessionVersion: r.session_version, emailVerified: r.email_verified, hasPassword: r.has_password };
+}
