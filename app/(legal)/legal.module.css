@@ -1,0 +1,61 @@
+/* Scoped typography for the legal pages. globals.css applies a universal
+   `* { margin:0; padding:0 }` reset + `html,body{height:100%}`, so these pages
+   must (a) flow naturally (no height:100% + overflow:hidden wrapper) and
+   (b) re-establish their own spacing. Colors use ONLY real globals.css tokens
+   (--cream, --cream-deep, --espresso, --caramel-deep, --border) which flip under
+   .dark, so legal pages follow the persisted theme. */
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--cream, #faf6f0);
+  color: var(--espresso, #2b2420);
+}
+.header {
+  display: flex;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+.wordmark {
+  font-family: var(--font-spectral), Georgia, serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 72px;
+}
+.disclaimer {
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  background: var(--cream-deep, #f5ecd9);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 28px;
+  font-size: 14px;
+}
+.prose h1 { font-family: var(--font-spectral), Georgia, serif; font-size: 30px; font-weight: 700; margin-bottom: 6px; }
+.prose h2 { font-family: var(--font-spectral), Georgia, serif; font-size: 20px; font-weight: 600; margin: 28px 0 10px; }
+.prose p, .prose li { font-size: 15px; line-height: 1.7; }
+.prose p { margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; list-style: disc; }
+.prose li { margin-bottom: 6px; }
+.prose a { color: var(--caramel-deep, #7a4f2a); font-weight: 600; }
+.updated { font-size: 13px; opacity: 0.7; margin-bottom: 22px; }
+.footer {
+  border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  padding: 22px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  font-size: 13px;
+}
+.footer a { color: inherit; text-decoration: none; opacity: 0.8; }
+.footer a:hover { opacity: 1; }
+.spacer { flex: 1; }
