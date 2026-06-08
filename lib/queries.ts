@@ -272,7 +272,7 @@ export async function getTopFlavors(userId: string, limit = 6): Promise<{ flavor
   const { rows } = await query<{ flavor: string; n: number }>(
     `select f as flavor, count(*)::int as n
      from tastings t join beans b on b.id = t.bean_id, unnest(b.flavors) f
-     where t.user_id = $1 group by f order by count(*) desc, f limit $2`,
+     where t.user_id = $1 group by f order by count(*) desc, lower(f), f limit $2`,
     [userId, limit],
   );
   return rows;

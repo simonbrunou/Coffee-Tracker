@@ -5,6 +5,13 @@ export function computeTopFlavors(tastings: { beanFlavors: string[] }[], limit =
   for (const t of tastings) for (const f of t.beanFlavors) counts.set(f, (counts.get(f) ?? 0) + 1);
   return [...counts.entries()]
     .map(([flavor, n]) => ({ flavor, n }))
-    .sort((a, b) => b.n - a.n || a.flavor.localeCompare(b.flavor))
+    // Tie-break aligned with getTopFlavors' SQL (count desc, then lower(f), then f)
+    // so /profile and /u/[me] can't diverge on mixed-case flavor names.
+    .sort(
+      (a, b) =>
+        b.n - a.n ||
+        a.flavor.toLowerCase().localeCompare(b.flavor.toLowerCase()) ||
+        a.flavor.localeCompare(b.flavor),
+    )
     .slice(0, limit);
 }

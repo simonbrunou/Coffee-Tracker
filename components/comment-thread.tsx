@@ -84,7 +84,7 @@ function CommentRow({ c, mine, onDelete, onEdit }: {
   const [val, setVal] = useState(c.body);
   return (
     <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>
-      <button onClick={() => shell.openUser(c.authorHandle)} style={{ fontWeight: 600, color: "inherit", font: "inherit" }}>
+      <button type="button" onClick={() => shell.openUser(c.authorHandle)} style={{ fontWeight: 600, color: "inherit", font: "inherit" }}>
         {c.authorName}
       </button>{" "}
       <span style={{ color: "var(--mocha)", fontSize: 12 }}>· {relativeTime(c.createdAt)}{c.updatedAt ? " · edited" : ""}</span>

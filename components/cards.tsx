@@ -57,6 +57,7 @@ export function TastingCard({
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "14px 16px 12px" }}>
         <button
+          type="button"
           onClick={() => shell.openUser(tasting.authorHandle)}
           aria-label={`View ${tasting.authorName}'s profile`}
           style={{ borderRadius: "50%", lineHeight: 0, flexShrink: 0 }}
@@ -79,7 +80,7 @@ export function TastingCard({
             )}
           </div>
           <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>
-            <button onClick={() => shell.openUser(tasting.authorHandle)} style={{ color: "inherit", font: "inherit" }}>
+            <button type="button" onClick={() => shell.openUser(tasting.authorHandle)} style={{ color: "inherit", font: "inherit" }}>
               @{tasting.authorHandle}
             </button>
             {" · "}{ago}

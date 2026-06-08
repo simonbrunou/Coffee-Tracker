@@ -62,9 +62,9 @@ describe("computeTopFlavors", () => {
 
 describe("setDiscoverable action", () => {
   const src = read("app/profile-actions.ts");
-  it("guards on the signed-in user and revalidates the sitemap", () => {
-    expect(src).toMatch(/getCurrentUserId/);
-    expect(src).toMatch(/if \(!uid\) throw/);
+  it("uses the fail-closed write guard and revalidates the sitemap", () => {
+    expect(src).toMatch(/requireUserId/);
+    expect(src).toMatch(/where id = \$1/);
     expect(src).toMatch(/revalidatePath\("\/sitemap\.xml"\)/);
   });
 });
