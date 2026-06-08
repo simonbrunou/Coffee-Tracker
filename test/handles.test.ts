@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { generateHandle, isValidHandle } from "@/lib/handles";
+import { isValidHandle } from "@/lib/handles";
+import { generateHandle } from "@/lib/generate-handle";
 
 describe("handles", () => {
   it("generates user_ + 10 base36 chars", () => {
