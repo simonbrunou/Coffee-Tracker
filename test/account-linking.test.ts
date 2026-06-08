@@ -3,6 +3,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
+describe("link-tokens lib", () => {
+  const src = read("lib/link-tokens.ts");
+  it("HMAC-binds to AUTH_SECRET and consumes provider-scoped + single-use", () => {
+    expect(src).toMatch(/createHmac\("sha256", process\.env\.AUTH_SECRET/);
+    expect(src).toMatch(/delete from link_tokens where token_hash = \$1 and provider = \$2 and expires_at > now\(\)/i);
+    expect(src).toMatch(/delete from link_tokens where user_id = \$1 and provider = \$2/i); // prior-per-user-provider
+  });
+});
+
 describe("auth.ts lazy init", () => {
   const src = read("auth.ts");
   it("uses the NextAuth(async (req) => config) factory form", () => {
