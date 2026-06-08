@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getBeanCached } from "@/lib/queries";
+import { THEME_LIGHT } from "@/lib/theme-colors";
 
 // force-dynamic: reads the DB per request (and `next build` has no DB). Keep the
 // default nodejs runtime — pg is node-only; the edge runtime would break it.
@@ -24,7 +25,7 @@ export default async function BeanOg({ params }: { params: Promise<{ id: string 
           flexDirection: "column",
           justifyContent: "space-between",
           padding: 72,
-          background: "#f4ece1",
+          background: THEME_LIGHT,
           color: "#2b2420",
         }}
       >

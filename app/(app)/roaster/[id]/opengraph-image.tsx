@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getRoasterByIdCached } from "@/lib/queries";
+import { THEME_LIGHT } from "@/lib/theme-colors";
 
 // force-dynamic: reads the DB per request. Keep the default nodejs runtime — pg
 // is node-only; the edge runtime would break it.
@@ -23,7 +24,7 @@ export default async function RoasterOg({ params }: { params: Promise<{ id: stri
           flexDirection: "column",
           justifyContent: "space-between",
           padding: 72,
-          background: "#f4ece1",
+          background: THEME_LIGHT,
           color: "#2b2420",
         }}
       >
