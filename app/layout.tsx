@@ -4,6 +4,7 @@ import { Spectral, Hanken_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getPublicBaseUrl } from "@/lib/public-url";
+import { THEME_LIGHT } from "@/lib/theme-colors";
 import "./globals.css";
 
 // force-dynamic stays at the ROOT so every route (including the (legal) group)
@@ -47,7 +48,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // theme-color is set client-side by the app shell to follow the in-app theme toggle
+  // Pre-paint browser-chrome tint. A single static light value (not a
+  // prefers-color-scheme array) is correct here: next-themes runs
+  // enableSystem={false} defaultTheme="light", so the app is light by default
+  // regardless of OS. The app-provider effect takes over post-hydration to
+  // follow the in-app toggle.
+  themeColor: THEME_LIGHT,
 };
 
 export default async function RootLayout({

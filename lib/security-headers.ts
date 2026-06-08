@@ -26,6 +26,9 @@ export function buildCsp(nonce: string, opts: HeaderOpts): string {
     `img-src 'self' data:`,
     `font-src 'self'`,
     `connect-src 'self'`,
+    // Explicit, though it already falls back to default-src 'self' — not new
+    // security, just clarity for the same-origin web app manifest.
+    `manifest-src 'self'`,
     `base-uri 'self'`,
     `form-action 'self'`,
     `object-src 'none'`,

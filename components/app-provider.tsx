@@ -31,6 +31,7 @@ import {
 import { signOutAction } from "@/app/auth-actions";
 import { resendVerification } from "@/app/verify-actions";
 import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import { THEME_LIGHT, THEME_DARK } from "@/lib/theme-colors";
 
 const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
   { id: "feed", label: "Feed", icon: "home", href: "/" },
@@ -156,7 +157,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
       meta.name = "theme-color";
       document.head.appendChild(meta);
     }
-    meta.setAttribute("content", isDark ? "#1b1610" : "#f4ece1");
+    meta.setAttribute("content", isDark ? THEME_DARK : THEME_LIGHT);
   }, [isDark, mounted]);
 
   const me = initialData.me;
