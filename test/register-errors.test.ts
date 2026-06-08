@@ -7,7 +7,7 @@ describe("mapRegisterError", () => {
     expect(mapRegisterError(e)).toBe("That email is already registered.");
   });
   it("maps a handle collision to a retryable message", () => {
-    const e = Object.assign(new Error("dup"), { code: "23505", constraint: "users_handle_key" });
+    const e = Object.assign(new Error("dup"), { code: "23505", constraint: "users_handle_lower_uq" });
     expect(mapRegisterError(e)).toMatch(/try again/i);
   });
   it("rethrows non-23505 errors", () => {

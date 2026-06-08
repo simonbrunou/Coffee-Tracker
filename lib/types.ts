@@ -25,6 +25,12 @@ export interface User {
   bio: string;
 }
 
+/** A user's PUBLIC profile (the /u/[handle] page). Adds the search-indexing
+ *  opt-in flag to the all-public User shape; carries NO private fields. */
+export interface PublicProfile extends User {
+  discoverable: boolean;
+}
+
 /**
  * A `Bean` is the rich catalog record — created once. When `owned` is true it
  * also lives on the user's shelf as a "bag" (hence the farm / SCA / remaining

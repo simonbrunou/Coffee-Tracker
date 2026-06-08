@@ -38,11 +38,24 @@ export async function resolveOrCreateOAuthUser(db: Queryable, p: OAuthProfile): 
   }
 
   const userId = `u-${randomUUID()}`;
-  await db.query(
-    `insert into users (id, name, handle, avatar, email, image, session_version, email_verified)
-     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [userId, p.name ?? "Coffee drinker", generateHandle(), randomAvatarTint(), p.email, p.image, 0, p.emailVerified ? new Date() : null],
-  );
+  // generateHandle() has ~52 bits of entropy, but after migration 0005 the
+  // lower(handle) unique index could (astronomically rarely) collide — retry ONCE
+  // with a fresh handle so an OAuth sign-in never throws the raw pg error inside
+  // the Auth.js jwt callback. userId is safely reused: the failed insert rolls
+  // back atomically, so the PK is never persisted on the first attempt.
+  const insertUser = () =>
+    db.query(
+      `insert into users (id, name, handle, avatar, email, image, session_version, email_verified)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [userId, p.name ?? "Coffee drinker", generateHandle(), randomAvatarTint(), p.email, p.image, 0, p.emailVerified ? new Date() : null],
+    );
+  try {
+    await insertUser();
+  } catch (e) {
+    const pe = e as { code?: string; constraint?: string };
+    if (pe?.code === "23505" && pe.constraint === "users_handle_lower_uq") await insertUser();
+    else throw e;
+  }
   await db.query(
     `insert into accounts (id, user_id, type, provider, provider_account_id)
      values ($1, $2, $3, $4, $5)`,
