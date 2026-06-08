@@ -278,6 +278,12 @@ export async function getTopFlavors(userId: string, limit = 6): Promise<{ flavor
   return rows;
 }
 
+/** Whether a user's public profile is search-indexable (Settings toggle state). */
+export async function getDiscoverable(userId: string): Promise<boolean> {
+  const { rows } = await query<{ discoverable: boolean }>(`select discoverable from users where id = $1`, [userId]);
+  return rows[0]?.discoverable ?? false;
+}
+
 /** Discoverable users' handles for the sitemap (PII-free, bounded). */
 export async function getUserHandlesForSitemap(): Promise<{ handle: string }[]> {
   const { rows } = await query<{ handle: string }>(

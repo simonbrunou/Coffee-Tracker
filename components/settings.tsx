@@ -4,8 +4,9 @@ import { useData } from "./data-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
+import { setDiscoverable } from "@/app/profile-actions";
 
-export function SettingsScreen() {
+export function SettingsScreen({ discoverable }: { discoverable: boolean }) {
   const D = useData();
   const handle = D.me?.handle ?? "";
   const [confirm, setConfirm] = useState("");
@@ -53,6 +54,20 @@ export function SettingsScreen() {
             </form>
           </div>
         )}
+      </section>
+
+      <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Public profile</h2>
+        <p style={{ color: "var(--mocha)", fontSize: 14, marginBottom: 14 }}>
+          Your profile lives at <a href={`/u/${handle}`} style={{ color: "var(--espresso)", fontWeight: 600 }}>/u/{handle}</a>{" "}
+          and is viewable by anyone with the link.{" "}
+          {discoverable ? "Search engines may index it." : "Search engines are asked not to index it."}
+        </p>
+        <form action={setDiscoverable.bind(null, !discoverable)}>
+          <Button type="submit" variant="outline">
+            {discoverable ? "Make profile non-indexable" : "Let search engines index my profile"}
+          </Button>
+        </form>
       </section>
 
       <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>

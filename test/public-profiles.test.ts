@@ -60,6 +60,23 @@ describe("computeTopFlavors", () => {
   });
 });
 
+describe("setDiscoverable action", () => {
+  const src = read("app/profile-actions.ts");
+  it("guards on the signed-in user and revalidates the sitemap", () => {
+    expect(src).toMatch(/getCurrentUserId/);
+    expect(src).toMatch(/if \(!uid\) throw/);
+    expect(src).toMatch(/revalidatePath\("\/sitemap\.xml"\)/);
+  });
+});
+
+describe("privacy policy", () => {
+  it("discloses the public profile URL + the indexing control", () => {
+    const src = read("app/(legal)/privacy/page.tsx");
+    expect(src).toMatch(/\/u\/|public profile/i);
+    expect(src).toMatch(/discoverable/i);
+  });
+});
+
 describe("OAuth handle-collision retry", () => {
   it("retries the user insert once on a handle unique violation", async () => {
     const calls: string[] = [];
