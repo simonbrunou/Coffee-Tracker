@@ -971,3 +971,46 @@ git add -A && git commit -m "docs(profiles): privacy policy discloses public pro
 - **Type consistency:** `PublicProfile` (T2) used in T5/T6/T10/T12; `getUserProfileByHandle(currentUserId, handle)` signature consistent T5↔T10↔T12; `getTopFlavors` returns `{flavor,n}[]` matching `computeTopFlavors` (T8) and the `ProfileView` `topFlavors` prop (T9); `Page<Tasting>` shape `{rows,nextCursor}` consistent; `loadMoreUserTastings(userId, cursor)` (T10) matches the `ProfileView.loadMore` signature (T9) and `UserProfileClient` (T10); `openUser(handle)` consistent T12↔T13↔clients.
 - **Sequencing caveat:** `s.openUser` (T12 Step 2) is referenced by `user-profile-client.tsx` (T10), `profile-client.tsx` (T11), and the author-link callers (T13). If executing strictly in order, add the `openUser` field to `ShellApi` first (or accept a transient tsc red until T12). Each cut ends green.
 - **No placeholders.** OG generic-card fallback mirrors `app/opengraph-image.tsx`. Profile editing is out of scope (disabled Edit stays).
+
+---
+
+## Revisions from the adversarial plan review (AUTHORITATIVE — supersede the task steps above)
+
+The 4-lens review verified the plan against the real code and verdicted "execute with fixes." Apply ALL of these; they prevent red tsc/lint/build and silent UX gaps.
+
+### R1 — Task 7 (BLOCKER, reproduced): the existing `test/sitemap.test.ts` mock must gain the new key + a default.
+`app/sitemap.ts` now calls `getUserHandlesForSitemap()` and `.map()`s it; the existing `vi.mock("@/lib/queries")` factory lists only the bean/roaster getters, so the **pre-existing** sitemap test throws (`undefined.map`). In Task 7 Step 1, also: (a) add `getUserHandlesForSitemap: vi.fn()` to that mock factory, and (b) in `beforeEach` add `getUserHandlesForSitemap.mockResolvedValue([])` (the no-`/u/` assertion still holds with `[]`). The NEW test then overrides it with `[{ handle: "sam" }]`.
+
+### R2 — Task 1 Step 1 (BLOCKER): the import instruction is stale.
+`boolean` is ALREADY imported in `lib/db/schema.ts` (no-op — do not "add" it). `unique` must **NOT** be removed — the `accounts` table still uses `unique().on(t.provider, t.providerAccountId)` (schema.ts:56). Only replace `unique().on(t.handle)` in the `users` extras array with the `uniqueIndex("users_handle_lower_uq").on(lower(t.handle))` line. (Confirmed: the live constraint to DROP is `users_handle_unique` — drizzle/0000_init.sql:123 — matching the plan.)
+
+### R3 — Task 9 (BLOCKER): make `TastingCard` accept `onOpenUser` + import `User`, deterministically.
+- Step 1a: in `components/cards.tsx`, add `onOpenUser?: (handle: string) => void` to `TastingCard`'s props interface (NOT conditional — strict JSX rejects the unknown prop otherwise).
+- Step 1b: in `components/detail.tsx:13`, add `User` to the type import: `import type { Bean, Page, Tasting, User } from "@/lib/types";` (`ProfileView`'s `user: User` needs it).
+
+### R4 — Cut 3 ordering (BLOCKER): add `openUser` to `ShellApi` FIRST.
+Hoist Task 12 Step 2 to the very start of Cut 3 (before Task 9). Add `openUser: (handle: string) => void` to `ShellApi` (app-provider.tsx:~43-62), implement `const openUser = (handle: string) => router.push(\`/u/${handle}\`);` near `openBean`/`openRoaster`, and add it to the `shell` object. Then every intermediate task in Cut 3 type-checks (the clients/ProfileScreen/cards all read `s.openUser`). Don't run `tsc` mid-cut expecting green until this lands.
+
+### R5 — Task 9 Step 2 (BLOCKER, lint=error): delete the now-unused imports.
+After excising the login `useEffect`/`router.replace("/login")` from `ProfileScreen`: delete `useEffect` from the line-3 `react` import and delete the entire line-4 `import { useRouter } from "next/navigation";`. **Keep** `useState` (BeanDetail uses it). `@typescript-eslint/no-unused-vars` is error-level → otherwise `npm run lint`/`next build` fail.
+
+### R6 — Task 13 (BLOCKER): thread `onOpenUser` at ALL TastingCard call sites.
+`TastingCard` renders at: `components/screens.tsx` feed (~:144), Journal saved (~:326), Journal timeline (~:396), and `components/detail.tsx` BeanDetail review list (:323) [+ ProfileView, already handled]. Add `components/screens.tsx` to the modify list. In `JournalScreen`/feed add `const s = useShell()` and pass `onOpenUser={s.openUser}`; in `BeanDetail` pass `onOpenUser={shell.openUser}` (it already has `shell`). Because the prop is optional, a missed site silently no-ops — so enumerate all four.
+
+### R7 — Task 13 Step 2 (BLOCKER): `comment-thread.tsx` has no shell today.
+`CommentThread` uses `useData()`, not `useShell()`. Add `import { useShell } from "@/components/app-provider";` + `const s = useShell();` inside `CommentThread` (it's a client component under `(app)` — valid), add `onOpenUser?: (handle: string) => void` to the private `CommentRow` props, pass `onOpenUser={s.openUser}` at the `CommentRow` call (comment-thread.tsx:~60), and make the author name a `<button onClick={() => onOpenUser?.(c.authorHandle)}>`.
+
+### R8 — Task 14 (BLOCKER): update `SettingsScreen`/`SettingsClient` signatures + sequence.
+`SettingsScreen()` and `SettingsClient()` both take zero props today. Step 4a: add `{ discoverable }: { discoverable: boolean }` to `SettingsScreen`'s parameter list before passing the prop. Create `app/profile-actions.ts` (Step 2) **before** editing `components/settings.tsx` (Step 4) to avoid a transient missing-import. The `setDiscoverable.bind(null, !discoverable)` server-action-from-client pattern is valid (same as the existing `signOutAllDevices` form).
+
+### R9 — Task 5 Step 2 (integration test gaps): auth mock + user_follows truncation.
+The new `test/integration/public-profiles.test.ts` must (a) `vi.mock("@/lib/auth", () => ({ getCurrentUserId: async () => null, requireUserId: async () => "u1" }))` as the FIRST statement (next-auth won't resolve under Vitest — `scoped-queries.test.ts` does this), and (b) include `user_follows` in the truncate list (the `scoped-queries` TABLES const omits it; a follow edge is needed for the count asserts). Model the seed/reset on `test/integration/scoped-queries.test.ts`.
+
+### R10 — Task 10 (nit): comment the redirect/metadata interaction.
+At the `permanentRedirect` in `page.tsx`, add a one-line comment: the 308 supersedes the already-computed `index:true` metadata for a non-canonical-case URL (Next discards the page render on a component redirect), so don't "fix" it into a noindex-on-redirect.
+
+### R11 — Task 9 (known limitation, no change): own `/profile` shows ≤200 tastings.
+`getMyTastings` caps at 200 (pre-existing); the own-profile `ProfileView` path passes `nextCursor: null`/no `loadMore` (to preserve the optimistic edit/delete on context `myTastings`). Add a one-line comment in the `ProfileScreen` wrapper noting the 200-cap is intentional and pre-existing (the public `/u` path is properly keyset-paginated). Do NOT switch own-profile to server pagination (would drop optimistic edit/delete).
+
+### R12 — Task 4 (verified-correct notes, no code change): OAuth retry.
+`generateHandle()` is re-evaluated per `insertUser()` call (fresh handle on retry); `userId` reuse across the two calls is safe (the first insert rolls back atomically on the constraint error, so no PK collision). Keep the `insertUser` closure as written; the column list matches today's insert exactly.
