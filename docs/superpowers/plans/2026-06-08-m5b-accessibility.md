@@ -258,3 +258,70 @@ git add -A && git commit -m "feat(m5b): add eslint-plugin-jsx-a11y guard + fix f
 - **Spec coverage:** Cut 1 ↔ foundations (focus/motion/contrast/skip); Cut 2 ↔ ARIA sweep + Icon default + landmarks; Cut 3 ↔ headings/lists/titles/forms; Cut 4 ↔ jsx-a11y guard + live. Risk table: contrast→Task 2 computed check; Icon-hide→Task 3 FlavorRadar exception + jsx-a11y; header reparent→Task 4 reparent-only + live mobile check; server wrappers→Task 6 mirror settings + build; jsx-a11y flood→Task 8 iterate/downgrade-with-reason.
 - **Decisions honored:** nav stays `<button>`+`aria-current` (no Link); collections use `role=list` (no `<ul>`); jsx-a11y (no axe runtime).
 - **No placeholders.** Mechanical aria-* edits are an explicit file:line checklist (Task 4) grounded in the audit; jsx-a11y + live SR pass catch any miss.
+
+---
+
+## Revisions from the adversarial plan review (AUTHORITATIVE — supersede the tasks above where they conflict)
+
+### R1 — Do NOT reparent the mobile header (BLOCKER). Restructure the scroll container instead.
+`.mobile-top` is `position:sticky` relative to `.main-scroll`; `#app-root` is `display:flex; overflow:hidden` (no scroll context). Moving the header to `#app-root` breaks sticky AND adds a stray flex column. **Fix:** rename the scroll element from `<main>` to a `<div>`, keep the header inside it, and make a new inner `<main>` hold only content:
+```tsx
+<div ref={scrollRef} className="main-scroll">            {/* was <main>; ref/sticky/scroll-restore unchanged */}
+  <header className="mobile-top" role="banner"> … </header>   {/* now a sibling of <main>, still inside the scroller → sticky works, banner landmark */}
+  <main id="main-content" tabIndex={-1} className="screen-pad">   {/* was <div className="screen-pad"> — clean main landmark + skip target */}
+    {needsEmailVerification && <banner/>}
+    {children}
+  </main>
+  <div className="mobile-only-spacer" style={{ height: 90 }} />
+</div>
+```
+Move the `.screen-pad` class onto the new `<main>`. Add a structural test: `expect(shell).not.toMatch(/<main[^>]*main-scroll/)` and `expect(shell).toMatch(/<main id="main-content" tabIndex=\{-1\}/)`.
+
+### R2 — jsx-a11y: extend the EXISTING plugin, make it gate, and enable it in Cut 1 (BLOCKER + sequencing).
+`next/core-web-vitals` already registers `jsx-a11y` (as `warn`, so CI doesn't fail). Re-registering throws "Cannot redefine plugin". A dry-run shows the repo currently has **0** recommended-set violations. **Fix:** in `eslint.config.mjs`, after the `compat.extends("next/core-web-vitals")` entry add `...compat.extends("plugin:jsx-a11y/recommended")` (reuses the existing plugin instance; the recommended set is `error`-severity → `eslint .` now fails on a11y issues = a real gate). **Do this as the FIRST task of Cut 1** (before any JSX edits), verify `npm run lint` stays green, commit — so it guards every later cut. Verify it gates by temporarily removing one `aria-label` and confirming `npm run lint` exits non-zero. Add `"scripts/**"` to the eslint `ignores` (the new `.mjs` helper must not trip lint).
+
+### R3 — Icon must accept an override (BLOCKER). 
+`Icon` has a closed prop signature. Add a passthrough so the default is overridable:
+```tsx
+export function Icon({ name, size = 20, stroke = 1.7, fill = "none", color = "currentColor", ...rest }:
+  { name: IconName; size?: number; stroke?: number; fill?: string; color?: string } & React.SVGProps<SVGSVGElement>) {
+  // …
+  return <svg {...rest} aria-hidden={(rest["aria-hidden"] as boolean | undefined) ?? true} focusable="false" …>
+}
+```
+Then decorative icons are silent by default; the rare informative case passes `aria-hidden={false} role="img" aria-label="…"`.
+
+### R4 — Contrast: separate control-border token + correct values (BLOCKER). 
+`--line` is used in 26 decorative places + as `--border`/`--input` — do NOT darken it globally. **Mandate:** add `--control-border: oklch(0.63 0.02 74)` (**3.17:1** on cream; the plan's earlier `0.74` example is only 2.09:1 — WRONG) and remap **only** `--border` and `--input` to it in `:root`. Leave `--line` as-is for dividers. `--mocha` light → `oklch(0.50 0.030 58)` (5.46:1). Ensure link/accent **text** uses `--caramel-deep` (5.19:1), not `--caramel`. Simplify `contrast-check.mjs` (drop the `lin()/toLin()` round-trip; the matrix output is already linear) and add `if (+ratio(...) < 3) process.exit(1)` guards so a wrong L fails mechanically. **Tighten the tests:** `expect(css).toMatch(/--mocha:\s*oklch\(0\.50/)`, `expect(css).toMatch(/--control-border:\s*oklch\(0\.6[0-3]/)`, and `expect(css).toMatch(/button:focus-visible[\s\S]*?outline:/)`.
+
+### R5 — Bag color swatches: group + aria-pressed, NOT radiogroup.
+A `role=radio` without roving-tabindex/arrow keys is worse than a button. Use `<div role="group" aria-label="Bag color">` + each swatch `aria-pressed={f.color===c}` + `aria-label` (a human color name, or the hex). No keyboard work needed.
+
+### R6 — Login form: the real gaps are autocomplete + a built error region.
+Login has NO inline error element (NextAuth redirects on failure) and already has `required`/labels. **Fix:** add `autoComplete="email"` / `autoComplete="current-password"` to its inputs; make the credentials action redirect to `/login?error=1` on `AuthError`, have the page read `searchParams.error` and render `{error && <p role="alert">Invalid email or password</p>}`. Signup already has `role=alert` (verified) — it only needs `autoComplete="email"`/`"new-password"`/`"name"`.
+
+### R7 — Per-route titles: exact server/client splits + a stronger test.
+All three (`journal`, `profile`, feed `(app)/page.tsx`) are `"use client"` and `metadata` is ignored in client modules. Extract each body to a client child and make `page.tsx` a thin **server** wrapper exporting `metadata`:
+- `journal/page.tsx` → renders `<JournalClient/>` (move body to `journal/journal-client.tsx`); title "My Journal — Cortado", `robots:{index:false}`.
+- `profile/page.tsx` → `<ProfileClient/>` (`profile/profile-client.tsx`); "Your Profile — Cortado", noindex.
+- feed `(app)/page.tsx` → `<FeedClient/>` (`(app)/feed-client.tsx`) — **keep the `<Suspense>` INSIDE the client child** (it uses `useSearchParams`; stripping it breaks the build); "Your feed — Cortado".
+- `settings/page.tsx` (already server, but has **no** metadata today) → add `metadata` (title "Settings — Cortado", noindex). Metadata goes in `page.tsx`, not `settings-client.tsx`.
+Extend `test/seo-metadata.test.ts`: for each of the four pages assert `export const metadata` AND `expect(src).not.toMatch(/^"use client"/m)` (server wrapper). `npm run build` must pass (proves Suspense intact).
+
+### R8 — Audit items missing from the plan — add to Cut 2 (all small):
+- **Profile Edit no-op** (`detail.tsx:544`): add `disabled aria-label="Edit profile (coming soon)"` so it's not a focusable dead control.
+- **BeanRating Home/End** (`ui.tsx` onKey): `else if (e.key==="Home"){e.preventDefault();onChange(1);} else if (e.key==="End"){e.preventDefault();onChange(5);}`.
+- **Flavor-wheel disabled** (`flavor-wheel.tsx:124`): change `aria-disabled={disabled||undefined}` → `disabled={disabled||undefined}` (removes the dead focus + blocks the no-op click).
+- **BrewMenu trigger** (`cards.tsx:210`): it ALREADY has `aria-label` — add only `aria-expanded={open}` and `aria-haspopup="true"` (generic — do NOT use `"menu"` without a `role=menu` container).
+- **Flavor accordion** (`flavor-wheel.tsx:88,98`): `aria-hidden` on the color swatch span; `<span className="sr-only"> selected</span>` in the count badge.
+- **Avatar** (`ui.tsx:15`): `aria-hidden="true"` on `<AvatarRoot>`; add test `expect(read("components/ui.tsx")).toMatch(/AvatarRoot[^>]*aria-hidden/)`.
+- **Sheet view-switch focus** (`log-sheet.tsx`): on `setView`, move focus to the new view's first control (a `ref` on the SheetHeader close button + `useEffect(()=>{ ref.current?.focus() },[view])`).
+
+### R9 — Focus rule coverage + main outline.
+Add `[role="button"]:focus-visible` and `[role="radio"]:focus-visible` to the focus-visible rule (the rating radios are focusable but unmatched today). Add `#main-content:focus { outline: none; }` so focusing the content wrapper never paints a stray ring. The `border-radius` in the focus rule is overridden by pills' inline radius (cosmetic) — leave it or drop it.
+
+### R10 — Roaster button (`detail.tsx:137`): conditional render, not an ARIA overlay.
+`roaster?.id ? <button aria-label={`${roasterName} roaster`} onClick={…}>…</button> : <span>…</span>` — an inert button must not be focusable.
+
+### R11 — aria-current on nav is inline (`activeId === n.id`).
+Desktop nav (`app-provider.tsx:336`): `aria-current={activeId === n.id ? "page" : undefined}` (inline; no `active` prop in scope). `BottomItem` (`:465`) already receives `active` → `aria-current={active ? "page" : undefined}`. Add tests: `expect(read("components/app-provider.tsx")).toMatch(/aria-current=/)`, and `expect(read("components/screens.tsx")).toMatch(/aria-pressed=/)` + `/aria-label=.Filter by process/`.
