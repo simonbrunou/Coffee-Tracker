@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 import { getCurrentUserId } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+export const metadata: Metadata = { title: "Sign in — Cortado", robots: { index: false, follow: false } };
 
 export default async function LoginPage() {
   // Revocation-aware: a revoked/deleted session (stale cookie) must still reach

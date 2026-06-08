@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import { SignupForm } from "./signup-form";
+
+export const metadata: Metadata = { title: "Create your account — Cortado", robots: { index: false, follow: false } };
 
 export default async function SignupPage() {
   // Revocation-aware: a revoked/deleted session (stale cookie) must still reach
