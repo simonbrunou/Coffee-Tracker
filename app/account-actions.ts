@@ -2,7 +2,7 @@
 import { signOut } from "@/auth";
 import { pool, withTransaction } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
-import { bumpSessionVersion } from "@/lib/users-repo";
+import { bumpSessionVersion, deleteUserWithPii } from "@/lib/users-repo";
 
 // Match the repo's Queryable wrapper pattern (see app/auth-actions.ts).
 const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, params) };
@@ -27,6 +27,6 @@ export async function signOutAllDevices(): Promise<void> {
  *  getCurrentUserId null) is a backstop only if signOut fails before that write. */
 export async function deleteAccount(): Promise<void> {
   const userId = await requireUserId();
-  await withTransaction((c) => c.query("delete from users where id = $1", [userId]));
+  await withTransaction((c) => deleteUserWithPii({ query: (t, p) => c.query(t, p) }, userId));
   await signOut({ redirectTo: "/" }); // redirect throws — last statement
 }
