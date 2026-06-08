@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { generateHandle } from "@/lib/handles";
+import { generateHandle } from "@/lib/generate-handle";
 import { randomAvatarTint } from "@/lib/avatar";
 
 /** Minimal shape shared by the pool and a transaction client. */

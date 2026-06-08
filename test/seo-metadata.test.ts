@@ -17,7 +17,7 @@ describe("root metadata", () => {
 
 describe("auth pages are noindex; discover has its own title", () => {
   it("login & signup are noindex", () => {
-    for (const p of ["app/(app)/login/page.tsx", "app/(app)/signup/page.tsx"]) {
+    for (const p of ["app/(auth)/login/page.tsx", "app/(auth)/signup/page.tsx"]) {
       expect(read(p)).toMatch(/robots:\s*\{\s*index:\s*false/);
     }
   });
