@@ -513,3 +513,66 @@ return <SettingsClient discoverable={discoverable} authMethods={authMethods} />;
 - **Path A/B:** Task 2 decides; Cut 2/Cut 3 note the B deltas inline so neither path has placeholders.
 - **Type consistency:** `getAuthMethods → {hasPassword, providers}` used in T5/T11; `linkAccount → "linked"|"already"|"taken"` used in T6/T7; `unlinkAccount`/`removeUserPassword → boolean`, `setUserPassword → string` (error) used in T8/T9/T10; `consumeLinkToken → {userId}|null` (T4/T7).
 - **No placeholders.** Change-existing-password is out of scope (only add/remove).
+
+---
+
+## Revisions from the adversarial plan review (AUTHORITATIVE — supersede the tasks above)
+
+All 4 lenses verdicted "execute with fixes" and **verified Path A is correct against `@auth/core` source** (a `signIn` string-return returns before `handleLoginOrRegister`/the session-cookie write — the actor's session is preserved, no switch). Apply ALL:
+
+### R1 — jwt `trigger:"update"` branch (BLOCKER, all 4 lenses, verified): `unstable_update` is a no-op without it.
+`auth.ts` jwt starts with `if (token.uid) return token`. On `unstable_update`, `@auth/core` calls `jwt({token, trigger:"update", session})` with a token that already has `uid` → it returns unchanged → `token.sv` is NEVER re-stamped → after `bumpSessionVersion` the actor's cookie keeps the OLD `sv` → `isLiveSession` (strict `===`) fails → **the actor is logged out** (defeating the whole `unstable_update` point). **Fix (do this in Task 1's lazy-init refactor):** add `trigger`/`session` to the jwt destructure and, as the **first** lines of the jwt callback (BEFORE `if (token.uid) return token`):
+```ts
+if (trigger === "update" && typeof session?.sessionVersion === "number") {
+  token.sv = session.sessionVersion;
+  return token;
+}
+```
+Add a test asserting the re-stamp (e.g. an integration/structural check that the branch exists + sv flows). This must land regardless of anything else.
+
+### R2 — Atomic last-method guard via row lock (BLOCKER, sql lens, verified MVCC): single-statement is NOT race-safe.
+Two concurrent unlinks of DIFFERENT providers (google + github, no password) each snapshot `count=2` under READ COMMITTED → both delete → **zero methods, lockout**. The single statement only serializes same-row deletes. **Fix:** wrap `unlinkAccount` AND `removeUserPassword` in `withTransaction` with `SELECT id FROM users WHERE id = $1 FOR UPDATE` as the FIRST statement (serializes all method-removals for that user), then the conditional delete/update, then return `rowCount > 0`. Example for `unlinkAccount`:
+```ts
+export async function unlinkAccount(userId: string, provider: string): Promise<boolean> {
+  return withTransaction(async (c) => {
+    await c.query(`select id from users where id = $1 for update`, [userId]);
+    const { rowCount } = await c.query(
+      `delete from accounts where user_id = $1 and provider = $2
+         and ((select count(*) from accounts where user_id = $1) > 1
+              or (select password_hash is not null from users where id = $1))`,
+      [userId, provider],
+    );
+    return (rowCount ?? 0) > 0;
+  });
+}
+```
+`removeUserPassword` mirrors it (FOR UPDATE, then the guarded UPDATE). The integration "concurrency" test now actually holds.
+
+### R3 — Cookie `secure` flag (CONCERN, real dev footgun): don't hardcode `true`.
+`secure: true` is dropped by browsers over http localhost → the link_nonce never reaches the callback → the flow silently MERGES the actor into the OAuth identity. Auth.js derives `secure` from the URL. **Fix (Task 7):** `secure: process.env.NODE_ENV === "production"` (keep `httpOnly`, `sameSite:"lax"`, `path:"/"`, `maxAge:600`).
+
+### R4 — Drop the in-callback cookie delete (CONCERN, unreliable): rely on DB single-use.
+Mutating cookies via `next/headers` inside the `signIn` callback isn't merged onto Auth.js's own returned Response (it builds its own cookie jar) — the delete is a no-op and a smell. **Fix (Task 7 Step 3):** REMOVE the `(await import("next/headers")).cookies()...delete(...)` line entirely. `consumeLinkToken` (atomic `DELETE…RETURNING`) is the real single-use guard; the cookie expires at `maxAge=600`. The signIn callback's link branch becomes: read `req.cookies` → `if (!raw) return true` → consume → link → return redirect string.
+
+### R5 — `setUserPassword` self-guarding UPDATE (CONCERN, TOCTOU): add `AND password_hash IS NULL`.
+The SELECT-then-UPDATE can double-write under a self-race. **Fix (Task 9):** `update users set password_hash = $2 where id = $1 and password_hash is null` and check `rowCount === 0` → return "You already have a password." (keeps the friendly pre-checks for the null/unverified-email messages; the UPDATE clause is the atomic backstop). Keep the 23505→friendly-email-error catch.
+
+### R6 — `linkAccount` uses the real `account.type` (CONCERN, data consistency): not literal "oauth".
+Google's provider type is `oidc` (resolveOrCreateOAuthUser stores the real type). **Fix (Task 6/7):** thread `account.type` from the signIn callback into `linkAccount(provider, providerAccountId, userId, type)` and insert `type` (not the literal "oauth"), matching the signup path.
+
+### R7 — Task 2 spike is now CONFIRMATION, not a gate (verified): proceed on Path A.
+Source proves Path A. Keep the live spike (Task 2) as a one-time confirmation (log `req.cookies.get("link_nonce_google")` is non-empty in the callback + observe session preserved), but DO NOT block on it and DO NOT build Path B. Remove the "pick A vs B" framing; Path B stays only as a documented contingency if the live run contradicts the source (it won't).
+
+### R8 — Flesh out the Settings UI (CONCERN, under-specified): concrete JSX in Task 11.
+Provide the actual section: compute `const methodCount = (hasPassword ? 1 : 0) + providers.length;`. For each of `["google","github"]`: linked → `<form action={unlinkOAuth.bind(null, p)}><Button variant="outline" type="submit" disabled={methodCount <= 1}>Disconnect {label}</Button></form>`; not linked → `<form action={linkOAuthStart.bind(null, p)}><Button variant="outline" type="submit">Connect {label}</Button></form>`. Password row: `hasPassword` → a `removePassword` form (Button disabled when `methodCount <= 1`); else an inline `<input type="password">` + a `setPassword` form. A `useSearchParams()` read of `linked`/`linkError` → an inline note (map `taken`→"That account is already linked to another Cortado account.", `expired`→"That link expired — try again."). Mirror the existing `setDiscoverable`/`signOutAllDevices` `<form action>` blocks already in `components/settings.tsx`. Add a structural test asserting the section references `linkOAuthStart`, `unlinkOAuth`, `setPassword`, `removePassword` and the `methodCount <= 1` disable.
+
+### R9 — Integration test skeleton (CONCERN): make Task 5 setup concrete.
+`test/integration/account-linking.test.ts`: `const TABLES = "users, accounts, link_tokens";` truncated `restart identity cascade` in `beforeAll`/`afterAll` (FKs covered). `vi.mock("@/lib/auth", ...)` is needed ONLY if the test imports `app/account-link-actions.ts` (which pulls `@/auth`); the repo fns (`@/lib/account-link-repo`) import only `@/lib/db`, so a repo-only test needs no auth mock. Seed users/accounts directly via `pool.query`.
+
+### R10 — Strengthen the cookie-ordering structural test (CONCERN, Task 7 Step 1).
+The `/cookies()…signIn(/` proximity regex is weak. Add: `expect(read("app/account-link-actions.ts")).not.toMatch(/try\s*\{[\s\S]{0,800}signIn\(/)` (signIn must not be inside a try block — its redirect must throw uncaught).
+
+### R11 — Docs/nits.
+- Migration 0006 prose: "mirrors 0004's structure (id, user_id, token_hash, expires_at, created_at) with **`provider`** replacing `email`."
+- `setUserPassword` 23505 keeps the inline "An account with that email already has a password." string (clearer than `mapRegisterError`'s generic); note the divergence is intentional. Catch only 23505, rethrow others.
+- PR security note: the `?linkError=taken` reject is an accepted, low-value registration oracle (the actor already controls that OAuth identity) — documented decision, not an oversight.
