@@ -158,46 +158,47 @@ const BEAN_JOINS = `
              from tastings group by bean_id) r on r.bean_id = beans.id`;
 
 /** The current viewer's own brews (bounded by their activity). */
-export async function getMyTastings(userId: string): Promise<Tasting[]> {
+export async function getMyTastings(userId: string, limit = 200): Promise<Tasting[]> {
   const { rows } = await query<Tasting>(
     `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
-     where t.user_id = $1 order by t.created_at desc, t.id desc limit 200`,
-    [userId],
+     where t.user_id = $1 order by t.created_at desc, t.id desc limit $2`,
+    [userId, limit],
   );
   return rows;
 }
 
-/** Tastings the viewer has saved/bookmarked (bounded). */
-export async function getSavedTastings(userId: string): Promise<Tasting[]> {
+/** Tastings the viewer has saved/bookmarked. `limit` defaults to the UI cap; the
+ *  data export passes a high bound for completeness. */
+export async function getSavedTastings(userId: string, limit = 200): Promise<Tasting[]> {
   const { rows } = await query<Tasting>(
     `select ${TASTING_SELECT_COLS} from tastings t
        join tasting_saves sv on sv.tasting_id = t.id and sv.user_id = $1
        ${TASTING_JOINS}
-     order by sv.created_at desc limit 200`,
-    [userId],
+     order by sv.created_at desc limit $2`,
+    [userId, limit],
   );
   return rows;
 }
 
-/** The viewer's owned bags (their shelf, bounded). */
-export async function getMyShelf(userId: string): Promise<Bean[]> {
+/** The viewer's owned bags (their shelf). `limit` defaults to the UI cap. */
+export async function getMyShelf(userId: string, limit = 200): Promise<Bean[]> {
   const { rows } = await query<Bean>(
     `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
      where beans.user_id = $1 and beans.owned = true
-     order by beans.created_at desc, beans.id desc limit 200`,
-    [userId],
+     order by beans.created_at desc, beans.id desc limit $2`,
+    [userId, limit],
   );
   return rows;
 }
 
-/** Beans the viewer has wishlisted (bounded). */
-export async function getWishlistBeans(userId: string): Promise<Bean[]> {
+/** Beans the viewer has wishlisted. `limit` defaults to the UI cap. */
+export async function getWishlistBeans(userId: string, limit = 200): Promise<Bean[]> {
   const { rows } = await query<Bean>(
     `select ${BEAN_SELECT_COLS} from beans
        join bean_wishlist w2 on w2.bean_id = beans.id and w2.user_id = $1
        ${BEAN_JOINS}
-     order by w2.created_at desc limit 200`,
-    [userId],
+     order by w2.created_at desc limit $2`,
+    [userId, limit],
   );
   return rows;
 }

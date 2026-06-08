@@ -318,18 +318,20 @@ export function BeanDetail({
           <p style={{ fontSize: 14, color: "var(--mocha)" }}>No brews logged yet.</p>
         )
       ) : (
-        <div role="list" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {reviews.map((t, i) => (
-            <div role="listitem" key={t.id}>
-              <TastingCard
-                tasting={t}
-                delay={i * 50}
-                onOpenBean={() => {}}
-                onLike={onLike}
-                liked={likes.has(t.id)}
-              />
-            </div>
-          ))}
+        <>
+          <div role="list" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {reviews.map((t, i) => (
+              <div role="listitem" key={t.id}>
+                <TastingCard
+                  tasting={t}
+                  delay={i * 50}
+                  onOpenBean={() => {}}
+                  onLike={onLike}
+                  liked={likes.has(t.id)}
+                />
+              </div>
+            ))}
+          </div>
           {hasMore && (
             <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
               <Button variant="outline" onClick={loadMore} disabled={pending}>
@@ -337,7 +339,7 @@ export function BeanDetail({
               </Button>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

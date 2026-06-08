@@ -16,11 +16,12 @@ export async function signOutAllDevices(): Promise<void> {
   await signOut({ redirectTo: "/" }); // redirect throws — last statement
 }
 
-/** Hard-delete the account. DELETE FROM users cascades to every user-owned row
- *  (accounts, beans→tastings→likes/saves/comments, the user's own tastings/likes,
- *  follows, saves, wishlist, comments). The single DELETE is already atomic; the
- *  withTransaction wrapper just makes the multi-table cascade read as one explicit
- *  unit. signOut is last because its redirect throws. next-auth writes the
+/** Hard-delete the account. deleteUserWithPii deletes the user row — which cascades
+ *  to every user-owned row (accounts, beans→tastings→likes/saves/comments, the
+ *  user's own tastings/likes, follows, saves, wishlist, comments) — AND purges the
+ *  user's email-keyed rate_limits (no FK, so the cascade misses it). The
+ *  withTransaction wrapper makes the SELECT-email + delete + purge one atomic unit.
+ *  signOut is last because its redirect throws. next-auth writes the
  *  session-clearing cookie BEFORE the
  *  redirect throw and JWT signOut needs no DB, so the user is logged out on this
  *  same response; read-path revocation (row gone → getSessionVersion null →
