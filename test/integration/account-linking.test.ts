@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 // account-link-repo + link-tokens take explicit args and import only @/lib/db —
 // no @/lib/auth mock needed (unlike tests that import the server actions).
 import { testPool } from "./_db";
-import { getAuthMethods, linkAccount } from "@/lib/account-link-repo";
+import { getAuthMethods, linkAccount, unlinkAccount, removeUserPassword, setUserPassword } from "@/lib/account-link-repo";
 import { createLinkToken, consumeLinkToken } from "@/lib/link-tokens";
 import { pool as appPool } from "@/lib/db";
 
@@ -59,5 +59,41 @@ describe.skipIf(!hasDb)("account-linking repo + link-tokens", () => {
     expect(await linkAccount("google", "g-new", "u-pw", "oidc")).toBe("taken");
     const owner = await pool!.query(`select user_id from accounts where provider='google' and provider_account_id='g-new'`);
     expect(owner.rows[0].user_id).toBe("u-oauth");
+  });
+
+  it("unlinkAccount blocks removing the last method", async () => {
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash) values ('u-a','A','ua','#0','x')`);
+    await pool!.query(`insert into accounts (id,user_id,type,provider,provider_account_id) values ('aa','u-a','oidc','google','ga')`);
+    expect(await unlinkAccount("u-a", "google")).toBe(true); // password remains
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash) values ('u-b','B','ub','#0',null)`);
+    await pool!.query(`insert into accounts (id,user_id,type,provider,provider_account_id) values ('ab','u-b','oidc','google','gb')`);
+    expect(await unlinkAccount("u-b", "google")).toBe(false); // would be the last method
+    expect((await getAuthMethods("u-b")).providers).toEqual(["google"]);
+  });
+
+  it("removeUserPassword blocks removing the last method", async () => {
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash) values ('u-c','C','uc','#0','x')`);
+    await pool!.query(`insert into accounts (id,user_id,type,provider,provider_account_id) values ('ac','u-c','oidc','google','gc')`);
+    expect(await removeUserPassword("u-c")).toBe(true); // google remains
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash) values ('u-d','D','ud','#0','x')`);
+    expect(await removeUserPassword("u-d")).toBe(false); // no oauth → would be the last method
+  });
+
+  it("setUserPassword guards null/unverified email, already-has, and email collision", async () => {
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash,email,email_verified) values ('u-e','E','ue','#0',null,'e@x.com', now())`);
+    await pool!.query(`insert into accounts (id,user_id,type,provider,provider_account_id) values ('ae','u-e','oidc','google','ge')`);
+    expect(await setUserPassword("u-e", "hash1")).toBe("");
+    expect((await getAuthMethods("u-e")).hasPassword).toBe(true);
+    expect(await setUserPassword("u-e", "hash2")).toBe("You already have a password.");
+
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash,email) values ('u-f','F','uf','#0',null,null)`);
+    expect(await setUserPassword("u-f", "h")).toMatch(/add an email/i);
+
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash,email,email_verified) values ('u-g','G','ug','#0',null,'g@x.com', null)`);
+    expect(await setUserPassword("u-g", "h")).toMatch(/verify your email/i);
+
+    // u-h shares e@x.com with u-e (who now has a password) → partial-index 23505.
+    await pool!.query(`insert into users (id,name,handle,avatar,password_hash,email,email_verified) values ('u-h','H','uh','#0',null,'e@x.com', now())`);
+    expect(await setUserPassword("u-h", "h")).toMatch(/already has a password/i);
   });
 });

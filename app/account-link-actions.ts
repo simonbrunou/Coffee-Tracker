@@ -1,12 +1,26 @@
 "use server";
 import { cookies } from "next/headers";
-import { signIn } from "@/auth";
+import { signIn, unstable_update } from "@/auth";
 import { pool } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
+import { hashPassword } from "@/lib/passwords";
+import { validatePassword } from "@/lib/signup-validation";
+import { bumpSessionVersion } from "@/lib/users-repo";
 import { createLinkToken } from "@/lib/link-tokens";
+import { unlinkAccount, removeUserPassword, setUserPassword } from "@/lib/account-link-repo";
 
 const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, params) };
 const LINKABLE = new Set(["google", "github"]);
+
+const LAST_METHOD = "You must keep at least one sign-in method.";
+
+/** Revoke OTHER devices (bump session_version) but keep THIS session live:
+ *  unstable_update re-issues the current JWT, and the jwt update-trigger
+ *  re-stamps sv from the AUTHORITATIVE DB value (the just-bumped one). */
+async function bumpAndKeepCurrent(userId: string): Promise<void> {
+  await bumpSessionVersion(poolDb, userId);
+  await unstable_update({});
+}
 
 /** Begin linking `provider` to the caller's account: mint a single-use link
  *  nonce + set the per-provider cookie, then start the OAuth flow. The OAuth
@@ -27,4 +41,28 @@ export async function linkOAuthStart(provider: string): Promise<void> {
     maxAge: 600,
   });
   await signIn(provider, { redirectTo: "/settings" }); // redirect throws — last statement
+}
+
+/** Disconnect an OAuth provider (keeps ≥1 method; revokes other devices). */
+export async function unlinkOAuth(provider: string): Promise<{ error: string }> {
+  const uid = await requireUserId();
+  if (!(await unlinkAccount(uid, provider))) return { error: LAST_METHOD };
+  await bumpAndKeepCurrent(uid);
+  return { error: "" };
+}
+
+/** Remove the password (keeps ≥1 method; revokes other devices). */
+export async function removePassword(): Promise<{ error: string }> {
+  const uid = await requireUserId();
+  if (!(await removeUserPassword(uid))) return { error: LAST_METHOD };
+  await bumpAndKeepCurrent(uid);
+  return { error: "" };
+}
+
+/** Add a password to an OAuth-only account. No bump (adding a method). */
+export async function setPassword(password: string): Promise<{ error: string }> {
+  const uid = await requireUserId();
+  const v = validatePassword(password);
+  if (!v.ok) return { error: v.error };
+  return { error: await setUserPassword(uid, await hashPassword(password)) };
 }

@@ -6,6 +6,13 @@ export type SignupResult = { ok: true; value: CleanSignup } | { ok: false; error
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Password rules shared by signup and the account-linking setPassword flow. */
+export function validatePassword(password: string): { ok: true } | { ok: false; error: string } {
+  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  if (new TextEncoder().encode(password).length > 72) return { ok: false, error: "Password is too long." };
+  return { ok: true };
+}
+
 export function validateSignup(input: SignupInput): SignupResult {
   const name = input.name.trim();
   if (name.length < 1 || name.length > 80) return { ok: false, error: "Please enter your name." };
@@ -13,9 +20,9 @@ export function validateSignup(input: SignupInput): SignupResult {
   const email = input.email.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) return { ok: false, error: "Please enter a valid email." };
 
+  const pw = validatePassword(input.password);
+  if (!pw.ok) return { ok: false, error: pw.error };
   const password = input.password;
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
-  if (new TextEncoder().encode(password).length > 72) return { ok: false, error: "Password is too long." };
 
   const handleRaw = input.handle.trim();
   const handle = handleRaw === "" ? null : handleRaw.toLowerCase();

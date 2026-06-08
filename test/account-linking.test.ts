@@ -31,6 +31,17 @@ describe("link start + signIn branch", () => {
   });
 });
 
+describe("disconnect / password actions", () => {
+  const src = read("app/account-link-actions.ts");
+  it("removal bumps session_version then re-stamps via unstable_update", () => {
+    expect(src).toMatch(/bumpSessionVersion/);
+    expect(src).toMatch(/unstable_update/);
+  });
+  it("returns the last-method error string", () => {
+    expect(src).toMatch(/at least one sign-in method/i);
+  });
+});
+
 describe("auth.ts lazy init", () => {
   const src = read("auth.ts");
   it("uses the NextAuth(async (req) => config) factory form", () => {
