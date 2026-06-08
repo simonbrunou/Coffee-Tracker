@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
 import { setDiscoverable } from "@/app/profile-actions";
 import { linkOAuthStart, unlinkOAuth, setPassword, removePassword } from "@/app/account-link-actions";
+import { PASSWORD_MIN_LENGTH } from "@/lib/signup-validation";
 
 type AuthMethods = { hasPassword: boolean; providers: string[] };
 const OAUTH = [
@@ -58,8 +59,8 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
               </Button>
             ) : (
               <div style={{ display: "flex", gap: 6 }}>
-                <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password" autoComplete="new-password" style={{ width: 180 }} />
-                <Button size="sm" disabled={pw.length < 8} onClick={() => run(() => setPassword(pw))}>Add</Button>
+                <Input type="password" aria-label="New password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password" autoComplete="new-password" style={{ width: 180 }} />
+                <Button size="sm" disabled={pw.length < PASSWORD_MIN_LENGTH} onClick={() => run(() => setPassword(pw))}>Add</Button>
               </div>
             )}
           </div>
@@ -73,7 +74,7 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
                     Disconnect
                   </Button>
                 ) : (
-                  <Button variant="outline" size="sm" onClick={() => linkOAuthStart(p.id)}>Connect</Button>
+                  <Button variant="outline" size="sm" onClick={() => { linkOAuthStart(p.id).catch(() => setErr("Couldn't start connecting. Please try again.")); }}>Connect</Button>
                 )}
               </div>
             );

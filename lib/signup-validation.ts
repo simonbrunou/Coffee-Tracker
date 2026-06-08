@@ -6,9 +6,11 @@ export type SignupResult = { ok: true; value: CleanSignup } | { ok: false; error
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const PASSWORD_MIN_LENGTH = 8;
+
 /** Password rules shared by signup and the account-linking setPassword flow. */
 export function validatePassword(password: string): { ok: true } | { ok: false; error: string } {
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  if (password.length < PASSWORD_MIN_LENGTH) return { ok: false, error: "Password must be at least 8 characters." };
   if (new TextEncoder().encode(password).length > 72) return { ok: false, error: "Password is too long." };
   return { ok: true };
 }
