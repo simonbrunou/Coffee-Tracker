@@ -4,7 +4,7 @@ import { query } from "./db";
 import { getCurrentUserId } from "./auth";
 import { getSessionState } from "./users-repo";
 import { type Page, decodeCursor, clampLimit, toPage } from "./pagination";
-import type { AppData, Bean, Comment, Roaster, Tasting, User } from "./types";
+import type { AppData, Bean, Comment, PublicProfile, Roaster, Tasting, User } from "./types";
 
 // camelCase aliases must be double-quoted (Postgres folds bare identifiers to
 // lowercase); numeric columns are cast to float8 so pg returns JS numbers.
@@ -221,6 +221,69 @@ export async function getUserById(currentUserId: string | null, id: string): Pro
     [currentUserId, id],
   );
   return rows[0] ?? null;
+}
+
+/** A user's PUBLIC profile by handle (case-insensitive). $1 = viewer (for
+ *  followedByMe), $2 = the handle. Mirrors getUserById's aggregates + adds
+ *  discoverable. Missing handle → null (the page calls notFound). */
+export async function getUserProfileByHandle(currentUserId: string | null, handle: string): Promise<PublicProfile | null> {
+  const { rows } = await query<PublicProfile>(
+    `select u.id, u.name, u.handle, u.avatar,
+            coalesce(t.tastings, 0)::int   as tastings,
+            coalesce(fr.followers, 0)::int as followers,
+            coalesce(fg.following, 0)::int as following,
+            u.bio, u.discoverable,
+            ($1::text is not null and exists (
+              select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
+            )) as "followedByMe"
+     from users u
+     left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
+     left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
+     left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id
+     where lower(u.handle) = lower($2) limit 1`,
+    [currentUserId, handle],
+  );
+  return rows[0] ?? null;
+}
+/** React.cache so generateMetadata + page body + the OG route share one DB hit. */
+export const getUserProfileByHandleCached = cache(getUserProfileByHandle);
+
+/** Keyset page of a user's tastings. $1 = viewer (liked/saved flags), $2 = target. */
+export async function getUserTastingsPage(
+  currentUserId: string | null,
+  userId: string,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<Page<Tasting>> {
+  const limit = clampLimit(opts.limit);
+  const cur = decodeCursor(opts.cursor);
+  const { rows } = await query<Tasting>(
+    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
+     where t.user_id = $2
+       and ($3::timestamptz is null or (t.created_at, t.id) < ($3::timestamptz, $4))
+     order by t.created_at desc, t.id desc limit $5`,
+    [currentUserId, userId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
+  );
+  return toPage(rows, limit);
+}
+
+/** A user's most-used flavor notes (one query, no N+1). Ordered count desc, then
+ *  flavor name asc — mirror computeTopFlavors so /profile and /u/[me] match. */
+export async function getTopFlavors(userId: string, limit = 6): Promise<{ flavor: string; n: number }[]> {
+  const { rows } = await query<{ flavor: string; n: number }>(
+    `select f as flavor, count(*)::int as n
+     from tastings t join beans b on b.id = t.bean_id, unnest(b.flavors) f
+     where t.user_id = $1 group by f order by count(*) desc, f limit $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
+/** Discoverable users' handles for the sitemap (PII-free, bounded). */
+export async function getUserHandlesForSitemap(): Promise<{ handle: string }[]> {
+  const { rows } = await query<{ handle: string }>(
+    `select handle from users where discoverable = true order by created_at limit 50000`,
+  );
+  return rows;
 }
 
 /** A single bean (catalog/detail), redaction-aware via $1 = viewer. */
