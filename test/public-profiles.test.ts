@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isValidHandle } from "@/lib/handles";
 import { resolveOrCreateOAuthUser } from "@/lib/users-repo";
+import { userMetadata } from "@/lib/seo";
+import { personJsonLd } from "@/lib/json-ld";
+import { computeTopFlavors } from "@/lib/profile-flavors";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
@@ -20,6 +23,40 @@ describe("reserved handles", () => {
   });
   it("still accepts normal handles", () => {
     expect(isValidHandle("simon_b")).toBe(true);
+  });
+});
+
+const prof = (d: boolean) => ({
+  id: "u1", name: "Sam", handle: "sam", avatar: "#abc",
+  tastings: 3, followers: 1, following: 2, followedByMe: false, bio: "hi", discoverable: d,
+});
+
+describe("userMetadata", () => {
+  it("noindex when not found", () => {
+    expect(userMetadata(null, "x").robots).toEqual({ index: false, follow: false });
+  });
+  it("noindex when not discoverable, index when discoverable, canonical set", () => {
+    expect(userMetadata(prof(false), "sam").robots).toEqual({ index: false, follow: false });
+    expect(userMetadata(prof(true), "sam").robots).toEqual({ index: true, follow: true });
+    expect(userMetadata(prof(true), "sam").alternates?.canonical).toBe("/u/sam");
+  });
+});
+
+describe("personJsonLd", () => {
+  it("is a ProfilePage with a Person main entity", () => {
+    const ld = personJsonLd(prof(true), "https://x/u/sam");
+    expect(ld["@type"]).toBe("ProfilePage");
+    const main = ld.mainEntity as Record<string, unknown>;
+    expect(main["@type"]).toBe("Person");
+    expect(main.alternateName).toBe("@sam");
+  });
+});
+
+describe("computeTopFlavors", () => {
+  it("counts + orders by count desc then name, capped", () => {
+    const t = (flavors: string[]) => ({ beanFlavors: flavors });
+    const out = computeTopFlavors([t(["cocoa", "nutty"]), t(["cocoa"]), t(["apple"])], 2);
+    expect(out).toEqual([{ flavor: "cocoa", n: 2 }, { flavor: "apple", n: 1 }]);
   });
 });
 

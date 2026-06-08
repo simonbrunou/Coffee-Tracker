@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { Bean, Roaster } from "@/lib/types";
+import type { Bean, PublicProfile, Roaster } from "@/lib/types";
 
 /** Pure metadata builders for the catalog detail pages (no JSX → unit-testable,
  *  and shared by generateMetadata). null → a minimal "not found" title. */
@@ -16,6 +16,24 @@ export function beanMetadata(bean: Bean | null, id: string): Metadata {
     description,
     alternates: { canonical },
     openGraph: { type: "article", title, description, url: canonical },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
+
+export function userMetadata(profile: PublicProfile | null, handle: string): Metadata {
+  // Soft-404: notFound() returns 200 under the (app) streaming shell, so noindex
+  // is the reliable guard for a missing profile. Opt-in: noindex unless discoverable.
+  void handle;
+  if (!profile) return { title: "Profile not found — Cortado", robots: { index: false, follow: false } };
+  const title = `${profile.name} (@${profile.handle}) — Cortado`;
+  const description = profile.bio?.trim() || `${profile.name} on Cortado — coffee tastings and palate.`;
+  const canonical = `/u/${profile.handle}`;
+  return {
+    title,
+    description,
+    robots: { index: profile.discoverable, follow: profile.discoverable },
+    alternates: { canonical },
+    openGraph: { type: "profile", title, description, url: canonical },
     twitter: { card: "summary_large_image", title, description },
   };
 }
