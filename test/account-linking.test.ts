@@ -31,6 +31,17 @@ describe("link start + signIn branch", () => {
   });
 });
 
+describe("settings sign-in methods UI", () => {
+  const src = read("components/settings.tsx");
+  it("wires all four account-link actions + the last-method disable", () => {
+    expect(src).toMatch(/linkOAuthStart/);
+    expect(src).toMatch(/unlinkOAuth/);
+    expect(src).toMatch(/setPassword/);
+    expect(src).toMatch(/removePassword/);
+    expect(src).toMatch(/methodCount <= 1/);
+  });
+});
+
 describe("disconnect / password actions", () => {
   const src = read("app/account-link-actions.ts");
   it("removal bumps session_version then re-stamps via unstable_update", () => {
