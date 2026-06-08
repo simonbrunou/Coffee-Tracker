@@ -1,21 +1,86 @@
 "use client";
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useData } from "./data-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
 import { setDiscoverable } from "@/app/profile-actions";
+import { linkOAuthStart, unlinkOAuth, setPassword, removePassword } from "@/app/account-link-actions";
+import { PASSWORD_MIN_LENGTH } from "@/lib/signup-validation";
 
-export function SettingsScreen({ discoverable }: { discoverable: boolean }) {
+type AuthMethods = { hasPassword: boolean; providers: string[] };
+const OAUTH = [
+  { id: "google", label: "Google" },
+  { id: "github", label: "GitHub" },
+];
+
+export function SettingsScreen({ discoverable, authMethods }: { discoverable: boolean; authMethods: AuthMethods }) {
   const D = useData();
   const handle = D.me?.handle ?? "";
   const [confirm, setConfirm] = useState("");
   const [armed, setArmed] = useState(false);
   const canDelete = handle.length > 0 && confirm.trim() === handle;
 
+  const router = useRouter();
+  const params = useSearchParams();
+  const linkNote =
+    params.get("linked") ? "Account connected." :
+    params.get("linkError") === "taken" ? "That account is already linked to another Cortado account." :
+    params.get("linkError") === "expired" ? "That link expired — please try again." : "";
+  const methodCount = (authMethods.hasPassword ? 1 : 0) + authMethods.providers.length;
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+  // Run a removal/add action; show its error, else refresh the server-fetched state.
+  const run = async (fn: () => Promise<{ error: string }>) => {
+    const r = await fn();
+    if (r.error) setErr(r.error);
+    else { setErr(""); setPw(""); router.refresh(); }
+  };
+
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
       <h1 className="display" style={{ fontSize: 26, fontWeight: 700 }}>Settings</h1>
+
+      <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Sign-in methods</h2>
+        <p style={{ color: "var(--mocha)", fontSize: 14, marginBottom: 14 }}>
+          Connect or remove ways to sign in. You must keep at least one.
+        </p>
+        {(linkNote || err) && (
+          <p role="status" style={{ fontSize: 13.5, color: "var(--caramel-deep)", marginBottom: 12 }}>{err || linkNote}</p>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Password</span>
+            {authMethods.hasPassword ? (
+              <Button variant="outline" size="sm" disabled={methodCount <= 1} onClick={() => run(() => removePassword())}>
+                Remove
+              </Button>
+            ) : (
+              <div style={{ display: "flex", gap: 6 }}>
+                <Input type="password" aria-label="New password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password" autoComplete="new-password" style={{ width: 180 }} />
+                <Button size="sm" disabled={pw.length < PASSWORD_MIN_LENGTH} onClick={() => run(() => setPassword(pw))}>Add</Button>
+              </div>
+            )}
+          </div>
+          {OAUTH.map((p) => {
+            const linked = authMethods.providers.includes(p.id);
+            return (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{p.label}</span>
+                {linked ? (
+                  <Button variant="outline" size="sm" disabled={methodCount <= 1} onClick={() => run(() => unlinkOAuth(p.id))}>
+                    Disconnect
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => { linkOAuthStart(p.id).catch(() => setErr("Couldn't start connecting. Please try again.")); }}>Connect</Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Sign out everywhere</h2>

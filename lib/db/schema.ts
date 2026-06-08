@@ -229,3 +229,22 @@ export const verificationTokens = pgTable(
     index("vt_expires_at_idx").on(t.expiresAt),
   ],
 );
+
+// Single-use, HMAC-hashed nonce binding an OAuth-link attempt to the initiating
+// session (mirrors verification_tokens; `provider` replaces `email`).
+export const linkTokens = pgTable(
+  "link_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lt_token_hash_uq").on(t.tokenHash),
+    index("lt_user_id_idx").on(t.userId),
+    index("lt_expires_at_idx").on(t.expiresAt),
+  ],
+);
