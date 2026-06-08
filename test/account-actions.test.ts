@@ -4,17 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // vi.mock factories + the static SUT import run. A bare `const x = vi.fn()`
 // referenced directly inside a factory throws a TDZ ReferenceError under
 // vitest's hoisting ("Cannot access 'x' before initialization").
-const { requireUserId, signOut, bumpSessionVersion, withTransaction, poolQuery } = vi.hoisted(() => ({
+const { requireUserId, signOut, bumpSessionVersion, deleteUserWithPii, withTransaction, poolQuery } = vi.hoisted(() => ({
   requireUserId: vi.fn(async () => "u-me"),
   signOut: vi.fn(async () => {}),
   bumpSessionVersion: vi.fn(async () => {}),
+  deleteUserWithPii: vi.fn(async () => {}),
   withTransaction: vi.fn(),
   poolQuery: vi.fn(async () => ({ rows: [] })),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireUserId }));
 vi.mock("@/auth", () => ({ signOut }));
-vi.mock("@/lib/users-repo", () => ({ bumpSessionVersion }));
+vi.mock("@/lib/users-repo", () => ({ bumpSessionVersion, deleteUserWithPii }));
 vi.mock("@/lib/db", () => ({ pool: { query: poolQuery }, withTransaction, query: vi.fn() }));
 
 import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
@@ -24,6 +25,7 @@ beforeEach(() => {
   requireUserId.mockResolvedValue("u-me");
   signOut.mockClear();
   bumpSessionVersion.mockClear();
+  deleteUserWithPii.mockClear();
   withTransaction.mockReset();
 });
 
@@ -40,18 +42,18 @@ describe("signOutAllDevices", () => {
 });
 
 describe("deleteAccount", () => {
-  it("requires auth, DELETEs the user inside a tx, THEN signs out", async () => {
+  it("requires auth, deletes the user + purges PII inside a tx, THEN signs out", async () => {
     const innerQuery = vi.fn(async () => ({ rows: [] }));
     withTransaction.mockImplementation(async (fn: (c: unknown) => unknown) =>
       fn({ query: innerQuery }),
     );
     await deleteAccount();
     expect(requireUserId).toHaveBeenCalled();
-    const [sql, params] = innerQuery.mock.calls[0] as unknown as [string, unknown[]];
-    expect(sql).toMatch(/delete from users where id = \$1/i);
-    expect(params).toEqual(["u-me"]);
+    // deleteAccount delegates to deleteUserWithPii (delete user + purge email-keyed
+    // rate_limits) inside the transaction, then signs out.
+    expect(deleteUserWithPii).toHaveBeenCalledWith({ query: expect.any(Function) }, "u-me");
     expect(signOut).toHaveBeenCalledWith({ redirectTo: "/" });
-    expect(withTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(deleteUserWithPii.mock.invocationCallOrder[0]).toBeLessThan(
       signOut.mock.invocationCallOrder[0],
     );
   });

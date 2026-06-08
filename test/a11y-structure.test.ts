@@ -4,6 +4,24 @@ import { join } from "node:path";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
+describe("a11y residuals — list semantics, empty state, intra-sheet focus", () => {
+  it("non-feed collections expose role=list/listitem", () => {
+    const detail = read("components/detail.tsx");
+    const screens = read("components/screens.tsx");
+    expect((detail.match(/role="list"/g) ?? []).length).toBeGreaterThanOrEqual(3); // bean reviews, profile tastings, roaster beans
+    expect(detail).toMatch(/role="listitem"/);
+    expect(screens).toMatch(/role="list"[^>]*gridTemplateColumns/); // discover bean grid
+  });
+  it("RoasterDetail shows an empty state when a roaster has no beans", () => {
+    expect(read("components/detail.tsx")).toMatch(/beans\.length === 0 \?[\s\S]*?No beans listed/);
+  });
+  it("log-sheet moves focus on an intra-sheet view switch", () => {
+    const src = read("components/log-sheet.tsx");
+    expect(src).toMatch(/contentRef\.current\?\.focus\(\)/);
+    expect(src).toMatch(/ref=\{contentRef\}/);
+  });
+});
+
 describe("a11y global foundations", () => {
   const css = read("app/globals.css");
   it("focus-visible indicator with an outline (button/a/role widgets)", () => {

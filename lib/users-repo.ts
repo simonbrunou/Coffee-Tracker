@@ -99,6 +99,20 @@ export async function bumpSessionVersion(db: Queryable, userId: string): Promise
   await db.query(`update users set session_version = session_version + 1 where id = $1`, [userId]);
 }
 
+/** Hard-delete the user (cascades to all user-owned rows) AND purge the user's
+ *  email-keyed rate_limits rows — rate_limits keys on the email (PII) and has NO
+ *  FK to users, so the cascade misses it (right-to-erasure). Email is captured
+ *  before the delete; the key shape mirrors auth.ts / auth-actions.ts. */
+export async function deleteUserWithPii(db: Queryable, userId: string): Promise<void> {
+  const { rows } = await db.query(`select email from users where id = $1`, [userId]);
+  const email = (rows[0] as { email: string | null } | undefined)?.email ?? null;
+  await db.query(`delete from users where id = $1`, [userId]);
+  if (email) {
+    const key = email.toLowerCase().slice(0, 254);
+    await db.query(`delete from rate_limits where key = $1 or key = $2`, [`login:email:${key}`, `signup:email:${key}`]);
+  }
+}
+
 export interface SessionState { sessionVersion: number; emailVerified: Date | null; hasPassword: boolean }
 
 /** One-shot fetch of the fields both the revocation check and the write-gate need. */

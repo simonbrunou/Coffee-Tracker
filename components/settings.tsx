@@ -136,6 +136,16 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
       </section>
 
       <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Your data</h2>
+        <p style={{ color: "var(--mocha)", fontSize: 14, marginBottom: 14 }}>
+          Download a copy of your account data — profile, brews, bags, comments, and follows — as a JSON file.
+        </p>
+        <Button asChild variant="outline">
+          <a href="/api/export" download="cortado-data.json">Download my data</a>
+        </Button>
+      </section>
+
+      <section style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Legal</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14 }}>
           <a href="/privacy" style={{ color: "var(--espresso)", fontWeight: 600 }}>Privacy Policy</a>

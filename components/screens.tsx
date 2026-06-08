@@ -681,9 +681,11 @@ export function DiscoverScreen({
               </button>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
+          <div role="list" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
             {beans.map((b, i) => (
-              <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
+              <div role="listitem" key={b.id}>
+                <BeanCard bean={b} onOpen={onOpenBean} delay={i * 40} />
+              </div>
             ))}
           </div>
           {hasMore && (

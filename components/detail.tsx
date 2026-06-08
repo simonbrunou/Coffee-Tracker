@@ -318,17 +318,20 @@ export function BeanDetail({
           <p style={{ fontSize: 14, color: "var(--mocha)" }}>No brews logged yet.</p>
         )
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {reviews.map((t, i) => (
-            <TastingCard
-              key={t.id}
-              tasting={t}
-              delay={i * 50}
-              onOpenBean={() => {}}
-              onLike={onLike}
-              liked={likes.has(t.id)}
-            />
-          ))}
+        <>
+          <div role="list" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {reviews.map((t, i) => (
+              <div role="listitem" key={t.id}>
+                <TastingCard
+                  tasting={t}
+                  delay={i * 50}
+                  onOpenBean={() => {}}
+                  onLike={onLike}
+                  liked={likes.has(t.id)}
+                />
+              </div>
+            ))}
+          </div>
           {hasMore && (
             <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
               <Button variant="outline" onClick={loadMore} disabled={pending}>
@@ -336,7 +339,7 @@ export function BeanDetail({
               </Button>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
@@ -499,11 +502,19 @@ export function RoasterDetail({
       <h2 className="display" style={{ fontSize: 20, fontWeight: 600, marginBottom: 14 }}>
         Available beans
       </h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
-        {beans.map((b, i) => (
-          <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
-        ))}
-      </div>
+      {beans.length === 0 ? (
+        <p style={{ color: "var(--mocha)", fontSize: 14.5, padding: "6px 0 4px" }}>
+          No beans listed for this roaster yet — check back soon.
+        </p>
+      ) : (
+        <div role="list" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
+          {beans.map((b, i) => (
+            <div role="listitem" key={b.id}>
+              <BeanCard bean={b} onOpen={onOpenBean} delay={i * 40} />
+            </div>
+          ))}
+        </div>
+      )}
       {hasMore && (
         <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
           <Button variant="outline" onClick={loadMore} disabled={pending}>
@@ -614,16 +625,17 @@ export function ProfileView({
       <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
         Recent tastings
       </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div role="list" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {tastings.map((t, i) => (
-          <TastingCard
-            key={t.id}
-            tasting={t}
-            delay={i * 50}
-            onOpenBean={onOpenBean}
-            onLike={onLike}
-            liked={likes.has(t.id)}
-          />
+          <div role="listitem" key={t.id}>
+            <TastingCard
+              tasting={t}
+              delay={i * 50}
+              onOpenBean={onOpenBean}
+              onLike={onLike}
+              liked={likes.has(t.id)}
+            />
+          </div>
         ))}
       </div>
       {loadMore && hasMore && (
