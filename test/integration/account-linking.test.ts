@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 // account-link-repo + link-tokens take explicit args and import only @/lib/db —
 // no @/lib/auth mock needed (unlike tests that import the server actions).
 import { testPool } from "./_db";
-import { getAuthMethods } from "@/lib/account-link-repo";
+import { getAuthMethods, linkAccount } from "@/lib/account-link-repo";
 import { createLinkToken, consumeLinkToken } from "@/lib/link-tokens";
 import { pool as appPool } from "@/lib/db";
 
@@ -46,5 +46,18 @@ describe.skipIf(!hasDb)("account-linking repo + link-tokens", () => {
     const { rows } = await pool!.query(`select count(*)::int as n from link_tokens where user_id=$1 and provider=$2`, ["u-oauth", "google"]);
     expect(rows[0].n).toBe(1);
     expect(await consumeLinkToken(db, raw2, "google")).toEqual({ userId: "u-oauth" });
+  });
+
+  it("linkAccount links, is idempotent for the same user, and rejects a takeover", async () => {
+    // u-oauth links a fresh google identity → linked, with the real type stored.
+    expect(await linkAccount("google", "g-new", "u-oauth", "oidc")).toBe("linked");
+    const { rows } = await pool!.query(`select type from accounts where provider='google' and provider_account_id='g-new'`);
+    expect(rows[0].type).toBe("oidc");
+    // Same identity again for the same user → already (no dup row).
+    expect(await linkAccount("google", "g-new", "u-oauth", "oidc")).toBe("already");
+    // u-pw tries to claim the same google identity → taken; row still belongs to u-oauth.
+    expect(await linkAccount("google", "g-new", "u-pw", "oidc")).toBe("taken");
+    const owner = await pool!.query(`select user_id from accounts where provider='google' and provider_account_id='g-new'`);
+    expect(owner.rows[0].user_id).toBe("u-oauth");
   });
 });

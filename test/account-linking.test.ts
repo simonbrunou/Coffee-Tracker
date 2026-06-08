@@ -12,6 +12,25 @@ describe("link-tokens lib", () => {
   });
 });
 
+describe("link start + signIn branch", () => {
+  it("sets the per-provider Lax/secure-in-prod cookie right before signIn (no try around signIn)", () => {
+    const src = read("app/account-link-actions.ts");
+    expect(src).toMatch(/link_nonce_/);
+    expect(src).toMatch(/sameSite:\s*"lax"/);
+    expect(src).toMatch(/httpOnly:\s*true/);
+    expect(src).toMatch(/secure:\s*process\.env\.NODE_ENV === "production"/);
+    expect(src).toMatch(/cookies\(\)[\s\S]{0,400}signIn\(/);
+    expect(src).not.toMatch(/try\s*\{[\s\S]{0,800}signIn\(/); // signIn's redirect must throw uncaught
+  });
+  it("auth.ts link branch reads the per-provider cookie + consumes + links + redirect-strings", () => {
+    const src = read("auth.ts");
+    expect(src).toMatch(/consumeLinkToken/);
+    expect(src).toMatch(/linkAccount/);
+    expect(src).toMatch(/"\/settings\?linkError=taken"/);
+    expect(src).toMatch(/"\/settings\?linked=1"/);
+  });
+});
+
 describe("auth.ts lazy init", () => {
   const src = read("auth.ts");
   it("uses the NextAuth(async (req) => config) factory form", () => {
@@ -29,6 +48,8 @@ describe("auth.ts lazy init", () => {
     expect(updateIdx).toBeGreaterThan(-1);
     expect(shortCircuitIdx).toBeGreaterThan(-1);
     expect(updateIdx).toBeLessThan(shortCircuitIdx);
-    expect(src).toMatch(/token\.sv = session\.sessionVersion/);
+    // Authoritative DB read — never the client-supplied session payload.
+    expect(src).toMatch(/token\.sv = \(await getSessionVersion\(queryDb, token\.uid\)\)/);
+    expect(src).not.toMatch(/token\.sv = session\.sessionVersion/);
   });
 });
