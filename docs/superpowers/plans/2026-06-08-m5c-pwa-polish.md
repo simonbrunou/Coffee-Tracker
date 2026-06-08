@@ -318,3 +318,47 @@ git add -A && git commit -m "feat(m5c): app-shell + per-screen skeleton loaders;
 - **Spec coverage:** theme-colors+viewport (Task 1) ↔ A/B; manifest (2) ↔ C; CSP/middleware (3) ↔ D; generator+icons (4), apple-icon (5), Dockerfile (6) ↔ B; skeletons (7,8) + polish (9) ↔ E/F; live (10) ↔ Testing. Risk table: hashed URLs→public/icons (Task 4); satori var/text→hex+text-free (4,5); theme-color race→single static value + shared consts (1); scroll-restore→sized skeletons (8 + live Step 5); cold-open→app-shell skeleton (8); container icons→Dockerfile (6).
 - **Generator risk:** Task 4 Step 2 names the fallback if `next/og` won't import standalone — resolve at execution, do not block.
 - **No placeholders.** Offline/service-worker explicitly out of scope (spec G).
+
+---
+
+## Revisions from the adversarial plan review (AUTHORITATIVE — supersede the tasks above)
+
+The 4-lens review *executed* the generator and caught real failures. Apply ALL:
+
+### R1 — Generator import (BLOCKER, verified): use `next/og.js`, not `next/og`.
+`import { ImageResponse } from "next/og"` throws `ERR_MODULE_NOT_FOUND` in a standalone `.mjs` (next has no `exports` map; ESM needs the explicit extension). **Fix:** `import { ImageResponse } from "next/og.js";`. Drop the `@vercel/og`/resvg fallbacks (dead ends); the only correct fallback if ever needed is `next/dist/compiled/@vercel/og/index.node.js`.
+
+### R2 — Dockerfile (BLOCKER): correct COPY + ownership + ordering.
+Add `COPY --chown=nextjs:nodejs --from=build /app/public ./public` **before** the `USER nextjs` line (place it right after the `.next` copy). The `public/icons/*.png` MUST be committed (Task 4) before any image build (the build stage's `COPY . .` only sees committed files). Test: `expect(read("Dockerfile")).toMatch(/COPY --chown=nextjs:nodejs --from=build \/app\/public/)`.
+
+### R3 — Scroll-restoration (MAJOR): `min-height: 300vh`, not card-counting.
+Sizing skeletons to ~6 cards only protects ~100px of restored scroll. **Fix:** give each leaf skeleton container `style={{ minHeight: "300vh" }}` (3 screens covers realistic scroll depths; still far cheaper than real content) so a back/forward `scrollTop` restore is not clamped. The app-shell `(app)/loading.tsx` doesn't need it (cold-open starts at top).
+
+### R4 — Skeleton tests (MAJOR): make them real + enforce context-free.
+The `/Skeleton|skeleton/` match is trivially passable. Strengthen `test/pwa.test.ts` skeleton block:
+```ts
+for (const f of LEAF_AND_SHELL) {
+  expect(read(f)).toMatch(/from ["']@\/components\/skeleton["']/);
+  expect(read(f)).toMatch(/export default function/);
+}
+// (app)/loading.tsx fires BEFORE AppProvider mounts → must be context-free
+expect(read("app/(app)/loading.tsx")).not.toMatch(/use(Shell|Data|Context)/);
+```
+And in Task 8: the loading.tsx files MUST NOT import `useShell`/`useData`/any app-provider/data-context hook (they render before `AppProvider` mounts — `useShell` would throw).
+
+### R5 — Guest sign-in CTA (MAJOR): give it a real accessible name.
+jsx-a11y gates (error). The new mobile-top CTA must use **visible text "Sign in"** (a `<Button onClick={() => router.push("/login")}>Sign in</Button>`), not an icon-only button. (If icon-only were used it would need `aria-label="Sign in"`.) Show it only when `currentUserId` is null.
+
+### R6 — Middleware matcher (MINOR): narrow + escape.
+Do NOT strip headers from the existing M5·A `/opengraph-image` `/twitter-image` (behavioral change for no real gain). Add ONLY `manifest\.webmanifest|apple-icon` to the negative-lookahead (escape the dot in `manifest\.webmanifest`). `/icon` is hashed → inert anyway.
+
+### R7 — `app/manifest.ts` (MINOR): explicit `force-static`.
+Match the repo convention (every metadata route declares its dynamic mode). Add `export const dynamic = "force-static";` (pure static object → correct, guarantees the prerender + the route-table static check).
+
+### R8 — Generator insets (MINOR): grow the bean.
+With the bean filling only ~57% of its svg box, insets 0.18/0.34 render a tiny bean. Use **icon inset 0.04** and **maskable inset 0.16** (maskable bean tip stays well within the 40%-radius safe zone — verified). Reconcile the spec's "~70%/~60%" prose to "bean ~52%/~39% of canvas".
+
+### R9 — Consistency (NIT): `opengraph-image.tsx` background → `THEME_LIGHT`.
+Update `app/opengraph-image.tsx` `background: "#f4ece1"` → `import { THEME_LIGHT } ...; background: THEME_LIGHT` so the OG bg matches the manifest `background_color`.
+
+### R10 — `manifest-src` comment (NIT): note it falls back to default-src (explicitness, not new security).
