@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
+import { getDiscoverable } from "@/lib/queries";
 import { SettingsClient } from "./settings-client";
 
 export const metadata: Metadata = { title: "Settings — Cortado", robots: { index: false, follow: false } };
@@ -10,5 +11,5 @@ export const metadata: Metadata = { title: "Settings — Cortado", robots: { ind
 export default async function SettingsPage() {
   const uid = await getCurrentUserId();
   if (!uid) redirect("/login");
-  return <SettingsClient />;
+  return <SettingsClient discoverable={await getDiscoverable(uid)} />;
 }

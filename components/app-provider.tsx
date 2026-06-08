@@ -53,6 +53,7 @@ interface ShellApi {
   toggleWishlistBean: (id: string) => void;
   openBean: (id: string) => void;
   openRoaster: (id: string) => void;
+  openUser: (handle: string) => void;
   openBrew: (beanId?: string) => void;
   openAddBag: () => void;
   openEditBrew: (t: Tasting) => void;
@@ -233,6 +234,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
   const openBean = (id: string) => router.push(`/bean/${id}`);
   const openRoaster = (id: string) => router.push(`/roaster/${id}`);
+  const openUser = (handle: string) => router.push(`/u/${handle}`);
 
   // Re-throw on failure so the sheet can show a real error instead of a false
   // success. The new row appears via the action's revalidatePath re-base (proven
@@ -305,6 +307,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     toggleWishlistBean,
     openBean,
     openRoaster,
+    openUser,
     openBrew,
     openAddBag,
     openEditBrew,

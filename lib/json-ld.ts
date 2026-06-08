@@ -32,6 +32,16 @@ export function roasterJsonLd(r: Roaster, url: string): Record<string, unknown> 
   };
 }
 
+/** schema.org ProfilePage wrapping a Person (emitted ONLY for discoverable profiles). */
+export function personJsonLd(profile: { name: string; handle: string }, url: string): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    url,
+    mainEntity: { "@type": "Person", name: profile.name, alternateName: `@${profile.handle}`, url },
+  };
+}
+
 /** schema.org BreadcrumbList. */
 export function breadcrumbJsonLd(items: { name: string; url: string }[]): Record<string, unknown> {
   return {

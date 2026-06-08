@@ -36,6 +36,13 @@
       "when": 1780819410506,
       "tag": "0004_verification_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780938760562,
+      "tag": "0005_public_profiles",
+      "breakpoints": true
     }
   ]
 }

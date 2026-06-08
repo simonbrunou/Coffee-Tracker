@@ -4,7 +4,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p className={styles.updated}>Last updated: 7 June 2026</p>
+      <p className={styles.updated}>Last updated: 8 June 2026</p>
 
       <h2>1. Who we are</h2>
       <p>
@@ -32,6 +32,11 @@ export default function PrivacyPage() {
         your follower/following/review counts. <strong>Private</strong> (only you can see it): your email address,
         your password, and your bag-inventory details (bag weight, purchase date, amount remaining, and
         owned/where-bought).</p>
+      <p>You also have a <strong>public profile</strong> at <code>/u/your-handle</code>, viewable by anyone with the
+        link. A <strong>&ldquo;discoverable&rdquo;</strong> setting (Settings &rarr; Public profile,{" "}
+        <strong>off by default</strong>) controls whether search engines may index that profile page and whether it
+        appears in our sitemap. Note that individual reviews and tasting notes you post are shown publicly on the
+        relevant coffee&rsquo;s page and may be indexed by search engines independently of this setting.</p>
 
       <h2>4. Why we process your data</h2>
       <p>To provide the service, to authenticate you and keep the service secure (including rate-limiting), and to

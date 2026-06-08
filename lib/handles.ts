@@ -9,7 +9,12 @@ export function generateHandle(): string {
   return "user_" + s.slice(0, 10);
 }
 
-/** 3–30 chars, lowercase letters/digits/underscore. */
+/** Handles that would shadow a current/future route segment under /u or the app. */
+export const RESERVED_HANDLES = new Set([
+  "u", "api", "settings", "login", "signup", "discover", "journal", "profile", "bean", "roaster", "feed",
+]);
+
+/** 3–30 chars, lowercase letters/digits/underscore, not a reserved route word. */
 export function isValidHandle(handle: string): boolean {
-  return /^[a-z0-9_]{3,30}$/.test(handle);
+  return /^[a-z0-9_]{3,30}$/.test(handle) && !RESERVED_HANDLES.has(handle);
 }

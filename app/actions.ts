@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { query } from "@/lib/db";
-import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage } from "@/lib/queries";
+import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage } from "@/lib/queries";
 import { requireVerifiedUserId, getCurrentUserId } from "@/lib/auth";
 import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Page, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
@@ -180,6 +180,11 @@ export async function loadMoreBeans(
 export async function loadMoreBeanReviews(beanId: string, cursor: string | null): Promise<Page<Tasting>> {
   const uid = await getCurrentUserId();
   return getBeanReviewsPage(uid, beanId, { cursor });
+}
+
+export async function loadMoreUserTastings(userId: string, cursor: string | null): Promise<Page<Tasting>> {
+  const uid = await getCurrentUserId();
+  return getUserTastingsPage(uid, userId, { cursor });
 }
 
 export async function loadMoreRoasterBeans(roasterId: string, cursor: string | null): Promise<Page<Bean>> {
