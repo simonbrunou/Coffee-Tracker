@@ -1,7 +1,6 @@
 "use client";
 /* ============ Cortado — Bean detail, Roaster detail, Profile ============ */
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "@/components/app-provider";
 import { useLoadMore } from "./use-load-more";
@@ -10,7 +9,8 @@ import { BeanCard, TastingCard } from "./cards";
 import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
 import { flavorColor } from "@/lib/seed-data";
-import type { Bean, Page, Tasting } from "@/lib/types";
+import { computeTopFlavors } from "@/lib/profile-flavors";
+import type { Bean, Page, Tasting, User } from "@/lib/types";
 
 // Shown when a /bean/:id or /roaster/:id deep-link points at an id not in the catalog.
 function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void }) {
@@ -516,47 +516,54 @@ export function RoasterDetail({
 }
 
 // ---------- PROFILE ----------
-export function ProfileScreen({
-  onOpenBean,
+/** Presentational profile — fed by /profile (own, from context) and /u/[handle]
+ *  (public, from server props). No auth redirect lives here (the own route guards
+ *  server-side); isOwn picks Edit vs Follow. */
+export function ProfileView({
+  user,
+  initialTastings,
+  topFlavors,
+  isOwn,
+  isFollowing,
+  onFollow,
   likes,
   onLike,
+  onOpenBean,
+  loadMore,
 }: {
-  onOpenBean: (id: string) => void;
+  user: User;
+  initialTastings: Page<Tasting>;
+  topFlavors: { flavor: string; n: number }[];
+  isOwn: boolean;
+  isFollowing: boolean;
+  onFollow: () => void;
   likes: Set<string>;
   onLike: (id: string) => void;
+  onOpenBean: (id: string) => void;
+  loadMore?: (cursor: string | null) => Promise<Page<Tasting>>;
 }) {
-  const D = useData();
-  const router = useRouter();
-  const me = D.me ?? undefined;
-  const mine = D.myTastings;
-  const topFlavors: Record<string, number> = {};
-  mine.forEach((t) => {
-    t.beanFlavors.forEach((f) => (topFlavors[f] = (topFlavors[f] || 0) + 1));
-  });
-  const flavorList = Object.entries(topFlavors)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
-
-  useEffect(() => {
-    if (!me) router.replace("/login");
-  }, [me, router]);
-
-  if (!me) return null;
-
+  const fetcher = loadMore ?? (async () => ({ rows: [], nextCursor: null }) as Page<Tasting>);
+  const { rows: tastings, loadMore: more, hasMore, pending } = useLoadMore<Tasting>(initialTastings, fetcher);
   return (
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <div style={{ display: "flex", gap: 20, alignItems: "center", marginBottom: 26, flexWrap: "wrap" }}>
-        <Avatar user={me} size={84} />
+        <Avatar user={user} size={84} />
         <div style={{ flex: 1, minWidth: 200 }}>
           <h1 className="display" style={{ fontSize: 30, fontWeight: 700 }}>
-            {me.name}
+            {user.name}
           </h1>
-          <div style={{ fontSize: 14, color: "var(--mocha)" }}>@{me.handle}</div>
-          <p style={{ fontSize: 14.5, color: "var(--coffee)", marginTop: 8, maxWidth: 440, lineHeight: 1.5 }}>{me.bio}</p>
+          <div style={{ fontSize: 14, color: "var(--mocha)" }}>@{user.handle}</div>
+          <p style={{ fontSize: 14.5, color: "var(--coffee)", marginTop: 8, maxWidth: 440, lineHeight: 1.5 }}>{user.bio}</p>
         </div>
-        <Button variant="outline" disabled aria-label="Edit profile (coming soon)">
-          <Icon name="settings" size={17} /> Edit
-        </Button>
+        {isOwn ? (
+          <Button variant="outline" disabled aria-label="Edit profile (coming soon)">
+            <Icon name="settings" size={17} /> Edit
+          </Button>
+        ) : (
+          <Button variant={isFollowing ? "outline" : "default"} onClick={onFollow}>
+            {isFollowing ? "Following" : "Follow"}
+          </Button>
+        )}
       </div>
 
       <div
@@ -569,20 +576,20 @@ export function ProfileScreen({
           marginBottom: 24,
         }}
       >
-        <ProfStat n={me.tastings} label="Tastings" />
-        <ProfStat n={me.followers} label="Followers" />
-        <ProfStat n={me.following} label="Following" />
+        <ProfStat n={user.tastings} label="Tastings" />
+        <ProfStat n={user.followers} label="Followers" />
+        <ProfStat n={user.following} label="Following" />
       </div>
 
       <div style={{ marginBottom: 28 }}>
         <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
-          Your palate
+          {isOwn ? "Your palate" : "Their palate"}
         </h2>
-        <p style={{ fontSize: 13.5, color: "var(--mocha)", marginBottom: 14 }}>The notes you reach for most often.</p>
+        <p style={{ fontSize: 13.5, color: "var(--mocha)", marginBottom: 14 }}>The notes reached for most often.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {flavorList.map(([f, n]) => (
+          {topFlavors.map(({ flavor, n }) => (
             <span
-              key={f}
+              key={flavor}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -596,8 +603,8 @@ export function ProfileScreen({
                 fontWeight: 500,
               }}
             >
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: flavorColor(f) }} />
-              {f}
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: flavorColor(flavor) }} />
+              {flavor}
               <span style={{ color: "var(--mocha)", fontSize: 12 }}>×{n}</span>
             </span>
           ))}
@@ -608,7 +615,7 @@ export function ProfileScreen({
         Recent tastings
       </h2>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {mine.map((t, i) => (
+        {tastings.map((t, i) => (
           <TastingCard
             key={t.id}
             tasting={t}
@@ -619,7 +626,43 @@ export function ProfileScreen({
           />
         ))}
       </div>
+      {loadMore && hasMore && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <Button variant="outline" onClick={more} disabled={pending}>{pending ? "Loading…" : "Load more"}</Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Own profile — reads context (preserving optimistic edit/delete) and feeds
+ *  ProfileView. The /profile route guards auth server-side, so `me` is present.
+ *  NOTE: D.myTastings is capped at 200 (getMyTastings) — intentional/pre-existing;
+ *  the public /u path is keyset-paginated. */
+export function ProfileScreen({
+  onOpenBean,
+  likes,
+  onLike,
+}: {
+  onOpenBean: (id: string) => void;
+  likes: Set<string>;
+  onLike: (id: string) => void;
+}) {
+  const D = useData();
+  const me = D.me;
+  if (!me) return null;
+  return (
+    <ProfileView
+      user={me}
+      initialTastings={{ rows: D.myTastings, nextCursor: null }}
+      topFlavors={computeTopFlavors(D.myTastings)}
+      isOwn
+      isFollowing={false}
+      onFollow={() => {}}
+      likes={likes}
+      onLike={onLike}
+      onOpenBean={onOpenBean}
+    />
   );
 }
 

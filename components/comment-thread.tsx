@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useData } from "./data-context";
+import { useShell } from "./app-provider";
 import { relativeTime } from "@/lib/relative-time";
 import { fetchComments, addComment, updateComment, deleteComment } from "@/app/actions";
 import { Button } from "@/components/ui/button";
@@ -78,11 +79,14 @@ function CommentRow({ c, mine, onDelete, onEdit }: {
   c: Comment; mine: boolean;
   onDelete: () => void; onEdit: (body: string) => Promise<void>;
 }) {
+  const shell = useShell();
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(c.body);
   return (
     <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>
-      <span style={{ fontWeight: 600 }}>{c.authorName}</span>{" "}
+      <button onClick={() => shell.openUser(c.authorHandle)} style={{ fontWeight: 600, color: "inherit", font: "inherit" }}>
+        {c.authorName}
+      </button>{" "}
       <span style={{ color: "var(--mocha)", fontSize: 12 }}>· {relativeTime(c.createdAt)}{c.updatedAt ? " · edited" : ""}</span>
       {editing ? (
         <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
