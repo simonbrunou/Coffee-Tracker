@@ -30,8 +30,6 @@ describe("route-group restructure (Architecture B)", () => {
       "app/(app)/journal/page.tsx",
       "app/(app)/profile/page.tsx",
       "app/(app)/settings/page.tsx",
-      "app/(app)/login/page.tsx",
-      "app/(app)/signup/page.tsx",
       "app/(app)/bean/[id]/page.tsx",
       "app/(app)/roaster/[id]/page.tsx",
       "app/(app)/loading.tsx",
@@ -42,6 +40,17 @@ describe("route-group restructure (Architecture B)", () => {
     for (const f of ["app/page.tsx", "app/bean", "app/roaster", "app/loading.tsx"]) {
       expect(existsSync(p(f)), `${f} moved`).toBe(false);
     }
+  });
+
+  it("(auth) group holds the chrome-free, DB-free auth pages (no getAppData cost)", () => {
+    expect(existsSync(p("app/(auth)/login/page.tsx")), "login under (auth)").toBe(true);
+    expect(existsSync(p("app/(auth)/signup/page.tsx")), "signup under (auth)").toBe(true);
+    // moved out of the (app) getAppData shell
+    expect(existsSync(p("app/(app)/login/page.tsx")), "login left (app)").toBe(false);
+    expect(existsSync(p("app/(app)/signup/page.tsx")), "signup left (app)").toBe(false);
+    const layout = read("app/(auth)/layout.tsx");
+    expect(layout).not.toMatch(/getAppData/);
+    expect(layout).not.toMatch(/AppProvider/);
   });
 
   it("DB-independent special files stay at app/ root", () => {

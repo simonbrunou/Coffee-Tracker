@@ -6,7 +6,7 @@ const read = (...s: string[]) => readFileSync(join(process.cwd(), ...s), "utf8")
 
 describe("legal links are discoverable", () => {
   it("signup form links to terms and privacy", () => {
-    const src = read("app/(app)/signup/signup-form.tsx");
+    const src = read("app/(auth)/signup/signup-form.tsx");
     expect(src).toMatch(/href="\/terms"/);
     expect(src).toMatch(/href="\/privacy"/);
   });
