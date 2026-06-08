@@ -32,8 +32,8 @@ export default async function UserOg({ params }: { params: Promise<{ handle: str
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 72, fontWeight: 700 }}>{profile.name}</div>
-          <div style={{ fontSize: 36, opacity: 0.7, marginTop: 8 }}>@{profile.handle}</div>
-          <div style={{ fontSize: 32, opacity: 0.6, marginTop: 18 }}>{profile.tastings} tastings · Cortado</div>
+          <div style={{ fontSize: 36, opacity: 0.7, marginTop: 8 }}>{`@${profile.handle}`}</div>
+          <div style={{ fontSize: 32, opacity: 0.6, marginTop: 18 }}>{`${profile.tastings} tastings · Cortado`}</div>
         </div>
       </div>
     ),
