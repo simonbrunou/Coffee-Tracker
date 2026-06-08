@@ -63,3 +63,30 @@ describe("Dockerfile", () => {
     expect(read("Dockerfile")).toMatch(/COPY --chown=nextjs:nodejs --from=build \/app\/public/);
   });
 });
+
+const LEAF = [
+  "app/(app)/discover/loading.tsx",
+  "app/(app)/bean/[id]/loading.tsx",
+  "app/(app)/roaster/[id]/loading.tsx",
+];
+const SHELL_AND_LEAF = ["app/(app)/loading.tsx", ...LEAF];
+
+describe("skeletons", () => {
+  for (const f of SHELL_AND_LEAF) {
+    it(`${f} composes the Skeleton primitive as a default export`, () => {
+      const src = read(f);
+      expect(src).toMatch(/from ["']@\/components\/skeleton["']/);
+      expect(src).toMatch(/export default function/);
+    });
+  }
+  it("(app)/loading.tsx is context-free (it renders before AppProvider mounts)", () => {
+    // useShell/useData/useContext would throw — the cold-open boundary fires
+    // while (app)/layout.tsx is still awaiting getAppData, i.e. no provider yet.
+    expect(read("app/(app)/loading.tsx")).not.toMatch(/use(Shell|Data|Context)/);
+  });
+  for (const f of LEAF) {
+    it(`${f} reserves a tall min-height so back/forward scroll restore is not clamped`, () => {
+      expect(read(f)).toMatch(/minHeight/);
+    });
+  }
+});

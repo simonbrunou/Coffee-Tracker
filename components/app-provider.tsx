@@ -397,6 +397,14 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 <Button variant="ghost" size="icon" onClick={() => router.push("/discover")} aria-label="Search">
                   <Icon name="search" size={21} />
                 </Button>
+                {/* Guest entry point for an installed-app launch (the desktop
+                    sidebar has its own Sign-in; mobile-top had none). Visible
+                    text gives it an accessible name without an aria-label. */}
+                {!currentUserId && (
+                  <Button variant="outline" size="sm" onClick={() => router.push("/login")}>
+                    Sign in
+                  </Button>
+                )}
               </div>
             </header>
             <main id="main-content" tabIndex={-1} className="screen-pad">
