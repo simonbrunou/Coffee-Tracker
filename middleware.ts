@@ -37,7 +37,7 @@ export const config = {
   // which can blank the page — per the official Next CSP matcher).
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml|manifest\\.webmanifest|apple-icon).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

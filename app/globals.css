@@ -257,7 +257,9 @@ input, textarea { font-family: inherit; }
   .mobile-only-spacer { display: block; }
   .mobile-top {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 18px; position: sticky; top: 0; z-index: 50;
+    /* extra top padding clears the notch / Dynamic Island in standalone mode
+       (the manifest is display:standalone + viewport-fit=cover). */
+    padding: calc(14px + env(safe-area-inset-top)) 18px 14px; position: sticky; top: 0; z-index: 50;
     background: color-mix(in oklch, var(--cream) 88%, transparent);
     backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-soft);
   }
@@ -308,6 +310,32 @@ a:focus-visible,
   left: 8px; top: 8px; width: auto; height: auto; padding: 8px 14px;
   background: var(--cream); color: var(--espresso);
   border: 1px solid var(--caramel-deep); border-radius: 8px; box-shadow: var(--shadow-sm);
+}
+
+/* ---- Skeleton loaders (M5·C) ---- */
+/* A surface block with a moving highlight sweep. The sweep is a CSS animation,
+   so the reduced-motion block below already neutralizes it (no per-rule guard). */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--cream) 65%, transparent),
+    transparent
+  );
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
 }
 
 /* Respect reduced-motion: neutralize the fade-up/sheet/pop animations + transitions. */

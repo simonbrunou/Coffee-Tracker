@@ -26,6 +26,8 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 # later "optimize" with `npm ci --omit=dev` or prune dev deps, or boot will break.
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
+# public/ holds the committed PWA icons (public/icons/*.png) the manifest pins.
+COPY --chown=nextjs:nodejs --from=build /app/public ./public
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/next.config.ts ./next.config.ts
 USER nextjs
