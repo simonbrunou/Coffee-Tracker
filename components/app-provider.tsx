@@ -103,7 +103,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   // The <main> scroll container lives in this provider and survives route
   // changes, so we save its position per route and restore it on Back/Forward
   // (popstate); a forward push resets to the top.
-  const scrollRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Map<string, number>>(new Map());
   const currentRouteKey = useRef(pathname);
   const isPopNav = useRef(false);
@@ -315,6 +315,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     <DataProvider roasters={roasters} feed={initialData.feed} me={me} myTastings={myTastings} myShelf={myShelf} savedTastings={initialData.savedTastings} wishlistBeans={initialData.wishlistBeans} currentUserId={currentUserId}>
       <ShellContext.Provider value={shell}>
         <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+          <a href="#main-content" className="skip-link">Skip to content</a>
           {/* ---- Desktop sidebar ---- */}
           <aside className="sidebar">
             <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 8px 26px" }}>
@@ -381,8 +382,8 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
           </aside>
 
           {/* ---- Main scroll area ---- */}
-          <main ref={scrollRef} className="main-scroll">
-            <header className="mobile-top">
+          <div ref={scrollRef} className="main-scroll">
+            <header className="mobile-top" role="banner">
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <Logo size={30} />
                 <span className="display" style={{ fontSize: 18, fontWeight: 700 }}>
@@ -396,7 +397,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 </Button>
               </div>
             </header>
-            <div className="screen-pad">
+            <main id="main-content" tabIndex={-1} className="screen-pad">
               {needsEmailVerification && (
                 <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
                   <span style={{ flex: 1 }}>Verify your email to log brews and bags. Check your inbox for the link.</span>
@@ -404,9 +405,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 </div>
               )}
               {children}
-            </div>
+            </main>
             <div style={{ height: 90 }} className="mobile-only-spacer" />
-          </main>
+          </div>
 
           {/* ---- Mobile bottom nav ---- */}
           <nav className="bottom-nav">

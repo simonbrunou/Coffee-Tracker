@@ -62,10 +62,11 @@
   --surface-2:    oklch(0.975 0.010 80);
   --line:         oklch(0.89 0.018 74);
   --line-soft:    oklch(0.92 0.014 76);
+  --control-border: oklch(0.63 0.020 74); /* a11y: control/input border ≥3:1 on cream (1.4.11) */
 
   --espresso:     oklch(0.27 0.030 52);   /* primary text */
   --coffee:       oklch(0.42 0.040 55);   /* secondary text */
-  --mocha:        oklch(0.58 0.030 58);   /* tertiary text */
+  --mocha:        oklch(0.50 0.030 58);   /* tertiary text — a11y: 5.46:1 on cream (1.4.3) */
 
   --caramel:      oklch(0.62 0.125 55);   /* primary accent */
   --caramel-deep: oklch(0.52 0.115 50);
@@ -91,8 +92,8 @@
   --accent:                var(--cream-deep);
   --accent-foreground:     var(--espresso);
   --destructive:           oklch(0.58 0.20 25);
-  --border:                var(--line);
-  --input:                 var(--line);
+  --border:                var(--control-border);
+  --input:                 var(--control-border);
   --ring:                  var(--caramel);
 
   --shadow-sm: 0 1px 2px oklch(0.30 0.03 50 / 0.06), 0 1px 3px oklch(0.30 0.03 50 / 0.05);
@@ -284,3 +285,36 @@ input, textarea { font-family: inherit; }
 
 @media (max-width: 540px) { .two-col { flex-direction: column; gap: 0; } }
 @media (max-width: 600px) { .radar-row { grid-template-columns: 1fr !important; justify-items: center; text-align: center; } }
+
+/* ============ Accessibility (M5·B) ============ */
+/* Visible keyboard focus for raw controls (shadcn Button/Input/Slider already ring). */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="radio"]:focus-visible,
+.nav-item:focus-visible,
+.nav-user:focus-visible,
+.bottom-item:focus-visible {
+  outline: 3px solid var(--caramel-deep);
+  outline-offset: 2px;
+}
+/* The content wrapper is a script/skip focus target — never paint a page-wide ring. */
+#main-content:focus { outline: none; }
+
+/* Skip to content (revealed on keyboard focus). */
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 300; }
+.skip-link:focus {
+  left: 8px; top: 8px; width: auto; height: auto; padding: 8px 14px;
+  background: var(--cream); color: var(--espresso);
+  border: 1px solid var(--caramel-deep); border-radius: 8px; box-shadow: var(--shadow-sm);
+}
+
+/* Respect reduced-motion: neutralize the fade-up/sheet/pop animations + transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
