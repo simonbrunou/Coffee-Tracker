@@ -1,8 +1,9 @@
+import type { Metadata } from "next";
 import { getCurrentUserId } from "@/lib/auth";
 import { getDiscoverBeansPage, getTrendingBeans } from "@/lib/queries";
 import { DiscoverClient } from "./discover-client";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Discover Coffee — Cortado",
   description: "Browse single-origin beans and the roasters behind them.",
   alternates: { canonical: "/discover" },
