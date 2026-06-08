@@ -1,4 +1,5 @@
 import styles from "../legal.module.css";
+import { legal } from "@/lib/legal";
 
 export default function TermsPage() {
   return (
@@ -8,7 +9,7 @@ export default function TermsPage() {
 
       <h2>1. Acceptance and eligibility</h2>
       <p>By creating an account or using Cortado you agree to these Terms. You must be at least
-        <strong> [PLACEHOLDER: minimum age]</strong> years old to use the service.</p>
+        <strong> {legal.minAge()}</strong> years old to use the service.</p>
 
       <h2>2. Your account</h2>
       <p>Provide accurate information, keep your credentials secure, and you are responsible for activity under
@@ -30,16 +31,16 @@ export default function TermsPage() {
         <a href="/settings"> Settings</a>.</p>
 
       <h2>7. Disclaimers and liability</h2>
-      <p>[PLACEHOLDER: disclaimers and limitation of liability — confirm with counsel.]</p>
+      <p>{legal.liability()}</p>
 
       <h2>8. Governing law</h2>
-      <p>[PLACEHOLDER: governing law and jurisdiction.]</p>
+      <p>{legal.jurisdiction()}</p>
 
       <h2>9. Changes</h2>
       <p>We may update these Terms; we will revise the &ldquo;last updated&rdquo; date above.</p>
 
       <h2>10. Contact</h2>
-      <p>[PLACEHOLDER: contact email].</p>
+      <p>{legal.contact()}.</p>
     </>
   );
 }

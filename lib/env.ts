@@ -20,4 +20,12 @@ export function validateEnv(env: NodeJS.ProcessEnv): void {
       hint: "RESEND_API_KEY/EMAIL_FROM unset — verification emails will be logged, not sent",
     });
   }
+  // Legal pages are non-fatal too: unconfigured LEGAL_* vars render a visible
+  // "[to be configured]" marker rather than a fabricated fact, so warn (don't crash).
+  const legalUnset = ["LEGAL_ENTITY", "LEGAL_CONTACT", "LEGAL_JURISDICTION"].filter((k) => !env[k]);
+  if (legalUnset.length) {
+    logger.warn("legal_not_configured", {
+      hint: `Legal pages show "[to be configured]" until these are set: ${legalUnset.join(", ")} (see .env.example)`,
+    });
+  }
 }

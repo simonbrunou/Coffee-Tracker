@@ -32,10 +32,20 @@ describe("validateEnv — Resend config", () => {
     expect(warn).toHaveBeenCalledWith("email_not_configured", expect.anything());
     warn.mockRestore();
   });
-  it("does not warn when Resend is configured", () => {
+  it("does not warn when everything (Resend + legal) is configured", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    validateEnv(prod({
+      AUTH_SECRET: "x", DATABASE_URL: "y", AUTH_URL: "https://h",
+      RESEND_API_KEY: "re_x", EMAIL_FROM: "n@e.com",
+      LEGAL_ENTITY: "E", LEGAL_CONTACT: "c@e.com", LEGAL_JURISDICTION: "J",
+    }));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+  it("warns (does not throw) when the core legal facts are missing in production", () => {
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
     validateEnv(prod({ AUTH_SECRET: "x", DATABASE_URL: "y", AUTH_URL: "https://h", RESEND_API_KEY: "re_x", EMAIL_FROM: "n@e.com" }));
-    expect(warn).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("legal_not_configured", expect.anything());
     warn.mockRestore();
   });
 });
