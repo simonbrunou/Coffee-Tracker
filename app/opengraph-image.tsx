@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { THEME_LIGHT } from "@/lib/theme-colors";
 
 // No DB / request APIs → safe to pre-render at build (and immune to the root
 // layout's force-dynamic cascade).
@@ -18,7 +19,7 @@ export default function OgDefault() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "#f4ece1",
+          background: THEME_LIGHT,
           color: "#2b2420",
         }}
       >

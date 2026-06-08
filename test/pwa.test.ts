@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { THEME_LIGHT, THEME_DARK } from "@/lib/theme-colors";
 import manifest from "@/app/manifest";
@@ -37,5 +37,29 @@ describe("web app manifest", () => {
   });
   it("declares force-static so it prerenders at the no-DB build", () => {
     expect(read("app/manifest.ts")).toMatch(/export const dynamic = "force-static"/);
+  });
+});
+
+describe("generated icons", () => {
+  for (const f of ["public/icons/icon-192.png", "public/icons/icon-512.png", "public/icons/maskable-512.png"]) {
+    it(`${f} exists and is non-empty`, () => {
+      const p = join(process.cwd(), f);
+      expect(existsSync(p)).toBe(true);
+      expect(statSync(p).size).toBeGreaterThan(500);
+    });
+  }
+});
+
+describe("apple-icon", () => {
+  const src = read("app/apple-icon.tsx");
+  it("is force-static and DB-free", () => {
+    expect(src).toMatch(/export const dynamic = "force-static"/);
+    expect(src).not.toMatch(/@\/lib\/(db|queries)/);
+  });
+});
+
+describe("Dockerfile", () => {
+  it("copies public/ into the runner so /icons PNGs exist at runtime", () => {
+    expect(read("Dockerfile")).toMatch(/COPY --chown=nextjs:nodejs --from=build \/app\/public/);
   });
 });
