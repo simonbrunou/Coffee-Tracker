@@ -119,6 +119,7 @@
   --surface-2:    oklch(0.275 0.016 64);  /* insets */
   --line:         oklch(0.34 0.018 62);
   --line-soft:    oklch(0.30 0.016 62);
+  --control-border: oklch(0.52 0.020 62); /* a11y: control border ≥3:1 on the dark bg (3.34:1) */
 
   --espresso:     oklch(0.93 0.012 82);   /* primary text / light fills */
   --coffee:       oklch(0.80 0.020 76);   /* secondary text */
