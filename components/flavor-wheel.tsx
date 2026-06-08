@@ -49,7 +49,7 @@ export function FlavorWheelPicker({
             >
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: WHEEL_FLAT[n] || "var(--mocha)" }} />
               {n}
-              <button onClick={() => toggle(n)} style={{ display: "inline-flex", color: "var(--mocha)" }}>
+              <button onClick={() => toggle(n)} aria-label={`Remove ${n}`} style={{ display: "inline-flex", color: "var(--mocha)" }}>
                 <Icon name="close" size={13} color="var(--mocha)" />
               </button>
             </span>
@@ -85,6 +85,7 @@ export function FlavorWheelPicker({
                 style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "11px 13px", textAlign: "left" }}
               >
                 <span
+                  aria-hidden="true"
                   style={{
                     width: 16,
                     height: 16,
@@ -100,6 +101,7 @@ export function FlavorWheelPicker({
                     style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: cat.color, borderRadius: 99, padding: "1px 7px" }}
                   >
                     {countSel}
+                    <span className="sr-only"> selected</span>
                   </span>
                 )}
                 {/* spacer: pushes the built-in chevron to the far right, keeps the label left-aligned */}
@@ -124,7 +126,8 @@ export function FlavorWheelPicker({
                           <button
                             key={n}
                             onClick={() => toggle(n)}
-                            aria-disabled={disabled || undefined}
+                            aria-pressed={on}
+                            disabled={disabled || undefined}
                             title={disabled ? `Max ${max} notes selected` : undefined}
                             style={{
                               display: "inline-flex",
@@ -142,7 +145,7 @@ export function FlavorWheelPicker({
                               transition: "all 0.12s",
                             }}
                           >
-                            {!on && <span style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />}
+                            {!on && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />}
                             {n}
                           </button>
                         );

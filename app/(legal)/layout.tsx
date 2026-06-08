@@ -19,9 +19,13 @@ export default function LegalLayout({ children }: Readonly<{ children: React.Rea
         <article className={styles.prose}>{children}</article>
       </main>
       <footer className={styles.footer}>
-        <Link href="/privacy">Privacy</Link>
-        <Link href="/terms">Terms</Link>
-        <Link href="/cookies">Cookies</Link>
+        <nav aria-label="Legal">
+          <ul style={{ display: "flex", gap: 16, listStyle: "none", margin: 0, padding: 0 }}>
+            <li><Link href="/privacy">Privacy</Link></li>
+            <li><Link href="/terms">Terms</Link></li>
+            <li><Link href="/cookies">Cookies</Link></li>
+          </ul>
+        </nav>
         <span className={styles.spacer} />
         <Link href="/">← Back to Cortado</Link>
         <span>© 2026 Cortado</span>

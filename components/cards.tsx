@@ -139,6 +139,7 @@ export function TastingCard({
       <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px 12px" }}>
         <ActionBtn
           active={liked}
+          ariaLabel={liked ? "Unlike" : "Like"}
           onClick={doLike}
           burst={burst}
           icon={
@@ -155,6 +156,7 @@ export function TastingCard({
         <ActionBtn
           icon={<Icon name="comment" size={19} />}
           label={tasting.commentsCount}
+          ariaLabel="Comments"
           onClick={() => setShowComments((s) => !s)}
         />
         <div style={{ flex: 1 }} />
@@ -207,7 +209,7 @@ function BrewMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => vo
       </Button>
     </span>
   ) : (
-    <Button variant="ghost" size="icon" aria-label="Brew options" onClick={() => setOpen(true)}>
+    <Button variant="ghost" size="icon" aria-label="Brew options" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(true)}>
       <Icon name="settings" size={16} />
     </Button>
   );
@@ -246,6 +248,7 @@ function ActionBtn({
   active,
   activeColor,
   burst,
+  ariaLabel,
 }: {
   icon: React.ReactNode;
   label: React.ReactNode;
@@ -253,12 +256,15 @@ function ActionBtn({
   active?: boolean;
   activeColor?: string;
   burst?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <Button
       variant="ghost"
       size="sm"
       onClick={onClick}
+      aria-pressed={active}
+      aria-label={ariaLabel}
       className="relative gap-[7px] px-[11px] text-[13px] font-semibold"
       style={{ color: active ? activeColor : "var(--mocha)" }}
     >

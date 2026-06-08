@@ -128,11 +128,13 @@ export function BagForm({
               {f.origin ? " · " + f.origin : ""}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 5 }}>
+          <div role="group" aria-label="Bag colour" style={{ display: "flex", gap: 5 }}>
             {BAG_COLORS.slice(0, 5).map((c) => (
               <button
                 key={c}
                 onClick={() => set("color", c)}
+                aria-pressed={f.color === c}
+                aria-label={`Colour ${c}`}
                 style={{
                   width: 18,
                   height: 18,
@@ -196,6 +198,7 @@ export function BagForm({
                 {v}
                 <button
                   onClick={() => setVarieties((a) => a.filter((x) => x !== v))}
+                  aria-label={`Remove ${v}`}
                   style={{ display: "inline-flex", color: "var(--mocha)" }}
                 >
                   <Icon name="close" size={13} color="var(--mocha)" />
@@ -311,6 +314,7 @@ export function ChipRow({
         <button
           key={o}
           onClick={() => onChange(o)}
+          aria-pressed={value === o}
           style={{
             padding: "8px 13px",
             borderRadius: 99,

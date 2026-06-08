@@ -31,3 +31,26 @@ describe("a11y global foundations", () => {
     expect(css).toMatch(/--input:\s*var\(--control-border\)/);
   });
 });
+
+describe("a11y ARIA sweep (Cut 2)", () => {
+  it("decorative Icon + Avatar default to aria-hidden", () => {
+    const ui = read("components/ui.tsx");
+    expect(ui).toMatch(/aria-hidden=\{\(rest\["aria-hidden"\]/); // Icon svg default
+    expect(ui).toMatch(/AvatarRoot[^>]*aria-hidden/);
+  });
+  it("nav exposes the current page + the chrome controls are named", () => {
+    const shell = read("components/app-provider.tsx");
+    expect(shell).toMatch(/aria-current=\{activeId === n\.id \? "page" : undefined\}/);
+    expect(shell).toMatch(/aria-label="Add a bag to your shelf"/);
+    expect(shell).toMatch(/<nav aria-label="Primary"/);
+  });
+  it("single-select toggle groups expose state", () => {
+    const screens = read("components/screens.tsx");
+    expect(screens).toMatch(/aria-label="Filter by process"/);
+    expect(screens).toMatch(/aria-pressed=\{process === p\}/);
+    expect(screens).toMatch(/aria-label=\{v === "timeline"/);
+  });
+  it("legal footer links are a labelled nav list", () => {
+    expect(read("app/(legal)/layout.tsx")).toMatch(/<nav aria-label="Legal">/);
+  });
+});

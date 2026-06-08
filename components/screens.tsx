@@ -280,6 +280,7 @@ export function JournalScreen({
         >
           <button
             onClick={onAddBag}
+            aria-label="Add a bag to your shelf"
             style={{
               minHeight: 132,
               borderRadius: "var(--r-lg)",
@@ -351,6 +352,8 @@ export function JournalScreen({
         <>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 16 }}>
             <div
+              role="group"
+              aria-label="View as"
               style={{
                 display: "flex",
                 gap: 4,
@@ -369,6 +372,8 @@ export function JournalScreen({
                 <button
                   key={v}
                   onClick={() => setView(v)}
+                  aria-label={v === "timeline" ? "Timeline view" : "Grid view"}
+                  aria-pressed={view === v}
                   style={{
                     padding: "6px 10px",
                     borderRadius: 7,
@@ -655,11 +660,12 @@ export function DiscoverScreen({
               </div>
             </div>
           )}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <div role="group" aria-label="Filter by process" style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
             {processes.map((p) => (
               <button
                 key={p}
                 onClick={() => setProcess(p)}
+                aria-pressed={process === p}
                 style={{
                   padding: "6px 13px",
                   borderRadius: 99,

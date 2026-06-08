@@ -317,7 +317,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
         <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
           <a href="#main-content" className="skip-link">Skip to content</a>
           {/* ---- Desktop sidebar ---- */}
-          <aside className="sidebar">
+          <div className="sidebar">
             <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 8px 26px" }}>
               <Logo />
               <div>
@@ -332,9 +332,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 </div>
               </div>
             </div>
-            <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <nav aria-label="Primary" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {NAV.map((n) => (
-                <button key={n.id} onClick={() => router.push(n.href)} className="nav-item" data-active={activeId === n.id}>
+                <button key={n.id} onClick={() => router.push(n.href)} className="nav-item" data-active={activeId === n.id} aria-current={activeId === n.id ? "page" : undefined}>
                   <Icon name={n.icon} size={21} stroke={activeId === n.id ? 2 : 1.7} />
                   <span>{n.label}</span>
                   {n.id === "feed" && <span className="nav-dot" />}
@@ -345,7 +345,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
               <Button onClick={() => openBrew()} style={{ flex: 1 }}>
                 <Icon name="drop" size={18} color="currentColor" /> Log a brew
               </Button>
-              <Button variant="outline" size="icon" onClick={() => openAddBag()} title="Add a bag to your shelf">
+              <Button variant="outline" size="icon" onClick={() => openAddBag()} title="Add a bag to your shelf" aria-label="Add a bag to your shelf">
                 <Icon name="plus" size={18} />
               </Button>
             </div>
@@ -379,7 +379,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
               )}
               <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
             </div>
-          </aside>
+          </div>
 
           {/* ---- Main scroll area ---- */}
           <div ref={scrollRef} className="main-scroll">
@@ -410,7 +410,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
           </div>
 
           {/* ---- Mobile bottom nav ---- */}
-          <nav className="bottom-nav">
+          <nav aria-label="Primary (mobile)" className="bottom-nav">
             {NAV.slice(0, 2).map((n) => (
               <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
             ))}
@@ -463,7 +463,7 @@ function BottomItem({
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="bottom-item" data-active={active}>
+    <button onClick={onClick} className="bottom-item" data-active={active} aria-current={active ? "page" : undefined}>
       <Icon name={n.icon} size={23} stroke={active ? 2.1 : 1.7} />
       <span>{n.label}</span>
     </button>
