@@ -24,9 +24,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         redirectTo: "/",
       });
     } catch (e) {
-      // CredentialsSignin → surface an inline, announced error; re-throw the
-      // success NEXT_REDIRECT (and anything else) so it propagates.
-      if (e instanceof AuthError) redirect("/login?error=1");
+      // Only a credentials failure becomes the inline alert; config/other
+      // AuthErrors and the success NEXT_REDIRECT re-throw so they surface
+      // (a misconfig should be a real 500, not "invalid password").
+      if (e instanceof AuthError && e.type === "CredentialsSignin") redirect("/login?error=1");
       throw e;
     }
   }

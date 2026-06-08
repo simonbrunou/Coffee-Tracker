@@ -100,8 +100,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const pathname = usePathname();
 
   // ---- Scroll restoration for the single persistent scroll container ----
-  // The <main> scroll container lives in this provider and survives route
-  // changes, so we save its position per route and restore it on Back/Forward
+  // The .main-scroll container (a <div>; the <main> landmark is its child) lives
+  // in this provider and survives route changes, so we save its position per
+  // route and restore it on Back/Forward
   // (popstate); a forward push resets to the top.
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Map<string, number>>(new Map());
