@@ -1,8 +1,8 @@
-"use client";
-import { ProfileScreen } from "@/components/detail";
-import { useShell } from "@/components/app-provider";
+import type { Metadata } from "next";
+import { ProfileClient } from "./profile-client";
+
+export const metadata: Metadata = { title: "Your Profile — Cortado", robots: { index: false, follow: false } };
 
 export default function ProfilePage() {
-  const s = useShell();
-  return <ProfileScreen onOpenBean={s.openBean} likes={s.likes} onLike={s.toggleLike} />;
+  return <ProfileClient />;
 }

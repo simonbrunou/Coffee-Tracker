@@ -186,6 +186,7 @@ function BrewFlow({
               <button
                 key={b.id}
                 onClick={() => setBeanId(b.id)}
+                aria-pressed={on}
                 style={{
                   flexShrink: 0,
                   width: 132,
@@ -221,6 +222,7 @@ function BrewFlow({
           })}
           <button
             onClick={onNewBag}
+            aria-label="Add a bag to your shelf"
             style={{
               flexShrink: 0,
               width: 132,
@@ -254,6 +256,7 @@ function BrewFlow({
             <button
               key={m}
               onClick={() => setBrew(m)}
+              aria-pressed={brew === m}
               style={{
                 padding: "8px 13px",
                 borderRadius: 99,

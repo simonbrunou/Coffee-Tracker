@@ -134,21 +134,28 @@ export function BeanDetail({
           <h1 className="display" style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.02, letterSpacing: "-0.01em" }}>
             {bean.name}
           </h1>
-          <button
-            onClick={() => roaster?.id && onOpenRoaster(roaster.id)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              marginTop: 8,
-              fontSize: 14.5,
-              color: "var(--caramel-deep)",
-              fontWeight: 600,
-              cursor: roaster?.id ? "pointer" : "default",
-            }}
-          >
-            {roasterName} <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· {bean.origin}</span>
-          </button>
+          {roaster?.id ? (
+            <button
+              onClick={() => onOpenRoaster(roaster.id)}
+              aria-label={`${roasterName} roaster page`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                marginTop: 8,
+                fontSize: 14.5,
+                color: "var(--caramel-deep)",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {roasterName} <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· {bean.origin}</span>
+            </button>
+          ) : (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 14.5, color: "var(--caramel-deep)", fontWeight: 600 }}>
+              {roasterName} <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· {bean.origin}</span>
+            </div>
+          )}
           <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--coffee)", marginTop: 14, textWrap: "pretty" }}>
             {bean.desc}
           </p>
@@ -276,9 +283,9 @@ export function BeanDetail({
       >
         <FlavorRadar bean={bean} />
         <div>
-          <h3 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+          <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
             SCA tasting notes
-          </h3>
+          </h2>
           <p style={{ fontSize: 13.5, color: "var(--mocha)", marginBottom: 14, lineHeight: 1.5 }}>
             {bean.flavors.length ? "The roaster's official cupping notes." : "No notes recorded yet."}
           </p>
@@ -374,7 +381,13 @@ export function FlavorRadar({ bean }: { bean: Bean }) {
   };
   const poly = vals.map((v, i) => pt(i, v).join(",")).join(" ");
   return (
-    <svg width={size} height={size} style={{ flexShrink: 0 }}>
+    <svg
+      width={size}
+      height={size}
+      role="img"
+      aria-label={`Flavor profile for ${bean.name}: ${axes.map((a, i) => `${a} ${Math.round(vals[i] * 10)} of 10`).join(", ")}`}
+      style={{ flexShrink: 0 }}
+    >
       {[0.25, 0.5, 0.75, 1].map((g) => (
         <polygon
           key={g}
@@ -541,7 +554,7 @@ export function ProfileScreen({
           <div style={{ fontSize: 14, color: "var(--mocha)" }}>@{me.handle}</div>
           <p style={{ fontSize: 14.5, color: "var(--coffee)", marginTop: 8, maxWidth: 440, lineHeight: 1.5 }}>{me.bio}</p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" disabled aria-label="Edit profile (coming soon)">
           <Icon name="settings" size={17} /> Edit
         </Button>
       </div>

@@ -12,7 +12,7 @@ export function Avatar({ user, size = 40 }: { user: Pick<User, "name" | "avatar"
   const initials =
     user.name === "You" ? "You" : user.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
   return (
-    <AvatarRoot className="shrink-0" style={{ width: size, height: size }}>
+    <AvatarRoot className="shrink-0" aria-hidden="true" style={{ width: size, height: size }}>
       <AvatarFallback
         style={{
           background: user.avatar,
@@ -52,6 +52,12 @@ export function BeanRating({
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onChange(n);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      onChange(1);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      onChange(5);
     }
   };
   return (
@@ -203,13 +209,14 @@ export function Icon({
   stroke = 1.7,
   fill = "none",
   color = "currentColor",
+  ...rest
 }: {
   name: IconName;
   size?: number;
   stroke?: number;
   fill?: string;
   color?: string;
-}) {
+} & Omit<React.SVGProps<SVGSVGElement>, "stroke" | "fill" | "color" | "name">) {
   const p = {
     fill: "none",
     stroke: color,
@@ -321,7 +328,15 @@ export function Icon({
     moon: <path {...p} d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />,
   };
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>
+    <svg
+      {...rest}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ display: "block", flexShrink: 0 }}
+      aria-hidden={(rest["aria-hidden"] as boolean | undefined) ?? true}
+      focusable="false"
+    >
       {paths[name]}
     </svg>
   );

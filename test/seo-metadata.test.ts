@@ -54,3 +54,14 @@ describe("beanMetadata / roasterMetadata", () => {
     expect((m.robots as { index?: boolean })?.index).toBe(false);
   });
 });
+
+describe("private app pages have a per-route title from a server wrapper (a11y 2.4.2)", () => {
+  for (const p of ["app/(app)/settings/page.tsx", "app/(app)/journal/page.tsx", "app/(app)/profile/page.tsx"]) {
+    it(`${p} exports a metadata title and is NOT a client component`, () => {
+      const src = read(p);
+      expect(src).toMatch(/export const metadata/);
+      expect(src).toMatch(/title:/);
+      expect(src).not.toMatch(/^"use client"/m);
+    });
+  }
+});
