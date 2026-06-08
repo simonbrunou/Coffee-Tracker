@@ -283,9 +283,9 @@ export function BeanDetail({
       >
         <FlavorRadar bean={bean} />
         <div>
-          <h3 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+          <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
             SCA tasting notes
-          </h3>
+          </h2>
           <p style={{ fontSize: 13.5, color: "var(--mocha)", marginBottom: 14, lineHeight: 1.5 }}>
             {bean.flavors.length ? "The roaster's official cupping notes." : "No notes recorded yet."}
           </p>

@@ -1,16 +1,8 @@
-"use client";
-import { JournalScreen } from "@/components/screens";
-import { useShell } from "@/components/app-provider";
+import type { Metadata } from "next";
+import { JournalClient } from "./journal-client";
+
+export const metadata: Metadata = { title: "My Journal — Cortado", robots: { index: false, follow: false } };
 
 export default function JournalPage() {
-  const s = useShell();
-  return (
-    <JournalScreen
-      likes={s.likes}
-      onLike={s.toggleLike}
-      onOpenBean={s.openBean}
-      onBrew={s.openBrew}
-      onAddBag={s.openAddBag}
-    />
-  );
+  return <JournalClient />;
 }

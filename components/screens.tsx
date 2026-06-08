@@ -138,16 +138,17 @@ export function FeedScreen({
         />
       ) : (
         <>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div role="list" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {rows.map((t, i) => (
-              <TastingCard
-                key={t.id}
-                tasting={t}
-                delay={i * 50}
-                onOpenBean={onOpenBean}
-                onLike={onLike}
-                liked={likes.has(t.id)}
-              />
+              <div role="listitem" key={t.id}>
+                <TastingCard
+                  tasting={t}
+                  delay={i * 50}
+                  onOpenBean={onOpenBean}
+                  onLike={onLike}
+                  liked={likes.has(t.id)}
+                />
+              </div>
             ))}
           </div>
           {hasMore && (

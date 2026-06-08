@@ -33,10 +33,10 @@ export function SignupForm() {
       )}
 
       <form action={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div><Label htmlFor="name">Name</Label><Input id="name" name="name" required /></div>
-        <div><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" required /></div>
-        <div><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" required minLength={8} /></div>
-        <div><Label htmlFor="handle">Handle (optional)</Label><Input id="handle" name="handle" placeholder="auto-generated if blank" /></div>
+        <div><Label htmlFor="name">Name</Label><Input id="name" name="name" autoComplete="name" required /></div>
+        <div><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" autoComplete="email" required /></div>
+        <div><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} /></div>
+        <div><Label htmlFor="handle">Handle (optional)</Label><Input id="handle" name="handle" autoComplete="username" placeholder="auto-generated if blank" /></div>
         <Button type="submit" disabled={pending} style={{ width: "100%" }}>{pending ? "Creating…" : "Sign up"}</Button>
       </form>
 
