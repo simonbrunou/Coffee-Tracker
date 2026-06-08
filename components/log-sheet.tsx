@@ -53,9 +53,23 @@ export function LogSheet({
     if (open) setView(mode || "brew");
   }, [open, mode, presetBeanId]);
 
+  // a11y: on an INTRA-sheet view switch (brew↔bag), the focused control in the
+  // old view unmounts and focus would fall to <body>. Move it back to the dialog
+  // container so keyboard/SR users stay oriented. Skip the initial open (Radix
+  // handles that focus).
+  const contentRef = useRef<HTMLDivElement>(null);
+  const openedRef = useRef(false);
+  useEffect(() => {
+    if (!open) { openedRef.current = false; return; }
+    if (!openedRef.current) { openedRef.current = true; return; }
+    contentRef.current?.focus();
+  }, [view, open]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
+        ref={contentRef}
+        tabIndex={-1}
         showCloseButton={false}
         className={cn(
           "log-sheet flex flex-col gap-0 overflow-hidden p-0 shadow-[var(--shadow-lg)]",
