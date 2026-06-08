@@ -26,6 +26,7 @@ export const users = pgTable(
     avatar: text("avatar").notNull(),
     tastings: integer("tastings").notNull().default(0),
     bio: text("bio").notNull().default(""),
+    discoverable: boolean("discoverable").notNull().default(false),
     email: text("email"),
     emailVerified: timestamp("email_verified", { withTimezone: true }),
     image: text("image"),
@@ -34,9 +35,10 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // Name is auto-generated and not app-referenced (handle clashes fall through
-    // to the generic register message) -> the gate compares UNIQUE by def, not name.
-    unique().on(t.handle),
+    // Case-insensitive handle uniqueness (so @Sam and @sam can't coexist) — the
+    // public /u/[handle] lookup is lower(handle)=lower($). A 23505 here still
+    // falls through mapRegisterError to the generic username message.
+    uniqueIndex("users_handle_lower_uq").on(lower(t.handle)),
     // App-load-bearing NAME (register-errors.ts branches on err.constraint).
     uniqueIndex("users_email_lower_uq").on(lower(t.email)).where(sql`${t.passwordHash} is not null`),
   ],
