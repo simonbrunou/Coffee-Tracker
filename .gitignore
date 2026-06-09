@@ -57,3 +57,10 @@ Thumbs.db
 #   .claude/hooks/           block-secrets / format-edited / code-review-on-push
 #   .claude/skills/          /migration and /gen-test project skills
 #   .claude/agents/          security-reviewer subagent
+
+# graphify knowledge graph: keep the deliverables (graph.html/json, report,
+# manifest, memory), ignore the regenerable AST cache and the machine-specific
+# absolute-path files.
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
