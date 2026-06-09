@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { query, withTransaction } from "@/lib/db";
 import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage } from "@/lib/queries";
 import { requireVerifiedUserId, getCurrentUserId } from "@/lib/auth";
-import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Page, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import type { AddBagInput, AddCommentInput, Bean, BeanRadar, Comment, LogBrewInput, Page, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
 import { revalidatePath } from "next/cache";
 import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag, validateTastingAssessment } from "@/lib/brew-validation";
@@ -261,4 +261,36 @@ export async function deleteComment(id: string): Promise<void> {
   const { rowCount } = await query(`delete from comments where id = $1 and user_id = $2`, [id, userId]);
   if (!rowCount) throw new Error("Couldn't delete that comment.");
   revalidatePath("/", "layout");
+}
+
+/** The current user's own-tasting radar for a bean (null when they have none). */
+export async function getMyBeanRadar(beanId: string): Promise<BeanRadar | null> {
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+  const { rows } = await query<{
+    body: number | null; acidity: number | null; sweetness: number | null;
+    fruit: number | null; floral: number | null; finish: number | null;
+    body_n: number; acidity_n: number; sweetness_n: number; fruit_n: number; floral_n: number; finish_n: number;
+    n: number;
+  }>(
+    `select
+       avg(ta.body_intensity)::float8      as body,      count(ta.body_intensity)::int      as body_n,
+       avg(ta.acidity_intensity)::float8   as acidity,   count(ta.acidity_intensity)::int   as acidity_n,
+       avg(ta.sweetness_intensity)::float8 as sweetness, count(ta.sweetness_intensity)::int as sweetness_n,
+       avg(ta.fruit_intensity)::float8     as fruit,     count(ta.fruit_intensity)::int     as fruit_n,
+       avg(ta.floral_intensity)::float8    as floral,    count(ta.floral_intensity)::int    as floral_n,
+       avg(ta.finish_intensity)::float8    as finish,    count(ta.finish_intensity)::int    as finish_n,
+       count(*)::int as n
+     from tasting_assessments ta
+     join tastings t on t.id = ta.tasting_id
+     where t.bean_id = $1 and t.user_id = $2`,
+    [beanId, userId],
+  );
+  const r = rows[0];
+  if (!r || r.n === 0) return null;
+  return {
+    body: r.body, acidity: r.acidity, sweetness: r.sweetness, fruit: r.fruit, floral: r.floral, finish: r.finish,
+    counts: { body: r.body_n, acidity: r.acidity_n, sweetness: r.sweetness_n, fruit: r.fruit_n, floral: r.floral_n, finish: r.finish_n },
+    n: r.n,
+  };
 }
