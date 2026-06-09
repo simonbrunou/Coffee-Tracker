@@ -136,8 +136,8 @@ export function BagForm({
                 aria-pressed={f.color === c}
                 aria-label={`Colour ${c}`}
                 style={{
-                  width: 18,
-                  height: 18,
+                  width: 24,
+                  height: 24,
                   borderRadius: "50%",
                   background: c,
                   border: f.color === c ? "2px solid var(--espresso)" : "2px solid transparent",
@@ -171,7 +171,7 @@ export function BagForm({
               }
             }}
             placeholder="e.g. SL28, Heirloom, Pink Bourbon…"
-            className="h-auto flex-1 rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[13px] py-[11px] text-[14.5px] text-[var(--espresso)]"
+            className="h-auto flex-1 rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[13px] py-[11px] text-[16px] text-[var(--espresso)] md:text-[14.5px]"
           />
           <Button variant="outline" onClick={addVariety}>
             Add
@@ -199,7 +199,7 @@ export function BagForm({
                 <button
                   onClick={() => setVarieties((a) => a.filter((x) => x !== v))}
                   aria-label={`Remove ${v}`}
-                  style={{ display: "inline-flex", color: "var(--mocha)" }}
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, margin: "-4px -6px -4px -2px", color: "var(--mocha)" }}
                 >
                   <Icon name="close" size={13} color="var(--mocha)" />
                 </button>
@@ -252,7 +252,7 @@ export function BagForm({
         </Label>
         <FlavorWheelPicker value={notes} onChange={setNotes} max={10} />
       </div>
-      <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line-soft)" }}>
+      <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
           <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
             {error}
@@ -285,7 +285,7 @@ export function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[13px] py-[11px] text-[14.5px] text-[var(--espresso)]"
+        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[13px] py-[11px] text-[16px] text-[var(--espresso)] md:text-[14.5px]"
       />
     </label>
   );
@@ -316,7 +316,10 @@ export function ChipRow({
           onClick={() => onChange(o)}
           aria-pressed={value === o}
           style={{
-            padding: "8px 13px",
+            display: "inline-flex",
+            alignItems: "center",
+            minHeight: 44,
+            padding: "8px 14px",
             borderRadius: 99,
             fontSize: 12.5,
             fontWeight: 600,
