@@ -203,6 +203,31 @@ export const comments = pgTable(
   ],
 );
 
+export const tastingAssessments = pgTable(
+  "tasting_assessments",
+  {
+    tastingId: text("tasting_id")
+      .primaryKey()
+      .references(() => tastings.id, { onDelete: "cascade" }),
+    bodyIntensity: numeric("body_intensity"),
+    acidityIntensity: numeric("acidity_intensity"),
+    sweetnessIntensity: numeric("sweetness_intensity"),
+    fruitIntensity: numeric("fruit_intensity"),
+    floralIntensity: numeric("floral_intensity"),
+    finishIntensity: numeric("finish_intensity"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("ta_body_range",   sql`${t.bodyIntensity}      is null or ${t.bodyIntensity}      between 0 and 15`),
+    check("ta_acid_range",   sql`${t.acidityIntensity}   is null or ${t.acidityIntensity}   between 0 and 15`),
+    check("ta_sweet_range",  sql`${t.sweetnessIntensity} is null or ${t.sweetnessIntensity} between 0 and 15`),
+    check("ta_fruit_range",  sql`${t.fruitIntensity}     is null or ${t.fruitIntensity}     between 0 and 15`),
+    check("ta_floral_range", sql`${t.floralIntensity}    is null or ${t.floralIntensity}    between 0 and 15`),
+    check("ta_finish_range", sql`${t.finishIntensity}    is null or ${t.finishIntensity}    between 0 and 15`),
+  ],
+);
+
 export const rateLimits = pgTable(
   "rate_limits",
   {

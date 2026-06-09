@@ -50,6 +50,13 @@
       "when": 1780944635383,
       "tag": "0006_link_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781022490977,
+      "tag": "0007_chubby_lightspeed",
+      "breakpoints": true
     }
   ]
 }
