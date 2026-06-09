@@ -2,12 +2,13 @@
 
 import { randomUUID } from "node:crypto";
 import { query, withTransaction } from "@/lib/db";
-import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage } from "@/lib/queries";
+import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage, getBeanRadarForUser } from "@/lib/queries";
 import { requireVerifiedUserId, getCurrentUserId } from "@/lib/auth";
 import type { AddBagInput, AddCommentInput, Bean, BeanRadar, Comment, LogBrewInput, Page, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import { ASSESSMENT_AXES } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
 import { revalidatePath } from "next/cache";
-import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag, validateTastingAssessment } from "@/lib/brew-validation";
+import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag } from "@/lib/brew-validation";
 
 const TASTING_INSERT = `insert into tastings
      (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
@@ -15,21 +16,21 @@ const TASTING_INSERT = `insert into tastings
    from beans where id = $3 and user_id = $2
    returning id`;
 
+// Derive the upsert SQL + params from ASSESSMENT_AXES so the column order, the
+// $1..$7 param order, and the on-conflict update set can't drift apart. $1 is
+// the tasting_id; $2..$7 are the axes in ASSESSMENT_AXES order.
 const ASSESSMENT_UPSERT = `insert into tasting_assessments
-     (tasting_id, body_intensity, acidity_intensity, sweetness_intensity,
-      fruit_intensity, floral_intensity, finish_intensity)
-   values ($1, $2, $3, $4, $5, $6, $7)
+     (tasting_id, ${ASSESSMENT_AXES.map((a) => `${a}_intensity`).join(", ")})
+   values ($1, ${ASSESSMENT_AXES.map((_, i) => `$${i + 2}`).join(", ")})
    on conflict (tasting_id) do update set
-     body_intensity = excluded.body_intensity,
-     acidity_intensity = excluded.acidity_intensity,
-     sweetness_intensity = excluded.sweetness_intensity,
-     fruit_intensity = excluded.fruit_intensity,
-     floral_intensity = excluded.floral_intensity,
-     finish_intensity = excluded.finish_intensity,
+     ${ASSESSMENT_AXES.map((a) => `${a}_intensity = excluded.${a}_intensity`).join(",\n     ")},
      updated_at = now()`;
 
 const assessParams = (tastingId: string, a: TastingAssessment) =>
-  [tastingId, a.body, a.acidity, a.sweetness, a.fruit, a.floral, a.finish];
+  [tastingId, ...ASSESSMENT_AXES.map((k) => a[k])];
+
+const UPDATE_TASTING = `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
+     where id = $1 and user_id = $2`;
 
 /** Log a brew against a bag — the fast, everyday action. Persists and returns
  *  the new tasting so the client can prepend it to the journal/feed. */
@@ -39,10 +40,10 @@ export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
   const id = `t-${randomUUID()}`;
-  const assessment = validateTastingAssessment(input.assessment);
   const tastingParams = [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note];
 
-  if (assessment) {
+  if (input.assessment) {
+    const assessment = input.assessment;
     await withTransaction(async (client) => {
       const { rows } = await client.query<{ id: string }>(TASTING_INSERT, tastingParams);
       if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
@@ -94,12 +95,10 @@ export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
   const v = validateUpdateBrew(rawInput);
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
-  const assessment = validateTastingAssessment(input.assessment);
   const updateParams = [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note];
-  const UPDATE_TASTING = `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
-     where id = $1 and user_id = $2`;
 
-  if (assessment) {
+  if (input.assessment) {
+    const assessment = input.assessment;
     await withTransaction(async (client) => {
       const { rowCount } = await client.query(UPDATE_TASTING, updateParams);
       if (!rowCount) throw new Error("Couldn't update that brew.");
@@ -267,30 +266,5 @@ export async function deleteComment(id: string): Promise<void> {
 export async function getMyBeanRadar(beanId: string): Promise<BeanRadar | null> {
   const userId = await getCurrentUserId();
   if (!userId) return null;
-  const { rows } = await query<{
-    body: number | null; acidity: number | null; sweetness: number | null;
-    fruit: number | null; floral: number | null; finish: number | null;
-    body_n: number; acidity_n: number; sweetness_n: number; fruit_n: number; floral_n: number; finish_n: number;
-    n: number;
-  }>(
-    `select
-       avg(ta.body_intensity)::float8      as body,      count(ta.body_intensity)::int      as body_n,
-       avg(ta.acidity_intensity)::float8   as acidity,   count(ta.acidity_intensity)::int   as acidity_n,
-       avg(ta.sweetness_intensity)::float8 as sweetness, count(ta.sweetness_intensity)::int as sweetness_n,
-       avg(ta.fruit_intensity)::float8     as fruit,     count(ta.fruit_intensity)::int     as fruit_n,
-       avg(ta.floral_intensity)::float8    as floral,    count(ta.floral_intensity)::int    as floral_n,
-       avg(ta.finish_intensity)::float8    as finish,    count(ta.finish_intensity)::int    as finish_n,
-       count(*)::int as n
-     from tasting_assessments ta
-     join tastings t on t.id = ta.tasting_id
-     where t.bean_id = $1 and t.user_id = $2`,
-    [beanId, userId],
-  );
-  const r = rows[0];
-  if (!r || r.n === 0) return null;
-  return {
-    body: r.body, acidity: r.acidity, sweetness: r.sweetness, fruit: r.fruit, floral: r.floral, finish: r.finish,
-    counts: { body: r.body_n, acidity: r.acidity_n, sweetness: r.sweetness_n, fruit: r.fruit_n, floral: r.floral_n, finish: r.finish_n },
-    n: r.n,
-  };
+  return getBeanRadarForUser(userId, beanId);
 }

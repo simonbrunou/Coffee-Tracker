@@ -11,7 +11,7 @@ import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
 import { flavorColor } from "@/lib/seed-data";
 import { computeTopFlavors } from "@/lib/profile-flavors";
-import type { Bean, BeanRadar, Page, Tasting, User } from "@/lib/types";
+import type { AssessmentAxis, Bean, BeanRadar, Page, Tasting, User } from "@/lib/types";
 
 // Shown when a /bean/:id or /roaster/:id deep-link points at an id not in the catalog.
 function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void }) {
@@ -66,11 +66,20 @@ export function BeanDetail({
     loadMoreBeanReviews(beanId, c),
   );
   const [radar, setRadar] = useState<BeanRadar | null>(null);
+  const [radarLoading, setRadarLoading] = useState(true);
+  // Refetch keyed on the NEWEST review id: logging a brew re-seeds the list
+  // (newest first) so reviews[0]?.id changes → refetch; "load more" only appends
+  // to the tail, leaving reviews[0]?.id unchanged → no wasted refetch.
+  const newestReviewId = reviews[0]?.id;
   useEffect(() => {
     let active = true;
-    getMyBeanRadar(beanId).then((r) => { if (active) setRadar(r); }).catch(() => {});
+    setRadarLoading(true);
+    getMyBeanRadar(beanId)
+      .then((r) => { if (active) setRadar(r); })
+      .catch(() => {}) // graceful: radar stays at its prior/empty value
+      .finally(() => { if (active) setRadarLoading(false); });
     return () => { active = false; };
-  }, [beanId, reviews.length]); // refetch after a brew is logged from this screen (reviews grows)
+  }, [beanId, newestReviewId]);
   if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
   const wished = shell.wishedBeans.has(bean.id);
   const isOwner = bean.ownerId != null && bean.ownerId === D.currentUserId;
@@ -278,29 +287,22 @@ export function BeanDetail({
         ))}
       </div>
 
-      {/* flavor radar + chips */}
-      {radar ? (
-        <div
-          style={{
-            display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center",
-            marginBottom: 30, padding: 22, background: "var(--surface)",
-            border: "1px solid var(--line-soft)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-sm)",
-          }}
-          className="radar-row"
-        >
-          <FlavorRadar bean={bean} radar={radar} />
-          <NotesBlock bean={bean} />
-        </div>
-      ) : (
-        <div
-          style={{
-            marginBottom: 30, padding: 22, background: "var(--surface)",
-            border: "1px solid var(--line-soft)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <NotesBlock bean={bean} />
-        </div>
-      )}
+      {/* flavor radar + chips — single wrapper; the radar column only appears once
+          the (own-tasting) radar has loaded with data, so the card never flashes
+          from two-column to notes-only. */}
+      <div
+        style={{
+          marginBottom: 30, padding: 22, background: "var(--surface)",
+          border: "1px solid var(--line-soft)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-sm)",
+          ...(!radarLoading && radar
+            ? { display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center" }
+            : {}),
+        }}
+        className={!radarLoading && radar ? "radar-row" : undefined}
+      >
+        {!radarLoading && radar && <FlavorRadar bean={bean} radar={radar} />}
+        <NotesBlock bean={bean} />
+      </div>
 
       {/* reviews */}
       <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 16 }}>
@@ -383,11 +385,11 @@ function NotesBlock({ bean }: { bean: Bean }) {
 }
 
 // Radar built from the current user's averaged tasting intensities for this bean
-export function FlavorRadar({ bean, radar }: { bean: Bean; radar: BeanRadar | null }) {
+function FlavorRadar({ bean, radar }: { bean: Bean; radar: BeanRadar | null }) {
   const axes = ["Body", "Acidity", "Sweetness", "Fruit", "Florals", "Finish"];
   if (!radar) return null; // caller collapses the card; nothing to draw
-  const order: (keyof BeanRadar)[] = ["body", "acidity", "sweetness", "fruit", "floral", "finish"];
-  const raw = order.map((k) => radar[k] as number | null);
+  const order: AssessmentAxis[] = ["body", "acidity", "sweetness", "fruit", "floral", "finish"];
+  const raw = order.map((k) => radar.values[k]);
   const vals = raw.map((v) => (v == null ? 0 : Math.round((v / 15) * 1000) / 1000));
   const size = 150,
     c = size / 2,

@@ -25,6 +25,39 @@ function SectionLabel({ id, children }: { id?: string; children: React.ReactNode
   return <div id={id} style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
 }
 
+// A controlled ghost-Button expander used by both "Add brew details" and "Add
+// tasting notes". The open state stays owned by the caller (BrewFlow reads it in
+// `submit`); this only renders the toggle + the fade-up content when open.
+function ToggleSection({
+  open,
+  onToggle,
+  label,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onToggle}
+        className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
+      >
+        <Icon name={open ? "close" : "plus"} size={15} color="var(--mocha)" /> {open ? "Hide" : "Add"} {label}
+      </Button>
+      {open && (
+        <div className="fade-up" style={{ marginTop: 12 }}>
+          {children}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function LogSheet({
   open,
   mode,
@@ -304,22 +337,13 @@ function BrewFlow({
         </div>
 
         {/* Optional params */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowParams((s) => !s)}
-          className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
-          style={{ marginBottom: showParams ? 12 : 4 }}
-        >
-          <Icon name={showParams ? "close" : "plus"} size={15} color="var(--mocha)" /> {showParams ? "Hide" : "Add"} brew details
-        </Button>
-        {showParams && (
-          <div className="fade-up" style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <ToggleSection open={showParams} onToggle={() => setShowParams((s) => !s)} label="brew details">
+          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <MiniField label="Dose (g)" value={dose} onChange={setDose} />
             <MiniField label="Ratio (1:)" value={ratio} onChange={setRatio} />
             <MiniField label="Temp (°C)" value={temp} onChange={setTemp} />
           </div>
-        )}
+        </ToggleSection>
 
         {/* Note */}
         <SectionLabel>
@@ -338,19 +362,9 @@ function BrewFlow({
             would overwrite/null prior intensities. Hide it in edit mode. */}
         {!isEdit && (
           <div style={{ marginTop: 18 }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAssess((s) => !s)}
-              className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
-            >
-              <Icon name={showAssess ? "close" : "plus"} size={15} color="var(--mocha)" /> {showAssess ? "Hide" : "Add"} tasting notes
-            </Button>
-            {showAssess && (
-              <div className="fade-up" style={{ marginTop: 12 }}>
-                <TastingAssessmentFields value={assessment} onChange={setAssessment} />
-              </div>
-            )}
+            <ToggleSection open={showAssess} onToggle={() => setShowAssess((s) => !s)} label="tasting notes">
+              <TastingAssessmentFields value={assessment} onChange={setAssessment} />
+            </ToggleSection>
           </div>
         )}
       </div>

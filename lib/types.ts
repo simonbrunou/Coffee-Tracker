@@ -153,28 +153,21 @@ export interface AppData {
   needsEmailVerification: boolean;
 }
 
+/** The six CVA intensity axes — single source of truth (runtime + type) shared
+ *  by validation, SQL generation, and the UI so column/param order can't drift. */
+export const ASSESSMENT_AXES = ["body", "acidity", "sweetness", "fruit", "floral", "finish"] as const;
+export type AssessmentAxis = (typeof ASSESSMENT_AXES)[number];
+
 /** Own-tasting radar: avg of the current user's 0–15 intensities for a bean,
  *  with per-axis sample counts. null when the user has no assessments. */
 export interface BeanRadar {
-  body: number | null;
-  acidity: number | null;
-  sweetness: number | null;
-  fruit: number | null;
-  floral: number | null;
-  finish: number | null;
-  counts: { body: number; acidity: number; sweetness: number; fruit: number; floral: number; finish: number };
+  values: Record<AssessmentAxis, number | null>;
+  counts: Record<AssessmentAxis, number>;
   n: number;
 }
 
 /** Lean per-tasting CVA assessment — six 0–15 intensities, each optional. */
-export interface TastingAssessment {
-  body: number | null;
-  acidity: number | null;
-  sweetness: number | null;
-  fruit: number | null;
-  floral: number | null;
-  finish: number | null;
-}
+export type TastingAssessment = Record<AssessmentAxis, number | null>;
 
 // ---- Server action payloads ----
 export interface LogBrewInput {

@@ -4,7 +4,8 @@ import { query } from "./db";
 import { getCurrentUserId } from "./auth";
 import { getSessionState } from "./users-repo";
 import { type Page, decodeCursor, clampLimit, toPage } from "./pagination";
-import type { AppData, Bean, Comment, PublicProfile, Roaster, Tasting, User } from "./types";
+import type { AppData, AssessmentAxis, Bean, BeanRadar, Comment, PublicProfile, Roaster, Tasting, User } from "./types";
+import { ASSESSMENT_AXES } from "./types";
 
 // camelCase aliases must be double-quoted (Postgres folds bare identifiers to
 // lowercase); numeric columns are cast to float8 so pg returns JS numbers.
@@ -300,6 +301,34 @@ export async function getBean(currentUserId: string | null, id: string): Promise
     [currentUserId, id],
   );
   return rows[0] ?? null;
+}
+
+/** The current user's own-tasting radar for a bean (null when they have none).
+ *  Avg + per-axis sample count of their 0–15 intensities; column order derives
+ *  from ASSESSMENT_AXES so it can't drift from the write path. */
+export async function getBeanRadarForUser(userId: string, beanId: string): Promise<BeanRadar | null> {
+  const cols = ASSESSMENT_AXES.map(
+    (a) => `avg(ta.${a}_intensity)::float8 as ${a}, count(ta.${a}_intensity)::int as ${a}_n`,
+  ).join(",\n       ");
+  type RadarRow = Record<string, number | null> & { n: number };
+  const { rows } = await query<RadarRow>(
+    `select
+       ${cols},
+       count(*)::int as n
+     from tasting_assessments ta
+     join tastings t on t.id = ta.tasting_id
+     where t.bean_id = $1 and t.user_id = $2`,
+    [beanId, userId],
+  );
+  const r = rows[0];
+  if (!r || r.n === 0) return null;
+  const values = {} as Record<AssessmentAxis, number | null>;
+  const counts = {} as Record<AssessmentAxis, number>;
+  for (const a of ASSESSMENT_AXES) {
+    values[a] = (r[a] ?? null) as number | null;
+    counts[a] = (r[`${a}_n`] ?? 0) as number;
+  }
+  return { values, counts, n: r.n };
 }
 
 /** Top beans by rating for the Discover "trending" rail (bounded top-N). */

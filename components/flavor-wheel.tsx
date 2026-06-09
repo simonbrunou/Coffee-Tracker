@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Icon } from "./ui";
 import { FLAVOR_WHEEL, WHEEL_FLAT } from "@/lib/flavor-wheel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Accordion,
   AccordionItem,
@@ -190,7 +192,7 @@ export function FlavorWheelPicker({
                   </div>
                 ))}
                 <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-                  <input
+                  <Input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
@@ -198,25 +200,19 @@ export function FlavorWheelPicker({
                     placeholder="Add your own…"
                     aria-label={`Add a custom ${cat.name} note`}
                     disabled={atMax}
-                    style={{
-                      flex: 1, minHeight: 40, padding: "8px 12px", borderRadius: 99,
-                      border: "1px solid var(--line)", background: "var(--surface)",
-                      fontSize: "var(--text-xs)", color: "var(--coffee)",
-                    }}
+                    className="h-10 flex-1 rounded-full border-[var(--line)] bg-[var(--surface)] text-[length:var(--text-xs)] text-[var(--coffee)]"
                   />
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={addCustom}
                     disabled={!draft.trim() || atMax}
                     aria-label={`Add custom ${cat.name} note`}
-                    style={{
-                      minHeight: 40, padding: "0 14px", borderRadius: 99, fontWeight: 600,
-                      fontSize: "var(--text-xs)", background: cat.color, color: "#fff",
-                      opacity: !draft.trim() || atMax ? 0.4 : 1,
-                      cursor: !draft.trim() || atMax ? "not-allowed" : "pointer", transition: "opacity 0.12s",
-                    }}
+                    className="h-10 rounded-full border-[length:1px] text-[length:var(--text-xs)] font-semibold"
+                    style={{ borderColor: cat.color, color: cat.color }}
                   >
                     Add
-                  </button>
+                  </Button>
                 </div>
               </AccordionContent>
             </AccordionItem>

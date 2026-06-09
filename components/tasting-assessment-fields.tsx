@@ -1,14 +1,15 @@
 "use client";
-import type { TastingAssessment } from "@/lib/types";
+import type { AssessmentAxis, TastingAssessment } from "@/lib/types";
+import { ASSESSMENT_AXES } from "@/lib/types";
 
-const AXES: { key: keyof TastingAssessment; label: string }[] = [
-  { key: "body", label: "Body" },
-  { key: "acidity", label: "Acidity" },
-  { key: "sweetness", label: "Sweetness" },
-  { key: "fruit", label: "Fruit" },
-  { key: "floral", label: "Florals" },
-  { key: "finish", label: "Finish" },
-];
+const LABELS: Record<AssessmentAxis, string> = {
+  body: "Body",
+  acidity: "Acidity",
+  sweetness: "Sweetness",
+  fruit: "Fruit",
+  floral: "Florals",
+  finish: "Finish",
+};
 
 export const EMPTY_ASSESSMENT: TastingAssessment = {
   body: null, acidity: null, sweetness: null, fruit: null, floral: null, finish: null,
@@ -23,7 +24,8 @@ export function TastingAssessmentFields({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {AXES.map(({ key, label }) => {
+      {ASSESSMENT_AXES.map((key) => {
+        const label = LABELS[key];
         const v = value[key];
         return (
           <label key={key} style={{ display: "grid", gridTemplateColumns: "84px 1fr 28px", gap: 10, alignItems: "center" }}>
@@ -38,9 +40,35 @@ export function TastingAssessmentFields({
               aria-label={`${label} intensity, 0 to 15${v == null ? ", unset" : ""}`}
               style={{ width: "100%", accentColor: "var(--caramel)" }}
             />
-            <span className="mono" style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)", textAlign: "right" }}>
-              {v == null ? "—" : v}
-            </span>
+            {v == null ? (
+              <span className="mono" style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)", textAlign: "right" }}>
+                —
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onChange({ ...value, [key]: null })}
+                aria-label={`Clear ${label}`}
+                title={`Clear ${label}`}
+                className="mono"
+                style={{
+                  fontSize: "var(--text-2xs)",
+                  color: "var(--mocha)",
+                  textAlign: "right",
+                  display: "inline-flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  gap: 3,
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                {v}
+                <span aria-hidden="true" style={{ fontSize: "var(--text-2xs)", opacity: 0.7 }}>×</span>
+              </button>
+            )}
           </label>
         );
       })}
