@@ -4,14 +4,7 @@
   "packages": {
     "node": "24"
   },
-  "caches": {
-    "npm": { "directory": "/root/.npm", "type": "shared" }
-  },
   "steps": {
-    "install": {
-      "commands": ["npm ci --include=dev"],
-      "caches": ["npm"]
-    },
     "build": {
       "inputs": [{ "step": "install" }],
       "commands": [
@@ -28,10 +21,11 @@
   },
   "deploy": {
     "inputs": [
-      { "step": "packages:mise", "include": ["/mise/shims", "/mise/installs"] },
+      { "step": "packages:mise", "include": ["/mise/installs"] },
       { "step": "build", "include": [".next/standalone"] }
     ],
-    "startCommand": "node .next/standalone/server.js",
+    "startCommand": "node .next/standalone/scripts/migrate.mts && node .next/standalone/server.js",
+    "paths": ["/mise/installs/node/24/bin"],
     "variables": {
       "NODE_ENV": "production",
       "HOSTNAME": "0.0.0.0"
