@@ -35,9 +35,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   async function loginWithGoogle() { "use server"; await signIn("google", { redirectTo: "/" }); }
 
   return (
-    <div style={{ maxWidth: 380, margin: "60px auto", padding: "0 20px" }}>
-      <h1 className="display" style={{ fontSize: 28, fontWeight: 700, marginBottom: 6 }}>Sign in</h1>
-      <p style={{ color: "var(--mocha)", marginBottom: 22 }}>Welcome back to your coffee journal.</p>
+    <div style={{ width: "100%", maxWidth: 380 }}>
+      <h1 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700, marginBottom: 6 }}>Sign in</h1>
+      <p style={{ fontSize: "var(--text-md)", color: "var(--mocha)", marginBottom: 22 }}>Welcome back to your coffee journal.</p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
         <form action={loginWithGithub}><Button type="submit" variant="outline" style={{ width: "100%" }}>Continue with GitHub</Button></form>
@@ -45,7 +45,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       </div>
 
       {error && (
-        <p role="alert" style={{ color: "var(--destructive, #b24a44)", fontSize: 14, marginBottom: 12 }}>
+        <p role="alert" style={{ color: "var(--berry)", fontSize: "var(--text-base)", marginBottom: 12 }}>
           Invalid email or password.
         </p>
       )}
@@ -55,7 +55,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <Button type="submit" style={{ width: "100%" }}>Sign in</Button>
       </form>
 
-      <p style={{ marginTop: 18, fontSize: 14, color: "var(--mocha)" }}>
+      <p style={{ marginTop: 18, fontSize: "var(--text-base)", color: "var(--mocha)" }}>
         No account? <a href="/signup" style={{ color: "var(--espresso)", fontWeight: 600 }}>Sign up</a>
       </p>
     </div>

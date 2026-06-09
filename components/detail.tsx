@@ -1,6 +1,7 @@
 "use client";
 /* ============ Cortado — Bean detail, Roaster detail, Profile ============ */
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useData } from "./data-context";
 import { useShell } from "@/components/app-provider";
 import { useLoadMore } from "./use-load-more";
@@ -19,10 +20,10 @@ function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void })
       <div style={{ display: "inline-flex", marginBottom: 16, opacity: 0.5 }}>
         <Icon name="search" size={40} />
       </div>
-      <h1 className="display" style={{ fontSize: 26, fontWeight: 700 }}>
+      <h1 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700 }}>
         {label} not found
       </h1>
-      <p style={{ color: "var(--mocha)", marginTop: 8, fontSize: 15 }}>
+      <p style={{ color: "var(--mocha)", marginTop: 8, fontSize: "var(--text-md)" }}>
         It may have been removed, or the link is out of date.
       </p>
       <div style={{ marginTop: 22 }}>
@@ -70,8 +71,9 @@ export function BeanDetail({
   const roaster = D.roaster(bean.roasterId);
   const roasterName = roaster?.name ?? bean.roasterName ?? "My roaster";
   const varieties = bean.varieties ?? (bean.varietal ? [bean.varietal] : []);
-  const scoreColor =
-    (bean.scaScore ?? 0) >= 90 ? "var(--sage)" : (bean.scaScore ?? 0) >= 87 ? "var(--caramel-deep)" : "var(--coffee)";
+  // SCA score color: single source of truth shared with the feed card (cards.tsx),
+  // which renders the score in a flat caramel accent regardless of value.
+  const scoreColor = "var(--caramel-deep)";
 
   return (
     <div style={{ maxWidth: 820, margin: "0 auto" }} className="fade-up">
@@ -119,7 +121,7 @@ export function BeanDetail({
             >
               <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(255,255,255,0.5)" }} />
             </div>
-            <div className="mono" style={{ fontSize: 10, letterSpacing: "0.1em", opacity: 0.8 }}>
+            <div className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.1em", opacity: 0.8 }}>
               {roasterName.toUpperCase()}
             </div>
           </div>
@@ -131,7 +133,7 @@ export function BeanDetail({
               <Tag key={v}>{v}</Tag>
             ))}
           </div>
-          <h1 className="display" style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.02, letterSpacing: "-0.01em" }}>
+          <h1 className="display" style={{ fontSize: "var(--text-5xl)", fontWeight: 700, lineHeight: 1.02, letterSpacing: "-0.01em" }}>
             {bean.name}
           </h1>
           {roaster?.id ? (
@@ -143,7 +145,7 @@ export function BeanDetail({
                 alignItems: "center",
                 gap: 6,
                 marginTop: 8,
-                fontSize: 14.5,
+                fontSize: "var(--text-base)",
                 color: "var(--caramel-deep)",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -152,11 +154,11 @@ export function BeanDetail({
               {roasterName} <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· {bean.origin}</span>
             </button>
           ) : (
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 14.5, color: "var(--caramel-deep)", fontWeight: 600 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: "var(--text-base)", color: "var(--caramel-deep)", fontWeight: 600 }}>
               {roasterName} <span style={{ color: "var(--mocha)", fontWeight: 400 }}>· {bean.origin}</span>
             </div>
           )}
-          <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--coffee)", marginTop: 14, textWrap: "pretty" }}>
+          <p style={{ fontSize: "var(--text-md)", lineHeight: 1.6, color: "var(--coffee)", marginTop: 14, textWrap: "pretty" }}>
             {bean.desc}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 18, flexWrap: "wrap" }}>
@@ -172,14 +174,14 @@ export function BeanDetail({
                   border: "1px solid var(--line-soft)",
                 }}
               >
-                <span className="display" style={{ fontSize: 24, fontWeight: 700, color: scoreColor }}>
+                <span className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 700, color: scoreColor }}>
                   {bean.scaScore}
                 </span>
                 <div style={{ lineHeight: 1.1 }}>
-                  <div className="mono" style={{ fontSize: 9.5, letterSpacing: "0.08em", color: "var(--mocha)" }}>
+                  <div className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.08em", color: "var(--mocha)" }}>
                     SCA
                   </div>
-                  <div className="mono" style={{ fontSize: 9.5, letterSpacing: "0.08em", color: "var(--mocha)" }}>
+                  <div className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.08em", color: "var(--mocha)" }}>
                     SCORE
                   </div>
                 </div>
@@ -188,14 +190,14 @@ export function BeanDetail({
             {bean.ratings > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <BeanRating value={Math.round(bean.avgRating)} size={18} />
-                <span className="display" style={{ fontSize: 22, fontWeight: 700 }}>
+                <span className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 700 }}>
                   {bean.avgRating}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--mocha)" }}>· {bean.ratings} ratings</span>
+                <span style={{ fontSize: "var(--text-sm)", color: "var(--mocha)" }}>· {bean.ratings} ratings</span>
               </div>
             )}
             {bean.price ? (
-              <span style={{ fontWeight: 700, fontSize: 20, color: "var(--caramel-deep)" }}>${bean.price}</span>
+              <span style={{ fontWeight: 700, fontSize: "var(--text-2xl)", color: "var(--caramel-deep)" }}>${bean.price}</span>
             ) : null}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}>
@@ -206,19 +208,19 @@ export function BeanDetail({
             )}
             {isOwner && onEditBag && (
               <Button variant="outline" onClick={() => onEditBag(bean.id)}>
-                <Icon name="settings" size={17} /> Edit bag
+                <Icon name="edit" size={17} /> Edit bag
               </Button>
             )}
             {isOwner && onDeleteBag && (
               confirmDelete ? (
                 <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 12.5, color: "var(--mocha)" }}>
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
                     Delete this bag and its {bean.ratings} brew{bean.ratings === 1 ? "" : "s"}?
                   </span>
                   <Button
                     variant="outline"
                     onClick={() => { onDeleteBag(bean.id); setConfirmDelete(false); }}
-                    style={{ color: "var(--berry, #a8434a)", borderColor: "var(--berry, #a8434a)" }}
+                    style={{ color: "var(--berry)", borderColor: "var(--berry)" }}
                   >
                     Delete
                   </Button>
@@ -243,11 +245,12 @@ export function BeanDetail({
         </div>
       </div>
 
-      {/* spec grid */}
+      {/* spec grid — fixed column count so no dead gap-colored cell trails the
+          last row; the final spec spans the remaining tracks to fill the row. */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: 1,
           background: "var(--line-soft)",
           border: "1px solid var(--line-soft)",
@@ -256,13 +259,17 @@ export function BeanDetail({
           marginBottom: 28,
         }}
       >
-        <Spec label="Origin" value={bean.origin} />
-        <Spec label="Farm / Producer" value={bean.farm || "—"} />
-        <Spec label="Variety" value={varieties.join(", ")} />
-        <Spec label="Process" value={bean.process} />
-        <Spec label="Roast" value={bean.roast} />
-        <Spec label="Altitude" value={bean.altitude} />
-        <Spec label="SCA Score" value={bean.scaScore ? String(bean.scaScore) : "—"} />
+        {[
+          { label: "Origin", value: bean.origin },
+          { label: "Farm / Producer", value: bean.farm || "—" },
+          { label: "Variety", value: varieties.join(", ") },
+          { label: "Process", value: bean.process },
+          { label: "Roast", value: bean.roast },
+          { label: "Altitude", value: bean.altitude },
+          { label: "SCA Score", value: bean.scaScore ? String(bean.scaScore) : "—" },
+        ].map((s, i, arr) => (
+          <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1} />
+        ))}
       </div>
 
       {/* flavor radar + chips */}
@@ -283,10 +290,10 @@ export function BeanDetail({
       >
         <FlavorRadar bean={bean} />
         <div>
-          <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+          <h2 className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, marginBottom: 4 }}>
             SCA tasting notes
           </h2>
-          <p style={{ fontSize: 13.5, color: "var(--mocha)", marginBottom: 14, lineHeight: 1.5 }}>
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--mocha)", marginBottom: 14, lineHeight: 1.5 }}>
             {bean.flavors.length ? "The roaster's official cupping notes." : "No notes recorded yet."}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -298,7 +305,7 @@ export function BeanDetail({
       </div>
 
       {/* reviews */}
-      <h2 className="display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+      <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 16 }}>
         {reviews.length} brew{reviews.length !== 1 ? "s" : ""} logged
       </h2>
       {reviews.length === 0 ? (
@@ -310,12 +317,12 @@ export function BeanDetail({
             style={{ padding: "28px 20px", borderRadius: "var(--r-lg)" }}
           >
             <Icon name="drop" size={26} color="var(--caramel)" />
-            <span style={{ fontSize: 14.5, fontWeight: 600, color: "var(--coffee)" }}>
+            <span style={{ fontSize: "var(--text-base)", fontWeight: 600, color: "var(--coffee)" }}>
               No brews yet — log your first cup from this bag
             </span>
           </Button>
         ) : (
-          <p style={{ fontSize: 14, color: "var(--mocha)" }}>No brews logged yet.</p>
+          <p style={{ fontSize: "var(--text-base)", color: "var(--mocha)" }}>No brews logged yet.</p>
         )
       ) : (
         <>
@@ -345,16 +352,16 @@ export function BeanDetail({
   );
 }
 
-function Spec({ label, value }: { label: string; value: string }) {
+function Spec({ label, value, span }: { label: string; value: string; span?: boolean }) {
   return (
-    <div style={{ padding: "14px 16px", background: "var(--surface)" }}>
+    <div style={{ padding: "14px 16px", background: "var(--surface)", gridColumn: span ? "auto / -1" : undefined }}>
       <div
         className="mono"
-        style={{ fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 4 }}
+        style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 4 }}
       >
         {label}
       </div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--espresso)" }}>{value}</div>
+      <div style={{ fontSize: "var(--text-base)", fontWeight: 600, color: "var(--espresso)" }}>{value}</div>
     </div>
   );
 }
@@ -373,14 +380,19 @@ export function FlavorRadar({ bean }: { bean: Bean }) {
     if (bean.roast === "Dark" && (a === "Body" || a === "Finish")) base = 0.85;
     if (bean.roast === "Light" && (a === "Acidity" || a === "Florals")) base = 0.82;
     if (bean.process === "Natural" && a === "Fruit") base = 0.9;
-    return Math.max(0.3, Math.min(0.95, base));
+    return Math.round(Math.max(0.3, Math.min(0.95, base)) * 1000) / 1000;
   });
   const size = 150,
     c = size / 2,
     r = c - 22;
+  // Round coordinates so SSR (Node) and the client (browser) emit identical SVG
+  // attribute strings. Math.sin/cos are implementation-defined in the last ULP
+  // across V8 builds, so unrounded points/cx/cy otherwise differ between server
+  // and client render and trigger a React hydration attribute mismatch.
+  const round = (n: number) => Math.round(n * 10) / 10;
   const pt = (i: number, m: number): [number, number] => {
     const ang = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
-    return [c + Math.cos(ang) * r * m, c + Math.sin(ang) * r * m];
+    return [round(c + Math.cos(ang) * r * m), round(c + Math.sin(ang) * r * m)];
   };
   const poly = vals.map((v, i) => pt(i, v).join(",")).join(" ");
   return (
@@ -468,10 +480,10 @@ export function RoasterDetail({
         <div style={{ padding: "22px 26px 26px", background: "var(--surface)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
             <div>
-              <h1 className="display" style={{ fontSize: 32, fontWeight: 700 }}>
+              <h1 className="display" style={{ fontSize: "var(--text-4xl)", fontWeight: 700 }}>
                 {roaster.name}
               </h1>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--mocha)", marginTop: 5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--text-base)", color: "var(--mocha)", marginTop: 5 }}>
                 <Icon name="pin" size={15} color="var(--mocha)" /> {roaster.city} · established {roaster.founded}
               </div>
             </div>
@@ -480,30 +492,30 @@ export function RoasterDetail({
               {following ? "Following" : "Follow"}
             </Button>
           </div>
-          <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--coffee)", marginTop: 14, maxWidth: 560, textWrap: "pretty" }}>
+          <p style={{ fontSize: "var(--text-md)", lineHeight: 1.6, color: "var(--coffee)", marginTop: 14, maxWidth: 560, textWrap: "pretty" }}>
             {roaster.blurb}
           </p>
           <div style={{ display: "flex", gap: 24, marginTop: 18 }}>
-            <span style={{ fontSize: 14, color: "var(--mocha)" }}>
-              <b className="display" style={{ fontSize: 18, color: "var(--espresso)" }}>
+            <span style={{ fontSize: "var(--text-base)", color: "var(--mocha)" }}>
+              <b className="display" style={{ fontSize: "var(--text-xl)", color: "var(--espresso)" }}>
                 {roaster.beans}
               </b>{" "}
               beans
             </span>
-            <span style={{ fontSize: 14, color: "var(--mocha)" }}>
-              <b className="display" style={{ fontSize: 18, color: "var(--espresso)" }}>
-                {roaster.followers.toLocaleString()}
+            <span style={{ fontSize: "var(--text-base)", color: "var(--mocha)" }}>
+              <b className="display" style={{ fontSize: "var(--text-xl)", color: "var(--espresso)" }}>
+                {roaster.followers.toLocaleString("en-US")}
               </b>{" "}
               followers
             </span>
           </div>
         </div>
       </div>
-      <h2 className="display" style={{ fontSize: 20, fontWeight: 600, marginBottom: 14 }}>
+      <h2 className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, marginBottom: 14 }}>
         Available beans
       </h2>
       {beans.length === 0 ? (
-        <p style={{ color: "var(--mocha)", fontSize: 14.5, padding: "6px 0 4px" }}>
+        <p style={{ color: "var(--mocha)", fontSize: "var(--text-base)", padding: "6px 0 4px" }}>
           No beans listed for this roaster yet — check back soon.
         </p>
       ) : (
@@ -553,6 +565,7 @@ export function ProfileView({
   onOpenBean: (id: string) => void;
   loadMore?: (cursor: string | null) => Promise<Page<Tasting>>;
 }) {
+  const router = useRouter();
   const fetcher = loadMore ?? (async () => ({ rows: [], nextCursor: null }) as Page<Tasting>);
   const { rows: tastings, loadMore: more, hasMore, pending } = useLoadMore<Tasting>(initialTastings, fetcher);
   return (
@@ -560,15 +573,15 @@ export function ProfileView({
       <div style={{ display: "flex", gap: 20, alignItems: "center", marginBottom: 26, flexWrap: "wrap" }}>
         <Avatar user={user} size={84} />
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h1 className="display" style={{ fontSize: 30, fontWeight: 700 }}>
+          <h1 className="display" style={{ fontSize: "var(--text-4xl)", fontWeight: 700 }}>
             {user.name}
           </h1>
-          <div style={{ fontSize: 14, color: "var(--mocha)" }}>@{user.handle}</div>
-          <p style={{ fontSize: 14.5, color: "var(--coffee)", marginTop: 8, maxWidth: 440, lineHeight: 1.5 }}>{user.bio}</p>
+          <div style={{ fontSize: "var(--text-base)", color: "var(--mocha)" }}>@{user.handle}</div>
+          <p style={{ fontSize: "var(--text-base)", color: "var(--coffee)", marginTop: 8, maxWidth: 440, lineHeight: 1.5 }}>{user.bio}</p>
         </div>
         {isOwn ? (
-          <Button variant="outline" disabled aria-label="Edit profile (coming soon)">
-            <Icon name="settings" size={17} /> Edit
+          <Button variant="outline" onClick={() => router.push("/settings")} aria-label="Edit profile">
+            <Icon name="edit" size={17} /> Edit profile
           </Button>
         ) : (
           <Button variant={isFollowing ? "outline" : "default"} onClick={onFollow}>
@@ -593,10 +606,10 @@ export function ProfileView({
       </div>
 
       <div style={{ marginBottom: 28 }}>
-        <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
+        <h2 className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, marginBottom: 12 }}>
           {isOwn ? "Your palate" : "Their palate"}
         </h2>
-        <p style={{ fontSize: 13.5, color: "var(--mocha)", marginBottom: 14 }}>The notes reached for most often.</p>
+        <p style={{ fontSize: "var(--text-sm)", color: "var(--mocha)", marginBottom: 14 }}>The notes reached for most often.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {topFlavors.map(({ flavor, n }) => (
             <span
@@ -610,19 +623,19 @@ export function ProfileView({
                 background: "var(--surface)",
                 border: "1px solid var(--line-soft)",
                 boxShadow: "var(--shadow-sm)",
-                fontSize: 13.5,
+                fontSize: "var(--text-sm)",
                 fontWeight: 500,
               }}
             >
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: flavorColor(flavor) }} />
               {flavor}
-              <span style={{ color: "var(--mocha)", fontSize: 12 }}>×{n}</span>
+              <span style={{ color: "var(--mocha)", fontSize: "var(--text-xs)" }}>×{n}</span>
             </span>
           ))}
         </div>
       </div>
 
-      <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
+      <h2 className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, marginBottom: 14 }}>
         Recent tastings
       </h2>
       <div role="list" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -681,10 +694,10 @@ export function ProfileScreen({
 function ProfStat({ n, label }: { n: number; label: string }) {
   return (
     <div>
-      <div className="display" style={{ fontSize: 22, fontWeight: 700 }}>
-        {n.toLocaleString()}
+      <div className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 700 }}>
+        {n.toLocaleString("en-US")}
       </div>
-      <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>{label}</div>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>{label}</div>
     </div>
   );
 }

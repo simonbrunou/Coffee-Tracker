@@ -4,9 +4,11 @@ import type { Page } from "@/lib/pagination";
 
 /**
  * Append-style pagination over a Server Action fetcher. Seeds from the server's
- * page 1 and re-seeds whenever that `initial` prop changes (e.g. after a write's
- * revalidatePath re-renders the page). `reset` swaps to a freshly-fetched page
- * (used on feed tab switch).
+ * page 1 and re-seeds whenever that page's *content* changes (its `rows`/cursor,
+ * e.g. after a write's revalidatePath re-renders the page) — not merely when the
+ * parent hands down a new `Page` wrapper of identical content, which would
+ * otherwise discard the accumulated load-more pages. `reset` swaps to a
+ * freshly-fetched page (used on feed tab switch).
  *
  * A generation counter (bumped on every re-seed/reset) lets an in-flight
  * `loadMore` detect that the list was swapped underneath it (e.g. the user
@@ -19,11 +21,16 @@ export function useLoadMore<T>(initial: Page<T>, fetcher: (cursor: string | null
   const [pending, start] = useTransition();
   const gen = useRef(0);
 
+  // Re-seed only when the server's page-1 *content* changes (new rows array or
+  // cursor), not on every fresh `Page` wrapper identity. Keying on `[initial]`
+  // discarded accumulated load-more pages whenever a parent re-created an
+  // equivalent `Page` object on render; keying on its stable inner fields fixes
+  // that while still re-seeding after a real revalidatePath (new `rows` array).
   useEffect(() => {
     gen.current++;
     setRows(initial.rows);
     setCursor(initial.nextCursor);
-  }, [initial]);
+  }, [initial.rows, initial.nextCursor]);
 
   const loadMore = () =>
     start(async () => {

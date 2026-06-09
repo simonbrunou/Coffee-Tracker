@@ -3,12 +3,11 @@
 import { useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "./app-provider";
-import { Avatar, BeanRating, FlavorChip, Icon, RoastPill, Tag } from "./ui";
+import { Avatar, BeanRating, FlavorChip, Icon, RelTime, RoastPill, Tag } from "./ui";
 import { CommentThread } from "./comment-thread";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tasting, Bean } from "@/lib/types";
-import { relativeTime } from "@/lib/relative-time";
 
 // ---- Tasting card (feed + journal) ----
 export function TastingCard({
@@ -32,7 +31,6 @@ export function TastingCard({
   const [burst, setBurst] = useState(false);
   // Author + bean display come denormalized on the row (M3·D) — no global lookup,
   // so the card renders standalone in a paginated feed.
-  const ago = relativeTime(tasting.createdAt);
 
   const doLike = () => {
     if (!liked) {
@@ -66,24 +64,24 @@ export function TastingCard({
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <span style={{ fontWeight: 600, fontSize: 14.5 }}>{tasting.authorName}</span>
+            <span style={{ fontWeight: 500, fontSize: "var(--text-sm)" }}>{tasting.authorName}</span>
             {isMine && <Tag accent>You</Tag>}
             {!isMine && D.currentUserId && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto p-0 text-[12px] text-[var(--caramel-deep)]"
+                className="h-auto p-0 text-[length:var(--text-xs)] text-[var(--caramel-deep)]"
                 onClick={() => shell.toggleFollowUser(tasting.userId)}
               >
                 {shell.followedUsers.has(tasting.userId) ? "Following" : "Follow"}
               </Button>
             )}
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
             <button type="button" onClick={() => shell.openUser(tasting.authorHandle)} style={{ color: "inherit", font: "inherit" }}>
               @{tasting.authorHandle}
             </button>
-            {" · "}{ago}
+            <RelTime iso={tasting.createdAt} />
           </div>
         </div>
         <BeanRating value={tasting.rating} size={16} />
@@ -92,7 +90,7 @@ export function TastingCard({
         )}
       </div>
 
-      {/* bean strip */}
+      {/* bean reference — flat borderless row (not a nested card) */}
       <button
         onClick={() => onOpenBean(tasting.beanId)}
         style={{
@@ -101,33 +99,31 @@ export function TastingCard({
           gap: 13,
           width: "100%",
           textAlign: "left",
-          padding: "12px 16px",
-          margin: "0 0 2px",
-          background: "var(--surface-2)",
-          borderTop: "1px solid var(--line-soft)",
-          borderBottom: "1px solid var(--line-soft)",
-          transition: "background 0.15s",
+          padding: "2px 16px 12px",
+          background: "transparent",
+          borderRadius: 0,
+          transition: "opacity 0.15s",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--cream-deep)")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.72")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
       >
         <BeanBag color={tasting.beanColor} size={46} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="display" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
+          <div className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, lineHeight: 1.15 }}>
             {tasting.beanName}
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--mocha)", marginTop: 2 }}>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 2 }}>
             {tasting.beanRoasterName ?? "My roaster"} · {tasting.beanOrigin}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 14, fontSize: 11.5, color: "var(--mocha)", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 14, fontSize: "var(--text-2xs)", color: "var(--mocha)", alignItems: "center" }}>
           <BrewBadge brew={tasting.brew} />
         </div>
       </button>
 
       {/* note */}
       <div style={{ padding: "14px 16px 4px" }}>
-        <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--coffee)", textWrap: "pretty" }}>
+        <p style={{ fontSize: "var(--text-base)", lineHeight: 1.6, color: "var(--coffee)", textWrap: "pretty" }}>
           {tasting.note}
         </p>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12 }}>
@@ -135,14 +131,18 @@ export function TastingCard({
             <FlavorChip key={f} flavor={f} small />
           ))}
         </div>
-        {/* brew params */}
-        {tasting.brew !== "Espresso" && tasting.dose !== "—" && (
-          <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: 12, color: "var(--mocha)" }}>
-            <Param label="Dose" value={tasting.dose} />
-            <Param label="Ratio" value={tasting.ratio} />
-            <Param label="Temp" value={tasting.temp} />
-          </div>
-        )}
+        {/* brew params — render placeholders when absent so card anatomy stays consistent (no layout jump) */}
+        <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
+          {tasting.brew !== "Espresso" && tasting.dose !== "—" ? (
+            <>
+              <Param label="Dose" value={tasting.dose} />
+              <Param label="Ratio" value={tasting.ratio} />
+              <Param label="Temp" value={tasting.temp} />
+            </>
+          ) : (
+            <Param label={tasting.brew} value="—" />
+          )}
+        </div>
       </div>
 
       {/* actions */}
@@ -178,11 +178,11 @@ export function TastingCard({
               name="bookmark"
               size={19}
               fill={saved ? "solid" : "none"}
-              color={saved ? "var(--sage)" : "currentColor"}
+              color={saved ? "var(--sage-deep)" : "currentColor"}
             />
           }
           label={saved ? "Saved" : "Save"}
-          activeColor="var(--sage)"
+          activeColor="var(--sage-deep)"
         />
       </div>
       {showComments && <CommentThread tastingId={tasting.id} />}
@@ -197,12 +197,12 @@ function BrewMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => vo
   if (confirm) {
     return (
       <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "var(--mocha)" }}>Delete?</span>
+        <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>Delete?</span>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => { onDelete(); setConfirm(false); setOpen(false); }}
-          style={{ color: "var(--berry, #a8434a)" }}
+          style={{ color: "var(--berry)" }}
         >
           Yes
         </Button>
@@ -220,7 +220,7 @@ function BrewMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => vo
     </span>
   ) : (
     <Button variant="ghost" size="icon" aria-label="Brew options" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(true)}>
-      <Icon name="settings" size={16} />
+      <Icon name="edit" size={16} />
     </Button>
   );
 }
@@ -230,11 +230,11 @@ function Param({ label, value }: { label: string; value: string }) {
     <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5 }}>
       <span
         className="mono"
-        style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.75 }}
+        style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.75 }}
       >
         {label}
       </span>
-      <span style={{ fontWeight: 600, color: "var(--coffee)", fontSize: 12.5 }}>{value}</span>
+      <span style={{ fontWeight: 600, color: "var(--coffee)", fontSize: "var(--text-xs)" }}>{value}</span>
     </span>
   );
 }
@@ -243,7 +243,7 @@ export function BrewBadge({ brew }: { brew: string }) {
   return (
     <Badge
       variant="outline"
-      className="gap-1.5 px-2.5 py-1 text-[11.5px] font-semibold"
+      className="gap-1.5 px-2.5 py-1 text-[length:var(--text-2xs)] font-semibold"
       style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--coffee)" }}
     >
       <Icon name="drop" size={13} color="var(--caramel)" /> {brew}
@@ -275,7 +275,7 @@ function ActionBtn({
       onClick={onClick}
       aria-pressed={active}
       aria-label={ariaLabel}
-      className="relative gap-[7px] px-[11px] text-[13px] font-semibold"
+      className="relative gap-[7px] px-[11px] text-[length:var(--text-sm)] font-semibold"
       style={{ color: active ? activeColor : "var(--mocha)" }}
     >
       <span style={{ display: "inline-flex", animation: burst ? "pop 0.45s ease" : "none" }}>{icon}</span>
@@ -377,10 +377,10 @@ export function BeanCard({
             <Tag>{bean.process}</Tag>
             <RoastPill roast={bean.roast} />
           </div>
-          <div className="display" style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.1 }}>
+          <div className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, lineHeight: 1.1 }}>
             {bean.name}
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--mocha)", marginTop: 3 }}>{bean.origin}</div>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 3 }}>{bean.origin}</div>
         </div>
       </div>
       <div style={{ padding: "0 18px 16px", flex: 1, display: "flex", flexDirection: "column" }}>
@@ -402,23 +402,23 @@ export function BeanCard({
           {bean.ratings > 0 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <BeanRating value={Math.round(bean.avgRating)} size={14} />
-              <span style={{ fontWeight: 700, fontSize: 13.5 }}>{bean.avgRating}</span>
-              <span style={{ fontSize: 12, color: "var(--mocha)" }}>({bean.ratings})</span>
+              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)" }}>{bean.avgRating}</span>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>({bean.ratings})</span>
             </div>
           ) : bean.scaScore ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--mocha)" }}>
-              <span className="mono" style={{ fontSize: 10, letterSpacing: "0.05em" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
+              <span className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.05em" }}>
                 SCA
               </span>
-              <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--caramel-deep)" }}>{bean.scaScore}</span>
+              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{bean.scaScore}</span>
             </span>
           ) : (
-            <span style={{ fontSize: 12.5, color: "var(--mocha)" }}>New bag</span>
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>New bag</span>
           )}
           {bean.price ? (
-            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--caramel-deep)" }}>${bean.price}</span>
+            <span style={{ fontWeight: 700, fontSize: "var(--text-base)", color: "var(--caramel-deep)" }}>${bean.price}</span>
           ) : bean.owned ? (
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--sage)" }}>On shelf</span>
+            <span style={{ fontSize: "var(--text-2xs)", fontWeight: 600, color: "var(--sage-deep)" }}>On shelf</span>
           ) : null}
         </div>
       </div>

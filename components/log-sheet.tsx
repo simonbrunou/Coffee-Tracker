@@ -18,9 +18,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 
-// Section header inside the sheets (was the shared `Label`).
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 13, fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
+// Section header inside the sheets (was the shared `Label`). Accepts an optional
+// `id` so a section prompt can label an associated control via aria-labelledby.
+function SectionLabel({ id, children }: { id?: string; children: React.ReactNode }) {
+  return <div id={id} style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
 }
 
 export function LogSheet({
@@ -188,7 +189,7 @@ function BrewFlow({
             variant="link"
             size="sm"
             onClick={onNewBag}
-            className="h-auto gap-1 p-0 text-[12.5px] font-semibold text-[var(--caramel-deep)] no-underline hover:no-underline"
+            className="h-auto gap-1 p-0 text-[length:var(--text-xs)] font-semibold text-[var(--caramel-deep)] no-underline hover:no-underline"
           >
             <Icon name="plus" size={14} color="var(--caramel-deep)" /> New bag
           </Button>
@@ -216,12 +217,12 @@ function BrewFlow({
                   <BeanBag color={b.color} size={34} />
                   {b.remaining != null && <RemainingRing pct={b.remaining} />}
                 </div>
-                <div className="display" style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.1, marginTop: 9 }}>
+                <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-sm)", lineHeight: 1.1, marginTop: 9 }}>
                   {b.name}
                 </div>
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--text-2xs)",
                     color: "var(--mocha)",
                     marginTop: 2,
                     whiteSpace: "nowrap",
@@ -249,7 +250,7 @@ function BrewFlow({
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              fontSize: 12.5,
+              fontSize: "var(--text-xs)",
               fontWeight: 600,
             }}
           >
@@ -258,8 +259,8 @@ function BrewFlow({
         </div>
 
         {/* Rating */}
-        <SectionLabel>How was it?</SectionLabel>
-        <div style={{ display: "flex", justifyContent: "center", padding: "6px 0 20px" }}>
+        <SectionLabel id="brew-rating-label">How was it?</SectionLabel>
+        <div role="group" aria-labelledby="brew-rating-label" style={{ display: "flex", justifyContent: "center", padding: "6px 0 20px" }}>
           <BeanRating value={rating} size={40} onChange={setRating} />
         </div>
 
@@ -277,7 +278,7 @@ function BrewFlow({
                 minHeight: 44,
                 padding: "8px 14px",
                 borderRadius: 99,
-                fontSize: 13,
+                fontSize: "var(--text-sm)",
                 fontWeight: 600,
                 background: brew === m ? "var(--espresso)" : "var(--surface)",
                 color: brew === m ? "var(--cream)" : "var(--coffee)",
@@ -294,7 +295,7 @@ function BrewFlow({
           variant="ghost"
           size="sm"
           onClick={() => setShowParams((s) => !s)}
-          className="mb-1 h-auto gap-2 p-0 text-[13px] font-semibold text-[var(--coffee)] hover:bg-transparent"
+          className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
           style={{ marginBottom: showParams ? 12 : 4 }}
         >
           <Icon name={showParams ? "close" : "plus"} size={15} color="var(--mocha)" /> {showParams ? "Hide" : "Add"} brew details
@@ -316,12 +317,12 @@ function BrewFlow({
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           placeholder="How did it taste today? How'd you dial it in?"
-          className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[14.5px]"
+          className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[length:var(--text-base)]"
         />
       </div>
       <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
-          <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
+          <div role="alert" style={{ marginBottom: 10, fontSize: "var(--text-sm)", color: "var(--berry)" }}>
             {error}
           </div>
         )}
@@ -357,14 +358,14 @@ function RemainingRing({ pct }: { pct: number }) {
 function MiniField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label style={{ flex: 1 }}>
-      <div className="mono" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--mocha)", marginBottom: 5 }}>
+      <div className="mono" style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--mocha)", marginBottom: 5 }}>
         {label}
       </div>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode="decimal"
-        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[11px] py-[9px] text-[16px] font-semibold md:text-[14px]"
+        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[11px] py-[9px] text-[16px] font-semibold md:text-[length:var(--text-base)]"
       />
     </label>
   );
