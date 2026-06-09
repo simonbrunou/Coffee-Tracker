@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const { queryMock, txClientQuery } = vi.hoisted(() => ({
+  queryMock: vi.fn(),
+  txClientQuery: vi.fn(),
+}));
+
 // getCurrentUserId is included because lib/queries imports it (transitive import
 // of app/actions) — omitting it can trip a "no known export" error under Vitest.
 vi.mock("@/lib/auth", () => ({
@@ -7,8 +12,11 @@ vi.mock("@/lib/auth", () => ({
   requireVerifiedUserId: vi.fn(async () => "u-me"),
   getCurrentUserId: vi.fn(async () => "u-me"),
 }));
-const queryMock = vi.fn();
-vi.mock("@/lib/db", () => ({ query: (...a: unknown[]) => queryMock(...a) }));
+vi.mock("@/lib/db", () => ({
+  query: (...a: unknown[]) => queryMock(...a),
+  withTransaction: async (fn: (c: { query: typeof txClientQuery }) => Promise<unknown>) =>
+    fn({ query: txClientQuery }),
+}));
 const revalidateMock = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath: (...a: unknown[]) => revalidateMock(...a) }));
 
@@ -47,5 +55,18 @@ describe("logBrew ownership guard", () => {
     queryMock.mockResolvedValue({ rows: [{ id: "t-1", userId: "u-me", beanId: "b-1" }] });
     await logBrew(input);
     expect(revalidateMock).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("writes the assessment in a transaction when provided", async () => {
+    txClientQuery.mockReset();
+    txClientQuery
+      .mockResolvedValueOnce({ rows: [{ id: "t-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
+    queryMock.mockResolvedValue({ rows: [{ id: "t-1", userId: "u-me", beanId: "b-1" }] });
+    await logBrew({ ...input, assessment: { body: 12, acidity: null, sweetness: null, fruit: null, floral: null, finish: null } });
+    const [guardSql] = txClientQuery.mock.calls[0] as [string, unknown[]];
+    expect(guardSql).toMatch(/from beans where id = \$3 and user_id = \$2/i);
+    const [assessSql] = txClientQuery.mock.calls[1] as [string, unknown[]];
+    expect(assessSql).toMatch(/insert into tasting_assessments/i);
   });
 });

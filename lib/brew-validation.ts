@@ -45,7 +45,7 @@ export function validateLogBrew(raw: unknown): Result<LogBrewInput> {
   const beanId = str(r.beanId).trim();
   if (!beanId) return { ok: false, error: "A bag is required." };
   const f = validateBrewFields(r);
-  return f.ok ? { ok: true, value: { beanId, ...f.value } } : f;
+  return f.ok ? { ok: true, value: { beanId, ...f.value, assessment: r.assessment as LogBrewInput["assessment"] } } : f;
 }
 
 export function validateUpdateBrew(raw: unknown): Result<UpdateBrewInput> {
@@ -53,7 +53,7 @@ export function validateUpdateBrew(raw: unknown): Result<UpdateBrewInput> {
   const id = str(r.id).trim();
   if (!id) return { ok: false, error: "Missing brew id." };
   const f = validateBrewFields(r);
-  return f.ok ? { ok: true, value: { id, ...f.value } } : f;
+  return f.ok ? { ok: true, value: { id, ...f.value, assessment: r.assessment as UpdateBrewInput["assessment"] } } : f;
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;

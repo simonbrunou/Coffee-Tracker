@@ -1,13 +1,35 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage } from "@/lib/queries";
 import { requireVerifiedUserId, getCurrentUserId } from "@/lib/auth";
-import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Page, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Page, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
 import { revalidatePath } from "next/cache";
-import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag } from "@/lib/brew-validation";
+import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag, validateTastingAssessment } from "@/lib/brew-validation";
+
+const TASTING_INSERT = `insert into tastings
+     (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
+   select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0
+   from beans where id = $3 and user_id = $2
+   returning id`;
+
+const ASSESSMENT_UPSERT = `insert into tasting_assessments
+     (tasting_id, body_intensity, acidity_intensity, sweetness_intensity,
+      fruit_intensity, floral_intensity, finish_intensity)
+   values ($1, $2, $3, $4, $5, $6, $7)
+   on conflict (tasting_id) do update set
+     body_intensity = excluded.body_intensity,
+     acidity_intensity = excluded.acidity_intensity,
+     sweetness_intensity = excluded.sweetness_intensity,
+     fruit_intensity = excluded.fruit_intensity,
+     floral_intensity = excluded.floral_intensity,
+     finish_intensity = excluded.finish_intensity,
+     updated_at = now()`;
+
+const assessParams = (tastingId: string, a: TastingAssessment) =>
+  [tastingId, a.body, a.acidity, a.sweetness, a.fruit, a.floral, a.finish];
 
 /** Log a brew against a bag — the fast, everyday action. Persists and returns
  *  the new tasting so the client can prepend it to the journal/feed. */
@@ -17,17 +39,20 @@ export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
   const id = `t-${randomUUID()}`;
-  const { rows } = await query<{ id: string }>(
-    `insert into tastings
-       (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
-     select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0
-     from beans where id = $3 and user_id = $2
-     returning id`,
-    [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
-  );
-  if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
+  const assessment = validateTastingAssessment(input.assessment);
+  const tastingParams = [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note];
+
+  if (assessment) {
+    await withTransaction(async (client) => {
+      const { rows } = await client.query<{ id: string }>(TASTING_INSERT, tastingParams);
+      if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
+      await client.query(ASSESSMENT_UPSERT, assessParams(id, assessment));
+    });
+  } else {
+    const { rows } = await query<{ id: string }>(TASTING_INSERT, tastingParams);
+    if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
+  }
   revalidatePath("/", "layout");
-  // Re-select the denormalized row (author + bean fields) for the client to prepend.
   const tasting = await getTastingById(userId, id);
   if (!tasting) throw new Error("Couldn't log a brew for that bag.");
   return tasting;
@@ -69,15 +94,22 @@ export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
   const v = validateUpdateBrew(rawInput);
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
-  const { rowCount } = await query(
-    `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
-     where id = $1 and user_id = $2`,
-    [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
-  );
-  if (!rowCount) throw new Error("Couldn't update that brew.");
+  const assessment = validateTastingAssessment(input.assessment);
+  const updateParams = [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note];
+  const UPDATE_TASTING = `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
+     where id = $1 and user_id = $2`;
+
+  if (assessment) {
+    await withTransaction(async (client) => {
+      const { rowCount } = await client.query(UPDATE_TASTING, updateParams);
+      if (!rowCount) throw new Error("Couldn't update that brew.");
+      await client.query(ASSESSMENT_UPSERT, assessParams(input.id, assessment));
+    });
+  } else {
+    const { rowCount } = await query(UPDATE_TASTING, updateParams);
+    if (!rowCount) throw new Error("Couldn't update that brew.");
+  }
   revalidatePath("/", "layout");
-  // Re-select the denormalized row (author + bean fields). The UPDATE above
-  // already enforced ownership; a row deleted mid-flight yields null → throw.
   const tasting = await getTastingById(userId, input.id);
   if (!tasting) throw new Error("Couldn't update that brew.");
   return tasting;
