@@ -333,21 +333,26 @@ function BrewFlow({
           className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[length:var(--text-base)]"
         />
 
-        <div style={{ marginTop: 18 }}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAssess((s) => !s)}
-            className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
-          >
-            <Icon name={showAssess ? "close" : "plus"} size={15} color="var(--mocha)" /> {showAssess ? "Hide" : "Add"} tasting notes
-          </Button>
-          {showAssess && (
-            <div className="fade-up" style={{ marginTop: 12 }}>
-              <TastingAssessmentFields value={assessment} onChange={setAssessment} />
-            </div>
-          )}
-        </div>
+        {/* Assessment capture is log-only for v1: editing can't load an existing
+            assessment (Tasting carries none), so showing the expander on edit
+            would overwrite/null prior intensities. Hide it in edit mode. */}
+        {!isEdit && (
+          <div style={{ marginTop: 18 }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAssess((s) => !s)}
+              className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
+            >
+              <Icon name={showAssess ? "close" : "plus"} size={15} color="var(--mocha)" /> {showAssess ? "Hide" : "Add"} tasting notes
+            </Button>
+            {showAssess && (
+              <div className="fade-up" style={{ marginTop: 12 }}>
+                <TastingAssessmentFields value={assessment} onChange={setAssessment} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
