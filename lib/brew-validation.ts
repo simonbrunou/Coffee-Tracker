@@ -71,7 +71,7 @@ function validateBagFields(r: Record<string, unknown>): Result<AddBagInput> {
   const scaScore = clamp(num(r.scaScore) ?? 86, 80, 100);
   const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => (x as string).trim()).filter(Boolean) : []);
   const varieties = arr(r.varieties).slice(0, 12);
-  const flavors = arr(r.flavors).slice(0, 10);
+  const flavors = arr(r.flavors).map((s) => s.slice(0, 40)).slice(0, 10);
   return { ok: true, value: { name, roasterName, origin, farm, varieties, process, roast, scaScore, flavors, color } };
 }
 
