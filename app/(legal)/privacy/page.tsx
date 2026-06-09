@@ -1,4 +1,5 @@
 import styles from "../legal.module.css";
+import { legal } from "@/lib/legal";
 
 export default function PrivacyPage() {
   return (
@@ -8,8 +9,8 @@ export default function PrivacyPage() {
 
       <h2>1. Who we are</h2>
       <p>
-        Cortado (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is operated by <strong>[PLACEHOLDER: controller legal name]</strong>.
-        For any privacy question or request, contact <strong>[PLACEHOLDER: contact email]</strong>.
+        Cortado (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is operated by <strong>{legal.entity()}</strong>.
+        For any privacy question or request, contact <strong>{legal.contact()}</strong>.
       </p>
 
       <h2>2. What we collect</h2>
@@ -40,8 +41,7 @@ export default function PrivacyPage() {
 
       <h2>4. Why we process your data</h2>
       <p>To provide the service, to authenticate you and keep the service secure (including rate-limiting), and to
-        send you transactional verification email. <em>[PLACEHOLDER: confirm legal bases / consent model with
-        counsel — e.g. contract, legitimate interest.]</em></p>
+        send you transactional verification email. <em>{legal.legalBases()}</em></p>
 
       <h2>5. Who we share data with</h2>
       <ul>
@@ -51,9 +51,8 @@ export default function PrivacyPage() {
         <li><strong>Resend</strong> — our transactional email provider. It receives your email address and the
           message (e.g. a verification link) so we can deliver verification email. Used only when email sending is
           configured.</li>
-        <li><strong>Hosting &amp; database</strong> — our application host <strong>[PLACEHOLDER: hosting provider +
-          region]</strong> and our database <strong>[PLACEHOLDER: Postgres host — self-hosted or external managed
-          provider + region]</strong>.</li>
+        <li><strong>Hosting &amp; database</strong> — our application host <strong>{legal.hosting()}</strong> and
+          our database <strong>{legal.dbHost()}</strong>.</li>
       </ul>
       <p>We do <strong>not</strong> use analytics, advertising, tracking or session-replay services. We self-host
         our web fonts and never load an external avatar or image CDN.</p>
@@ -62,7 +61,7 @@ export default function PrivacyPage() {
       <p>We keep your account and content until you delete your account. Verification links target a 24-hour
         lifetime and rate-limit records target ~15 minutes; these short-lived records are cleared on a best-effort
         basis, so treat those windows as targets after which the data becomes eligible for deletion rather than a
-        guaranteed deletion deadline. Server logs are kept for <strong>[PLACEHOLDER: log retention period]</strong>.</p>
+        guaranteed deletion deadline. Server logs are kept for <strong>{legal.logRetention()}</strong>.</p>
 
       <h2>7. Your rights and deleting your account</h2>
       <p>You can delete your account at any time from <a href="/settings">Settings</a>. This permanently deletes
@@ -71,26 +70,26 @@ export default function PrivacyPage() {
       <p><strong>Please note:</strong> a few records are not removed by deletion — rate-limit records that
         briefly hold your email/IP persist until their short prune window passes, and our server logs may contain
         your email or IP and are kept under the log-retention period above. Deleting your account also removes
-        other people&rsquo;s likes, saves and comments on the content you had shared. To request a copy of your
-        data, contact us at <strong>[PLACEHOLDER: how data-access/export requests are handled]</strong>.</p>
+        other people&rsquo;s likes, saves and comments on the content you had shared. You can download a copy of
+        your data any time from <a href="/settings">Settings</a>; for any other data request, contact us at{" "}
+        <strong>{legal.dsarProcess()}</strong>.</p>
 
       <h2>8. Security</h2>
       <p>Passwords are bcrypt-hashed and your sessions are signed and encrypted. Your email and profile details
         are stored unencrypted at rest in our database. We enforce a strict Content-Security-Policy, HSTS and
-        related security headers. <em>[PLACEHOLDER: confirm database transport encryption (TLS) posture if using
-        an external database.]</em></p>
+        related security headers. <em>{legal.dbTls()}</em></p>
 
       <h2>9. Children</h2>
-      <p>Cortado is not directed to children under <strong>[PLACEHOLDER: 13 / 16]</strong>.</p>
+      <p>Cortado is not directed to children under <strong>{legal.minAge()}</strong>.</p>
 
       <h2>10. International transfers</h2>
-      <p>[PLACEHOLDER: describe any cross-border transfer and its safeguards.]</p>
+      <p>{legal.dataTransfer()}</p>
 
       <h2>11. Changes</h2>
       <p>We may update this policy; we will revise the &ldquo;last updated&rdquo; date above.</p>
 
       <h2>12. Contact</h2>
-      <p>[PLACEHOLDER: contact email].</p>
+      <p>{legal.contact()}.</p>
     </>
   );
 }
