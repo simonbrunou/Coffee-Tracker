@@ -387,10 +387,8 @@ export function FlavorRadar({ bean, radar }: { bean: Bean; radar: BeanRadar | nu
   const axes = ["Body", "Acidity", "Sweetness", "Fruit", "Florals", "Finish"];
   if (!radar) return null; // caller collapses the card; nothing to draw
   const order: (keyof BeanRadar)[] = ["body", "acidity", "sweetness", "fruit", "floral", "finish"];
-  const vals = order.map((k) => {
-    const v = radar[k] as number | null;
-    return v == null ? 0 : Math.round((v / 15) * 1000) / 1000;
-  });
+  const raw = order.map((k) => radar[k] as number | null);
+  const vals = raw.map((v) => (v == null ? 0 : Math.round((v / 15) * 1000) / 1000));
   const size = 150,
     c = size / 2,
     r = c - 22;
@@ -409,7 +407,7 @@ export function FlavorRadar({ bean, radar }: { bean: Bean; radar: BeanRadar | nu
       width={size}
       height={size}
       role="img"
-      aria-label={`Flavor profile for ${bean.name}: ${axes.map((a, i) => `${a} ${Math.round(vals[i] * 10)} of 10`).join(", ")}`}
+      aria-label={`Flavor profile for ${bean.name}: ${axes.map((a, i) => `${a} ${raw[i] == null ? "unset" : Math.round(vals[i] * 10) + " of 10"}`).join(", ")}`}
       style={{ flexShrink: 0 }}
     >
       {[0.25, 0.5, 0.75, 1].map((g) => (
@@ -427,6 +425,7 @@ export function FlavorRadar({ bean, radar }: { bean: Bean; radar: BeanRadar | nu
       })}
       <polygon points={poly} fill="color-mix(in oklch, var(--caramel) 22%, transparent)" stroke="var(--caramel)" strokeWidth="2" />
       {vals.map((v, i) => {
+        if (raw[i] == null) return null; // unset axis: no data point drawn
         const [x, y] = pt(i, v);
         return <circle key={i} cx={x} cy={y} r="3" fill="var(--caramel)" />;
       })}

@@ -178,10 +178,17 @@ function BrewFlow({
 
   if (done)
     return (
-      <DonePanel
-        title={isEdit ? "Brew updated!" : "Brew logged!"}
-        sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
-      />
+      <>
+        <DonePanel
+          title={isEdit ? "Brew updated!" : "Brew logged!"}
+          sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
+        />
+        {showAssess && (
+          <div style={{ padding: "0 20px calc(20px + env(safe-area-inset-bottom))" }}>
+            <Button onClick={onClose} className="w-full">Done</Button>
+          </div>
+        )}
+      </>
     );
 
   return (
