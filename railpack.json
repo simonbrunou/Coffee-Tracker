@@ -1,31 +1,9 @@
 {
   "$schema": "https://schema.railpack.com",
   "provider": "node",
-  "packages": {
-    "node": "24"
-  },
-  "steps": {
-    "build": {
-      "inputs": [{ "step": "install" }],
-      "commands": [
-        "npm run build",
-        "cp -r .next/static .next/standalone/.next/static",
-        "if [ -d public ]; then cp -r public .next/standalone/public; fi",
-        "cp -r drizzle .next/standalone/drizzle",
-        "mkdir -p .next/standalone/scripts",
-        "cp scripts/migrate.mts .next/standalone/scripts/migrate.mts",
-        "mkdir -p .next/standalone/node_modules",
-        "cp -r node_modules/drizzle-orm .next/standalone/node_modules/drizzle-orm"
-      ]
-    }
-  },
+  "packages": { "node": "24" },
   "deploy": {
-    "inputs": [
-      { "step": "packages:mise", "include": ["/mise/installs"] },
-      { "step": "build", "include": [".next/standalone"] }
-    ],
     "startCommand": "node .next/standalone/scripts/migrate.mts && node .next/standalone/server.js",
-    "paths": ["/mise/installs/node/24/bin"],
     "variables": {
       "NODE_ENV": "production",
       "HOSTNAME": "0.0.0.0"
