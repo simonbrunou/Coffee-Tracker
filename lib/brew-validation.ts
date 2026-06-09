@@ -1,4 +1,4 @@
-import type { AddBagInput, LogBrewInput, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type { AddBagInput, LogBrewInput, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 import { BREW_METHODS } from "@/lib/seed-data";
 
 type Ok<T> = { ok: true; value: T };
@@ -85,4 +85,21 @@ export function validateUpdateBag(raw: unknown): Result<UpdateBagInput> {
   if (!id) return { ok: false, error: "Missing bag id." };
   const f = validateBagFields(r);
   return f.ok ? { ok: true, value: { id, ...f.value } } : f;
+}
+
+const AXES = ["body", "acidity", "sweetness", "fruit", "floral", "finish"] as const;
+
+/** Clamp each of the six intensities to 0–15 or null. Returns null when the
+ *  whole assessment is empty (so callers skip writing a row). */
+export function validateTastingAssessment(raw: unknown): TastingAssessment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const out = {} as TastingAssessment;
+  let any = false;
+  for (const k of AXES) {
+    const n = num(r[k]);
+    out[k] = n == null ? null : clamp(n, 0, 15);
+    if (out[k] != null) any = true;
+  }
+  return any ? out : null;
 }

@@ -153,6 +153,16 @@ export interface AppData {
   needsEmailVerification: boolean;
 }
 
+/** Lean per-tasting CVA assessment — six 0–15 intensities, each optional. */
+export interface TastingAssessment {
+  body: number | null;
+  acidity: number | null;
+  sweetness: number | null;
+  fruit: number | null;
+  floral: number | null;
+  finish: number | null;
+}
+
 // ---- Server action payloads ----
 export interface LogBrewInput {
   beanId: string;
@@ -162,6 +172,7 @@ export interface LogBrewInput {
   dose: string;
   ratio: string;
   temp: string;
+  assessment?: TastingAssessment | null;
 }
 
 export interface AddBagInput {
@@ -185,6 +196,7 @@ export interface UpdateBrewInput {
   dose: string;
   ratio: string;
   temp: string;
+  assessment?: TastingAssessment | null;
 }
 
 export interface UpdateBagInput extends AddBagInput {
