@@ -1,14 +1,13 @@
 "use client";
 /* ============ Cortado — Cards ============ */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "./app-provider";
-import { Avatar, BeanRating, FlavorChip, Icon, RoastPill, Tag } from "./ui";
+import { Avatar, BeanRating, FlavorChip, Icon, RelTime, RoastPill, Tag } from "./ui";
 import { CommentThread } from "./comment-thread";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tasting, Bean } from "@/lib/types";
-import { relativeTime } from "@/lib/relative-time";
 
 // ---- Tasting card (feed + journal) ----
 export function TastingCard({
@@ -188,25 +187,6 @@ export function TastingCard({
       </div>
       {showComments && <CommentThread tastingId={tasting.id} />}
     </article>
-  );
-}
-
-// Relative "time ago" label. SSR and the first client render are non-deterministic
-// for a wall-clock value (server and client compute `Date.now()` at different instants),
-// which trips React's hydration check. So we render an empty, stable placeholder on the
-// first paint — identical on server and client — then fill in the live value in a mount
-// effect. `suppressHydrationWarning` covers the brief swap. relative-time.ts stays pure.
-function RelTime({ iso }: { iso: string }) {
-  const [label, setLabel] = useState("");
-  useEffect(() => {
-    setLabel(relativeTime(iso));
-  }, [iso]);
-  // Separator lives inside so the header reads cleanly before the value resolves
-  // (no dangling middot on first paint).
-  return (
-    <time dateTime={iso} suppressHydrationWarning>
-      {label ? ` · ${label}` : ""}
-    </time>
   );
 }
 

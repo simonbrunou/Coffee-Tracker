@@ -6,11 +6,10 @@ import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
-import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
+import { BeanGlyph, BeanRating, Icon, Placeholder, RelTime } from "./ui";
 import type { IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { relativeTime } from "@/lib/relative-time";
 import type { Bean, Page, Roaster, Tasting } from "@/lib/types";
 
 // ---------- Section header ----------
@@ -485,7 +484,7 @@ export function JournalScreen({
                   </div>
                   <BeanRating value={t.rating} size={13} />
                   <div style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)" }}>
-                    {t.brew} · {relativeTime(t.createdAt)}
+                    {t.brew}<RelTime iso={t.createdAt} />
                   </div>
                 </button>
               ))}

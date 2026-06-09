@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "./app-provider";
-import { relativeTime } from "@/lib/relative-time";
+import { RelTime } from "./ui";
 import { fetchComments, addComment, updateComment, deleteComment } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -87,7 +87,7 @@ function CommentRow({ c, mine, onDelete, onEdit }: {
       <button type="button" onClick={() => shell.openUser(c.authorHandle)} style={{ fontWeight: 600, color: "inherit", font: "inherit" }}>
         {c.authorName}
       </button>{" "}
-      <span style={{ color: "var(--mocha)", fontSize: "var(--text-xs)" }}>· {relativeTime(c.createdAt)}{c.updatedAt ? " · edited" : ""}</span>
+      <span style={{ color: "var(--mocha)", fontSize: "var(--text-xs)" }}><RelTime iso={c.createdAt} />{c.updatedAt ? " · edited" : ""}</span>
       {editing ? (
         <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
           <Textarea value={val} onChange={(e) => setVal(e.target.value)} rows={1} className="text-[length:var(--text-sm)]" />

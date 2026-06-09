@@ -1,11 +1,29 @@
 "use client";
 /* ============ Cortado — Shared UI primitives ============ */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { flavorColor } from "@/lib/seed-data";
 import { cn } from "@/lib/utils";
 import { Avatar as AvatarRoot, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@/lib/types";
+import { relativeTime } from "@/lib/relative-time";
+
+// Hydration-safe relative "time ago". SSR and the first client render compute the
+// wall clock at different instants, so render an empty placeholder on first paint
+// (identical server + client), then fill the live value in a mount effect.
+// suppressHydrationWarning covers the swap. Shared by cards, the journal grid, and
+// comment threads so every relative time is hydration-safe.
+export function RelTime({ iso }: { iso: string }) {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    setLabel(relativeTime(iso));
+  }, [iso]);
+  return (
+    <time dateTime={iso} suppressHydrationWarning>
+      {label ? ` · ${label}` : ""}
+    </time>
+  );
+}
 
 // ---- Avatar (initial on tinted circle) — shadcn Avatar with a tinted fallback ----
 export function Avatar({ user, size = 40 }: { user: Pick<User, "name" | "avatar">; size?: number }) {
