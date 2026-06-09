@@ -272,7 +272,10 @@ function BrewFlow({
               onClick={() => setBrew(m)}
               aria-pressed={brew === m}
               style={{
-                padding: "8px 13px",
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: 44,
+                padding: "8px 14px",
                 borderRadius: 99,
                 fontSize: 13,
                 fontWeight: 600,
@@ -313,10 +316,10 @@ function BrewFlow({
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           placeholder="How did it taste today? How'd you dial it in?"
-          className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[14.5px] leading-[1.55]"
+          className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[14.5px]"
         />
       </div>
-      <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line-soft)" }}>
+      <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
           <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
             {error}
@@ -361,7 +364,7 @@ function MiniField({ label, value, onChange }: { label: string; value: string; o
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode="decimal"
-        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[11px] py-[9px] text-[14px] font-semibold"
+        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[11px] py-[9px] text-[16px] font-semibold md:text-[14px]"
       />
     </label>
   );

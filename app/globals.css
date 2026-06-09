@@ -267,7 +267,10 @@ input, textarea { font-family: inherit; }
 
   .bottom-nav {
     display: flex; align-items: center; justify-content: space-around;
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 60; gap: 4px;
+    /* Sits BELOW the dialog layer (overlay/content are z-50) so an open
+       bottom-sheet's overlay covers the nav and the sheet's footer button is
+       reachable. Still above page content (z-auto). */
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; gap: 4px;
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
     background: color-mix(in oklch, var(--surface) 92%, transparent);
     backdrop-filter: blur(14px); border-top: 1px solid var(--line-soft);
@@ -286,7 +289,10 @@ input, textarea { font-family: inherit; }
 }
 @media (min-width: 880px) { .mobile-only-spacer { display: none; } }
 
-@media (max-width: 540px) { .two-col { flex-direction: column; gap: 0; } }
+/* Stack paired fields whenever the mobile layout is active (matches the 879px
+   breakpoint used for the rest of the mobile chrome), not only on the smallest
+   phones — avoids the cramped two-up fields in the 541–879px band. */
+@media (max-width: 879px) { .two-col { flex-direction: column; gap: 0; } }
 @media (max-width: 600px) { .radar-row { grid-template-columns: 1fr !important; justify-items: center; text-align: center; } }
 
 /* ============ Accessibility (M5·B) ============ */
