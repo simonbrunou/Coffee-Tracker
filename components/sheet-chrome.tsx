@@ -29,7 +29,7 @@ export function SheetHeader({
           </Button>
         )}
       </div>
-      <div className="mono" style={{ fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--caramel-deep)" }}>
+      <div className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--caramel-deep)" }}>
         {kicker}
       </div>
       <div style={{ width: 40, textAlign: "right" }}>
@@ -59,10 +59,10 @@ export function DonePanel({ title, sub }: { title: string; sub: string }) {
       >
         <Icon name="check" size={36} color="var(--caramel-deep)" />
       </div>
-      <h2 className="display" style={{ fontSize: 26, fontWeight: 700 }}>
+      <h2 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700 }}>
         {title}
       </h2>
-      <p style={{ color: "var(--mocha)", marginTop: 8, fontSize: 15 }}>{sub}</p>
+      <p style={{ color: "var(--mocha)", marginTop: 8, fontSize: "var(--text-md)" }}>{sub}</p>
     </div>
   );
 }

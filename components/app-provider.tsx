@@ -326,12 +326,12 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 8px 26px" }}>
               <Logo />
               <div>
-                <div className="display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1 }}>
+                <div className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 700, lineHeight: 1 }}>
                   Cortado
                 </div>
                 <div
                   className="mono"
-                  style={{ fontSize: 9.5, letterSpacing: "0.14em", color: "var(--mocha)", textTransform: "uppercase", marginTop: 3 }}
+                  style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.14em", color: "var(--mocha)", textTransform: "uppercase", marginTop: 3 }}
                 >
                   coffee journal
                 </div>
@@ -354,35 +354,66 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 <Icon name="plus" size={18} />
               </Button>
             </div>
-            <div style={{ marginTop: "auto", paddingTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ marginTop: "auto", paddingTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
               {me ? (
                 <>
-                  <button onClick={() => router.push("/profile")} className="nav-user" style={{ flex: 1, minWidth: 0 }}>
+                  {/* Identity gets its OWN full-width row so a long name truncates
+                      with an ellipsis instead of wrapping into the controls. */}
+                  <button onClick={() => router.push("/profile")} className="nav-user">
                     <Avatar user={me} size={36} />
                     <div style={{ textAlign: "left", minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{me.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@{me.handle}</div>
+                      <div
+                        style={{
+                          fontSize: "var(--text-sm)",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {me.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          color: "var(--mocha)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        @{me.handle}
+                      </div>
                     </div>
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => router.push("/settings")}
-                    title="Settings"
-                    aria-label="Settings"
-                  >
-                    <Icon name="settings" size={20} />
-                  </Button>
-                  <form action={signOutAction}>
-                    <Button variant="ghost" size="sm" type="submit">Sign out</Button>
-                  </form>
+                  {/* Controls share a second full-width row, so nothing competes
+                      with the identity for horizontal space. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push("/settings")}
+                      title="Settings"
+                      aria-label="Settings"
+                    >
+                      <Icon name="settings" size={20} />
+                    </Button>
+                    <form action={signOutAction}>
+                      <Button variant="ghost" size="sm" type="submit">Sign out</Button>
+                    </form>
+                    <div style={{ marginLeft: "auto" }}>
+                      <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
+                    </div>
+                  </div>
                 </>
               ) : (
-                <Button variant="outline" onClick={() => router.push("/login")} style={{ flex: 1 }}>
-                  Sign in
-                </Button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Button variant="outline" onClick={() => router.push("/login")} style={{ flex: 1 }}>
+                    Sign in
+                  </Button>
+                  <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
+                </div>
               )}
-              <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
             </div>
           </div>
 
@@ -391,7 +422,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             <header className="mobile-top" role="banner">
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <Logo size={30} />
-                <span className="display" style={{ fontSize: 18, fontWeight: 700 }}>
+                <span className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>
                   Cortado
                 </span>
               </div>
@@ -400,6 +431,14 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 <Button variant="ghost" size="icon" onClick={() => router.push("/discover")} aria-label="Search">
                   <Icon name="search" size={21} />
                 </Button>
+                {/* Mobile path to Settings (and, from there, Sign-out / account
+                    actions) — the sidebar gear is hidden below 880px, so mobile
+                    had no way to reach any of it. */}
+                {currentUserId && (
+                  <Button variant="ghost" size="icon" onClick={() => router.push("/settings")} title="Settings" aria-label="Settings">
+                    <Icon name="settings" size={21} />
+                  </Button>
+                )}
                 {/* Guest entry point for an installed-app launch (the desktop
                     sidebar has its own Sign-in; mobile-top had none). Visible
                     text gives it an accessible name without an aria-label. */}
@@ -412,7 +451,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             </header>
             <main id="main-content" tabIndex={-1} className="screen-pad">
               {needsEmailVerification && (
-                <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
+                <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: "var(--text-base)" }}>
                   <span style={{ flex: 1 }}>Verify your email to log brews and bags. Check your inbox for the link.</span>
                   <form action={resendVerification}><Button variant="outline" size="sm" type="submit">Resend</Button></form>
                 </div>

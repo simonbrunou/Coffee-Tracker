@@ -28,6 +28,10 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
       <script
         type="application/ld+json"
         nonce={nonce}
+        // Browsers strip the CSP nonce from the DOM after applying policy, so the
+        // hydrated value ("") never matches the server's nonce. This attribute
+        // mismatch is expected and benign for inline data scripts.
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{
           __html: serializeJsonLd([
             beanJsonLd(bean, `${base}/bean/${id}`),

@@ -28,6 +28,9 @@ export default async function RoasterPage({ params }: { params: Promise<{ id: st
       <script
         type="application/ld+json"
         nonce={nonce}
+        // Browser strips the CSP nonce post-policy; the hydrated "" never matches
+        // the server nonce. Benign attribute mismatch for inline data scripts.
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{
           __html: serializeJsonLd([
             roasterJsonLd(roaster, `${base}/roaster/${id}`),

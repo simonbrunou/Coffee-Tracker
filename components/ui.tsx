@@ -34,10 +34,14 @@ export function BeanRating({
   value,
   size = 16,
   onChange,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-label": ariaLabel,
 }: {
   value: number;
   size?: number;
   onChange?: (n: number) => void;
+  "aria-labelledby"?: string;
+  "aria-label"?: string;
 }) {
   const [hover, setHover] = useState(0);
   const interactive = !!onChange;
@@ -63,7 +67,14 @@ export function BeanRating({
   return (
     <div
       role={interactive ? "radiogroup" : "img"}
-      aria-label={interactive ? "Rating" : `Rated ${value} of 5`}
+      aria-labelledby={interactive ? ariaLabelledBy : undefined}
+      aria-label={
+        interactive
+          ? ariaLabelledBy
+            ? undefined
+            : ariaLabel ?? "Rating"
+          : `Rated ${Math.round(value * 10) / 10} of 5`
+      }
       style={{ display: "inline-flex", gap: size * 0.18 }}
     >
       {[1, 2, 3, 4, 5].map((n) => {
@@ -105,8 +116,8 @@ export function BeanGlyph({ size = 16, filled = true }: { size?: number; filled?
         rx="7"
         ry="10"
         transform="rotate(35 12 12)"
-        fill={filled ? "var(--caramel)" : "transparent"}
-        stroke={filled ? "var(--caramel)" : "var(--line)"}
+        fill={filled ? "var(--gold)" : "transparent"}
+        stroke={filled ? "var(--gold)" : "var(--line)"}
         strokeWidth="1.6"
       />
       <path
@@ -133,7 +144,7 @@ export function FlavorChip({ flavor, small }: { flavor: string; small?: boolean 
         borderRadius: 99,
         background: "var(--surface-2)",
         border: "1px solid var(--line-soft)",
-        fontSize: small ? 11.5 : 12.5,
+        fontSize: small ? "var(--text-2xs)" : "var(--text-xs)",
         fontWeight: 500,
         color: "var(--coffee)",
         whiteSpace: "nowrap",
@@ -161,7 +172,7 @@ export function RoastPill({ roast }: { roast: string }) {
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        fontSize: 12,
+        fontSize: "var(--text-xs)",
         color: "var(--coffee)",
         fontWeight: 500,
       }}
@@ -186,7 +197,7 @@ export function Tag({ children, accent }: { children: React.ReactNode; accent?: 
     <Badge
       variant="outline"
       className={cn(
-        "rounded-[6px] px-[9px] py-[4px] text-[11px] font-semibold uppercase leading-none tracking-[0.04em]",
+        "rounded-[6px] px-[9px] py-[4px] text-[length:var(--text-2xs)] font-semibold uppercase leading-none tracking-[0.04em]",
         accent
           ? "border-transparent bg-[var(--caramel-soft)] text-[var(--caramel-deep)]"
           : "border-[var(--line-soft)] bg-[var(--surface-2)] text-[var(--mocha)]",
@@ -201,7 +212,7 @@ export function Tag({ children, accent }: { children: React.ReactNode; accent?: 
 export type IconName =
   | "home" | "journal" | "compass" | "user" | "heart" | "comment" | "bookmark"
   | "plus" | "search" | "close" | "back" | "pin" | "drop" | "check" | "star"
-  | "settings" | "trend" | "grid" | "sun" | "moon";
+  | "settings" | "edit" | "trend" | "grid" | "sun" | "moon";
 
 export function Icon({
   name,
@@ -303,6 +314,12 @@ export function Icon({
       <>
         <circle {...p} cx="12" cy="12" r="3" />
         <path {...p} d="M12 3v3M12 18v3M5 5l2 2M17 17l2 2M3 12h3M18 12h3M5 19l2-2M17 7l2-2" />
+      </>
+    ),
+    edit: (
+      <>
+        <path {...p} d="M4 20h4l10-10-4-4L4 16z" />
+        <path {...p} d="M14 6l4 4" />
       </>
     ),
     trend: (

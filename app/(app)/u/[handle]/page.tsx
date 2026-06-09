@@ -39,6 +39,9 @@ export default async function UserProfilePage({ params }: { params: Promise<{ ha
         <script
           type="application/ld+json"
           nonce={nonce}
+          // Browser strips the CSP nonce post-policy; the hydrated "" never
+          // matches the server nonce. Benign attribute mismatch for data scripts.
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(personJsonLd(profile, `${base}/u/${profile.handle}`)) }}
         />
       )}

@@ -13,7 +13,15 @@ import { Label as UiLabel } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 13, fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
+  return <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
+}
+
+function RequiredMark() {
+  return (
+    <span style={{ color: "var(--berry)", fontWeight: 700 }}>
+      {" "}*<span className="sr-only"> (required)</span>
+    </span>
+  );
 }
 
 const BAG_COLORS = ["#b07a3c", "#c98a4a", "#a8434a", "#8a5a36", "#9a5f2e", "#4f3a2c", "#c07ba0", "#5a7a5a", "#5b6aa8"];
@@ -120,10 +128,10 @@ export function BagForm({
         >
           <BeanBag color={f.color} size={44} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="display" style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.1 }}>
+            <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-lg)", lineHeight: 1.1 }}>
               {f.name || "New coffee"}
             </div>
-            <div style={{ fontSize: 12.5, color: "var(--mocha)" }}>
+            <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
               {f.roaster || "Roaster"}
               {f.origin ? " · " + f.origin : ""}
             </div>
@@ -148,11 +156,11 @@ export function BagForm({
         </div>
 
         <TwoCol>
-          <Field label="Roaster" value={f.roaster} onChange={(v) => set("roaster", v)} placeholder="Ember & Oak" />
-          <Field label="Coffee name" value={f.name} onChange={(v) => set("name", v)} placeholder="Idido" />
+          <Field label="Roaster" value={f.roaster} onChange={(v) => set("roaster", v)} placeholder="Ember & Oak" required />
+          <Field label="Coffee name" value={f.name} onChange={(v) => set("name", v)} placeholder="Idido" required />
         </TwoCol>
         <TwoCol>
-          <Field label="Origin" value={f.origin} onChange={(v) => set("origin", v)} placeholder="Gedeb, Ethiopia" />
+          <Field label="Origin" value={f.origin} onChange={(v) => set("origin", v)} placeholder="Gedeb, Ethiopia" required />
           <Field label="Farm / producer" value={f.farm} onChange={(v) => set("farm", v)} placeholder="Idido Station" />
         </TwoCol>
 
@@ -171,10 +179,11 @@ export function BagForm({
               }
             }}
             placeholder="e.g. SL28, Heirloom, Pink Bourbon…"
+            aria-label="Add a variety"
             className="h-auto flex-1 rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[13px] py-[11px] text-[16px] text-[var(--espresso)] md:text-[14.5px]"
           />
-          <Button variant="outline" onClick={addVariety}>
-            Add
+          <Button variant="outline" onClick={addVariety} disabled={!varInput.trim()} aria-label="Add variety">
+            <Icon name="plus" size={15} color="currentColor" /> Add
           </Button>
         </div>
         {varieties.length > 0 && (
@@ -190,7 +199,7 @@ export function BagForm({
                   borderRadius: 99,
                   background: "var(--surface-2)",
                   border: "1px solid var(--line-soft)",
-                  fontSize: 12.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 600,
                   color: "var(--coffee)",
                 }}
@@ -221,8 +230,10 @@ export function BagForm({
         {/* SCA score slider */}
         <div style={{ height: 22 }} />
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-          <Label>SCA cupping score</Label>
-          <span className="display" style={{ fontSize: 26, fontWeight: 700, color: scoreColor }}>
+          <div id="sca-score-label">
+            <Label>SCA cupping score</Label>
+          </div>
+          <span aria-hidden="true" className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700, color: scoreColor }}>
             {Number(f.sca).toFixed(1)}
           </span>
         </div>
@@ -232,12 +243,12 @@ export function BagForm({
           max={92}
           step={0.5}
           onValueChange={([v]) => set("sca", String(v))}
-          aria-label="SCA cupping score"
-          aria-valuetext={Number(f.sca).toFixed(1)}
+          aria-labelledby="sca-score-label"
+          aria-valuetext={`${Number(f.sca).toFixed(1)} out of 92`}
           className="mt-2.5 [&_[data-slot=slider-range]]:bg-transparent [&_[data-slot=slider-thumb]]:size-6 [&_[data-slot=slider-thumb]]:border-[3px] [&_[data-slot=slider-thumb]]:border-[var(--espresso)] [&_[data-slot=slider-thumb]]:bg-[var(--surface)] [&_[data-slot=slider-thumb]]:shadow-[var(--shadow-md)] [&_[data-slot=slider-track]]:bg-[linear-gradient(90deg,var(--mocha),var(--caramel),var(--sage))]"
         />
         <div
-          style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--mocha)", marginTop: 4 }}
+          style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-2xs)", color: "var(--mocha)", marginTop: 4 }}
           className="mono"
         >
           <span>80 · GOOD</span>
@@ -254,7 +265,7 @@ export function BagForm({
       </div>
       <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
-          <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
+          <div role="alert" style={{ marginBottom: 10, fontSize: "var(--text-sm)", color: "var(--berry)" }}>
             {error}
           </div>
         )}
@@ -272,19 +283,26 @@ export function Field({
   value,
   onChange,
   placeholder,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <label style={{ display: "block", marginBottom: 18, flex: 1 }}>
-      <UiLabel style={{ fontSize: 13, fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{label}</UiLabel>
+      <UiLabel style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>
+        {label}
+        {required && <RequiredMark />}
+      </UiLabel>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-required={required || undefined}
+        required={required || undefined}
         className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[13px] py-[11px] text-[16px] text-[var(--espresso)] md:text-[14.5px]"
       />
     </label>
@@ -321,7 +339,7 @@ export function ChipRow({
             minHeight: 44,
             padding: "8px 14px",
             borderRadius: 99,
-            fontSize: 12.5,
+            fontSize: "var(--text-xs)",
             fontWeight: 600,
             background: value === o ? "var(--espresso)" : "var(--surface)",
             color: value === o ? "var(--cream)" : "var(--coffee)",

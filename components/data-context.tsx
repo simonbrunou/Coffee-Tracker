@@ -49,6 +49,12 @@ export function DataProvider({
   currentUserId: string | null;
   children: React.ReactNode;
 }) {
+  // Index roasters by id once per `roasters` change so `roaster(id)` is an O(1)
+  // map lookup instead of a linear `.find()` on every call (cards resolve their
+  // roaster on each render). Same return values, including `undefined` for
+  // unknown/empty ids.
+  const roastersById = useMemo(() => new Map(roasters.map((r) => [r.id, r])), [roasters]);
+
   const value = useMemo<DataApi>(
     () => ({
       ROASTERS: roasters,
@@ -63,10 +69,10 @@ export function DataProvider({
       ROAST_LEVELS,
       PROCESSES,
       currentUserId,
-      roaster: (id) => (id ? roasters.find((r) => r.id === id) : undefined),
+      roaster: (id) => (id ? roastersById.get(id) : undefined),
       shelf: () => myShelf,
     }),
-    [roasters, feed, me, myTastings, myShelf, savedTastings, wishlistBeans, currentUserId],
+    [roasters, roastersById, feed, me, myTastings, myShelf, savedTastings, wishlistBeans, currentUserId],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

@@ -7,6 +7,7 @@ import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
 import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
+import type { IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { relativeTime } from "@/lib/relative-time";
@@ -40,7 +41,7 @@ export function ScreenHead({
           <div
             className="mono"
             style={{
-              fontSize: 11.5,
+              fontSize: "var(--text-2xs)",
               letterSpacing: "0.14em",
               textTransform: "uppercase",
               color: "var(--caramel-deep)",
@@ -50,11 +51,24 @@ export function ScreenHead({
             {kicker}
           </div>
         )}
-        <h1 className="display" style={{ fontSize: 34, fontWeight: 600, lineHeight: 1.05, letterSpacing: "-0.01em" }}>
+        <h1
+          className="display"
+          style={{ fontSize: "var(--text-4xl)", fontWeight: 600, lineHeight: 1.05, letterSpacing: "-0.01em" }}
+        >
           {title}
         </h1>
         {sub && (
-          <p style={{ fontSize: 14.5, color: "var(--mocha)", marginTop: 8, maxWidth: 460, textWrap: "pretty" }}>{sub}</p>
+          <p
+            style={{
+              fontSize: "var(--text-base)",
+              color: "var(--mocha)",
+              marginTop: 8,
+              maxWidth: 460,
+              textWrap: "pretty",
+            }}
+          >
+            {sub}
+          </p>
         )}
       </div>
       {action}
@@ -77,6 +91,7 @@ export function FeedScreen({
   setFilter: (f: string) => void;
 }) {
   const D = useData();
+  const { openBrew } = useShell();
   const tabs = ["Recent", "Following", "Popular"];
   // Recent page 1 ships in the server payload (D.feed); load-more + other tabs
   // fetch keyset pages via the loadMoreFeed action (M3·D).
@@ -103,7 +118,7 @@ export function FeedScreen({
         ? "The most-loved brews on Cortado right now."
         : "The latest brews across Cortado.";
   return (
-    <div style={{ maxWidth: 620, margin: "0 auto" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <ScreenHead kicker="Your daily pour" title="The Feed" sub={sub} />
       <div role="group" aria-label="Filter feed" style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {tabs.map((t) => {
@@ -116,7 +131,7 @@ export function FeedScreen({
               style={{
                 padding: "8px 16px",
                 borderRadius: 99,
-                fontSize: 13.5,
+                fontSize: "var(--text-sm)",
                 fontWeight: 600,
                 background: active ? "var(--espresso)" : "var(--surface)",
                 color: active ? "var(--cream)" : "var(--coffee)",
@@ -130,11 +145,23 @@ export function FeedScreen({
         })}
       </div>
       {tabLoading ? (
-        <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--mocha)", fontSize: 14 }}>Loading…</div>
+        <div
+          style={{ textAlign: "center", padding: "48px 20px", color: "var(--mocha)", fontSize: "var(--text-base)" }}
+        >
+          Loading…
+        </div>
       ) : filter === "Following" && rows.length === 0 ? (
         <FeedEmpty
+          icon="user"
           title="You're not following anyone yet"
           hint="Find people and roasters to follow over on Discover."
+        />
+      ) : rows.length === 0 ? (
+        <FeedEmpty
+          icon="drop"
+          title="Your feed is brewing"
+          hint="Log your first brew and it'll appear here — alongside tastings from people you follow."
+          cta={{ label: "Log your first brew", onClick: () => openBrew() }}
         />
       ) : (
         <>
@@ -164,15 +191,32 @@ export function FeedScreen({
   );
 }
 
-// Empty state for feed tabs (e.g. Following with no follows yet).
-function FeedEmpty({ title, hint }: { title: string; hint: string }) {
+// Empty state for feed tabs (e.g. a brand-new Feed, or Following with no follows yet).
+function FeedEmpty({
+  title,
+  hint,
+  icon = "user",
+  cta,
+}: {
+  title: string;
+  hint: string;
+  icon?: IconName;
+  cta?: { label: string; onClick: () => void };
+}) {
   return (
     <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
       <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-        <Icon name="user" size={40} />
+        <Icon name={icon} size={40} />
       </div>
-      <p style={{ fontSize: 16, fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
-      <p style={{ fontSize: 14, marginTop: 6 }}>{hint}</p>
+      <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
+      <p style={{ fontSize: "var(--text-base)", marginTop: 6, maxWidth: 360, marginInline: "auto" }}>{hint}</p>
+      {cta && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <Button onClick={cta.onClick}>
+            <Icon name="drop" size={17} color="currentColor" /> {cta.label}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -260,7 +304,7 @@ export function JournalScreen({
               style={{
                 padding: "10px 4px",
                 marginBottom: -1,
-                fontSize: 15,
+                fontSize: "var(--text-md)",
                 fontWeight: 600,
                 color: active ? "var(--espresso)" : "var(--mocha)",
                 borderBottom: "2px solid " + (active ? "var(--caramel)" : "transparent"),
@@ -268,7 +312,7 @@ export function JournalScreen({
             >
               {lbl}
               {count != null && (
-                <span style={{ marginLeft: 7, fontSize: 12, color: "var(--mocha)" }}>{count}</span>
+                <span style={{ marginLeft: 7, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>{count}</span>
               )}
             </button>
           );
@@ -276,49 +320,54 @@ export function JournalScreen({
       </div>
 
       {section === "shelf" ? (
-        <div
-          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}
-        >
-          <button
-            onClick={onAddBag}
-            aria-label="Add a bag to your shelf"
-            style={{
-              minHeight: 132,
-              borderRadius: "var(--r-lg)",
-              border: "2px dashed var(--line)",
-              background: "transparent",
-              color: "var(--mocha)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              fontSize: 13.5,
-              fontWeight: 600,
-            }}
+        shelf.length === 0 ? (
+          <JournalEmpty
+            icon="bookmark"
+            title="Your shelf is empty"
+            hint="Add the bags you're brewing with to track what's left and rate every pour."
+            cta={{ label: "Add your first bag", icon: "plus", onClick: onAddBag }}
+          />
+        ) : (
+          <div
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}
           >
-            <Icon name="plus" size={26} color="var(--mocha)" /> Add a bag
-          </button>
-          {shelf.map((b, i) => (
-            <ShelfCard key={b.id} bag={b} onBrew={onBrew} onOpen={onOpenBean} delay={i * 40} />
-          ))}
-        </div>
+            <button
+              onClick={onAddBag}
+              aria-label="Add a bag to your shelf"
+              style={{
+                minHeight: 132,
+                borderRadius: "var(--r-lg)",
+                border: "2px dashed var(--line)",
+                background: "transparent",
+                color: "var(--mocha)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                fontSize: "var(--text-sm)",
+                fontWeight: 600,
+              }}
+            >
+              <Icon name="plus" size={26} color="var(--mocha)" /> Add a bag
+            </button>
+            {shelf.map((b, i) => (
+              <ShelfCard key={b.id} bag={b} onBrew={onBrew} onOpen={onOpenBean} delay={i * 40} />
+            ))}
+          </div>
+        )
       ) : section === "saved" ? (
         savedTastings.length === 0 && wishlistedBeans.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-            <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-              <Icon name="bookmark" size={40} />
-            </div>
-            <p style={{ fontSize: 16, fontWeight: 600, color: "var(--coffee)" }}>Nothing saved yet</p>
-            <p style={{ fontSize: 14, marginTop: 6 }}>
-              Save a brew you love, or mark a bean you want to try.
-            </p>
-          </div>
+          <JournalEmpty
+            icon="bookmark"
+            title="Nothing saved yet"
+            hint="Save a brew you love, or mark a bean you want to try."
+          />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
             {savedTastings.length > 0 && (
               <div>
-                <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
+                <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 14 }}>
                   Saved brews
                 </h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -337,7 +386,7 @@ export function JournalScreen({
             )}
             {wishlistedBeans.length > 0 && (
               <div>
-                <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
+                <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 14 }}>
                   Want to try
                 </h2>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
@@ -349,6 +398,13 @@ export function JournalScreen({
             )}
           </div>
         )
+      ) : mine.length === 0 ? (
+        <JournalEmpty
+          icon="drop"
+          title="No brews logged yet"
+          hint="Pull a shot, pour a cup, and log how it tasted. Your tasting history builds from here."
+          cta={{ label: "Log your first brew", icon: "drop", onClick: () => onBrew() }}
+        />
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 16 }}>
@@ -424,11 +480,11 @@ export function JournalScreen({
                   }}
                 >
                   <BeanBag color={t.beanColor} size={44} />
-                  <div className="display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
+                  <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-md)", lineHeight: 1.15 }}>
                     {t.beanName}
                   </div>
                   <BeanRating value={t.rating} size={13} />
-                  <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>
+                  <div style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)" }}>
                     {t.brew} · {relativeTime(t.createdAt)}
                   </div>
                 </button>
@@ -436,6 +492,36 @@ export function JournalScreen({
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// Friendly empty state for the Journal sections (no brews / empty shelf / nothing saved).
+function JournalEmpty({
+  title,
+  hint,
+  icon,
+  cta,
+}: {
+  title: string;
+  hint: string;
+  icon: IconName;
+  cta?: { label: string; icon: IconName; onClick: () => void };
+}) {
+  return (
+    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
+      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
+        <Icon name={icon} size={40} />
+      </div>
+      <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
+      <p style={{ fontSize: "var(--text-base)", marginTop: 6, maxWidth: 360, marginInline: "auto" }}>{hint}</p>
+      {cta && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <Button onClick={cta.onClick}>
+            <Icon name={cta.icon} size={17} color="currentColor" /> {cta.label}
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -482,18 +568,18 @@ function ShelfCard({
       >
         <BeanBag color={bag.color} size={42} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="display" style={{ fontWeight: 600, fontSize: 15.5, lineHeight: 1.1 }}>
+          <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-md)", lineHeight: 1.1 }}>
             {bag.name}
           </div>
-          <div style={{ fontSize: 12, color: "var(--mocha)", marginTop: 2 }}>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 2 }}>
             {roaster ? roaster.name : bag.roasterName}
           </div>
           {bag.scaScore ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 7 }}>
-              <span className="mono" style={{ fontSize: 10, color: "var(--mocha)", letterSpacing: "0.05em" }}>
+              <span className="mono" style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)", letterSpacing: "0.05em" }}>
                 SCA
               </span>
-              <span style={{ fontWeight: 700, fontSize: 13, color: "var(--caramel-deep)" }}>{bag.scaScore}</span>
+              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{bag.scaScore}</span>
             </div>
           ) : null}
         </div>
@@ -502,7 +588,7 @@ function ShelfCard({
         {bag.remaining != null && (
           <div style={{ marginBottom: 12 }}>
             <div
-              style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--mocha)", marginBottom: 4 }}
+              style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-2xs)", color: "var(--mocha)", marginBottom: 4 }}
               className="mono"
             >
               <span>{bag.remaining === 0 ? "EMPTY" : Math.round(bag.remaining * 100) + "% LEFT"}</span>
@@ -539,11 +625,14 @@ function Stat({ big, label, icon }: { big: React.ReactNode; label: string; icon?
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="display" style={{ fontSize: 28, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+      <div
+        className="display"
+        style={{ fontSize: "var(--text-3xl)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
+      >
         {icon && <BeanGlyph size={20} filled />}
         {big}
       </div>
-      <div style={{ fontSize: 12.5, color: "var(--mocha)", marginTop: 3 }}>{label}</div>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 3 }}>{label}</div>
     </div>
   );
 }
@@ -607,7 +696,7 @@ export function DiscoverScreen({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search beans, origins, flavor notes…"
-          className="h-auto rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] py-3 pl-12 pr-11 text-[15px] text-[var(--espresso)] shadow-[var(--shadow-sm)]"
+          className="h-auto rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] py-3 pl-12 pr-11 text-[length:var(--text-md)] text-[var(--espresso)] shadow-[var(--shadow-sm)]"
         />
         {query && (
           <button
@@ -631,7 +720,7 @@ export function DiscoverScreen({
               style={{
                 padding: "8px 18px",
                 borderRadius: 99,
-                fontSize: 13.5,
+                fontSize: "var(--text-sm)",
                 fontWeight: 600,
                 background: active ? "var(--espresso)" : "var(--surface)",
                 color: active ? "var(--cream)" : "var(--coffee)",
@@ -650,13 +739,13 @@ export function DiscoverScreen({
             <div style={{ marginBottom: 30 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                 <Icon name="trend" size={18} color="var(--caramel)" />
-                <h2 className="display" style={{ fontSize: 19, fontWeight: 600, whiteSpace: "nowrap" }}>
+                <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, whiteSpace: "nowrap" }}>
                   Trending this week
                 </h2>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                 {trending.map((b, i) => (
-                  <TrendingCard key={b.id} bean={b} rank={i + 1} onOpen={onOpenBean} />
+                  <TrendingCard key={b.id} bean={b} rank={i + 1} delay={i * 40} onOpen={onOpenBean} />
                 ))}
               </div>
             </div>
@@ -670,7 +759,7 @@ export function DiscoverScreen({
                 style={{
                   padding: "6px 13px",
                   borderRadius: 99,
-                  fontSize: 12.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 600,
                   background: process === p ? "var(--caramel-soft)" : "transparent",
                   color: process === p ? "var(--caramel-deep)" : "var(--mocha)",
@@ -708,13 +797,24 @@ export function DiscoverScreen({
   );
 }
 
-function TrendingCard({ bean, rank, onOpen }: { bean: Bean; rank: number; onOpen: (id: string) => void }) {
+function TrendingCard({
+  bean,
+  rank,
+  delay = 0,
+  onOpen,
+}: {
+  bean: Bean;
+  rank: number;
+  delay?: number;
+  onOpen: (id: string) => void;
+}) {
   const D = useData();
   return (
     <button
       onClick={() => onOpen(bean.id)}
       className="fade-up"
       style={{
+        animationDelay: delay + "ms",
         display: "flex",
         alignItems: "center",
         gap: 13,
@@ -726,18 +826,23 @@ function TrendingCard({ bean, rank, onOpen }: { bean: Bean; rank: number; onOpen
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="display" style={{ fontSize: 26, fontWeight: 700, color: "var(--caramel)", width: 26, textAlign: "center" }}>
+      <div
+        className="display"
+        style={{ fontSize: "var(--text-3xl)", fontWeight: 700, color: "var(--caramel)", width: 26, textAlign: "center" }}
+      >
         {rank}
       </div>
       <BeanBag color={bean.color} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.1 }}>
+        <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-md)", lineHeight: 1.1 }}>
           {bean.name}
         </div>
-        <div style={{ fontSize: 12, color: "var(--mocha)", marginTop: 2 }}>{D.roaster(bean.roasterId)?.name}</div>
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 2 }}>
+          {D.roaster(bean.roasterId)?.name}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
           <BeanGlyph size={13} filled />
-          <span style={{ fontWeight: 700, fontSize: 12.5 }}>{bean.avgRating}</span>
+          <span style={{ fontWeight: 700, fontSize: "var(--text-xs)" }}>{bean.avgRating}</span>
         </div>
       </div>
     </button>
@@ -761,17 +866,17 @@ function RoasterCard({ roaster, onOpen, delay }: { roaster: Roaster; onOpen: (id
     >
       <Placeholder label="roaster photo" h={96} color="var(--caramel)" />
       <div style={{ padding: "14px 16px 16px" }}>
-        <div className="display" style={{ fontSize: 18, fontWeight: 600 }}>
+        <div className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600 }}>
           {roaster.name}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "var(--mocha)", marginTop: 3 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 3 }}>
           <Icon name="pin" size={13} color="var(--mocha)" />
           {roaster.city} · est. {roaster.founded}
         </div>
-        <p style={{ fontSize: 13.5, color: "var(--coffee)", marginTop: 10, lineHeight: 1.5, textWrap: "pretty" }}>
+        <p style={{ fontSize: "var(--text-sm)", color: "var(--coffee)", marginTop: 10, lineHeight: 1.5, textWrap: "pretty" }}>
           {roaster.blurb}
         </p>
-        <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: 12.5, color: "var(--mocha)" }}>
+        <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
           <span>
             <b style={{ color: "var(--espresso)" }}>{roaster.beans}</b> beans
           </span>
@@ -790,7 +895,7 @@ function Empty({ query }: { query: string }) {
       <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
         <Icon name="search" size={40} />
       </div>
-      <p style={{ fontSize: 15 }}>No beans match “{query}”. Try another origin or flavor.</p>
+      <p style={{ fontSize: "var(--text-md)" }}>No beans match “{query}”. Try another origin or flavor.</p>
     </div>
   );
 }

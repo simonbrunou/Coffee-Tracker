@@ -42,12 +42,20 @@ export function FlavorWheelPicker({
                 borderRadius: 99,
                 background: "var(--surface-2)",
                 border: "1px solid var(--line-soft)",
-                fontSize: 12.5,
+                fontSize: "var(--text-xs)",
                 fontWeight: 600,
                 color: "var(--coffee)",
               }}
             >
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: WHEEL_FLAT[n] || "var(--mocha)" }} />
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background: WHEEL_FLAT[n] || "var(--mocha)",
+                  boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 22%, transparent)",
+                }}
+              />
               {n}
               <button onClick={() => toggle(n)} aria-label={`Remove ${n}`} style={{ display: "inline-flex", color: "var(--mocha)" }}>
                 <Icon name="close" size={13} color="var(--mocha)" />
@@ -92,13 +100,21 @@ export function FlavorWheelPicker({
                     borderRadius: 5,
                     background: cat.color,
                     flexShrink: 0,
-                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)",
+                    boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 18%, transparent)",
                   }}
                 />
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--espresso)" }}>{cat.name}</span>
+                <span style={{ fontSize: "var(--text-base)", fontWeight: 600, color: "var(--espresso)" }}>{cat.name}</span>
                 {countSel > 0 && (
                   <span
-                    style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: cat.color, borderRadius: 99, padding: "1px 7px" }}
+                    style={{
+                      fontSize: "var(--text-2xs)",
+                      fontWeight: 700,
+                      color: "#fff",
+                      background: cat.color,
+                      borderRadius: 99,
+                      padding: "1px 7px",
+                      boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 18%, transparent)",
+                    }}
                   >
                     {countSel}
                     <span className="sr-only"> selected</span>
@@ -113,7 +129,7 @@ export function FlavorWheelPicker({
                     {g.notes.length > 1 && (
                       <div
                         className="mono"
-                        style={{ fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 8 }}
+                        style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 8 }}
                       >
                         {g.name}
                       </div>
@@ -135,17 +151,29 @@ export function FlavorWheelPicker({
                               gap: 6,
                               padding: "6px 11px",
                               borderRadius: 99,
-                              fontSize: 12.5,
+                              fontSize: "var(--text-xs)",
                               fontWeight: 500,
                               background: on ? cat.color : "var(--surface-2)",
                               color: on ? "#fff" : "var(--coffee)",
                               border: "1px solid " + (on ? cat.color : "var(--line-soft)"),
+                              boxShadow: on ? "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 18%, transparent)" : undefined,
                               opacity: disabled ? 0.4 : 1,
                               cursor: disabled ? "not-allowed" : "pointer",
                               transition: "all 0.12s",
                             }}
                           >
-                            {!on && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />}
+                            {!on && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: "50%",
+                                  background: cat.color,
+                                  boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 22%, transparent)",
+                                }}
+                              />
+                            )}
                             {n}
                           </button>
                         );
