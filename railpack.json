@@ -5,17 +5,15 @@
     "node": "24"
   },
   "caches": {
-    "npm": { "directory": "/root/.npm", "type": "shared" },
-    "next": { "directory": "/app/.next/cache", "type": "shared" }
+    "npm": { "directory": "/root/.npm", "type": "shared" }
   },
   "steps": {
     "install": {
-      "commands": ["npm ci"],
+      "commands": ["npm ci --include=dev"],
       "caches": ["npm"]
     },
     "build": {
       "inputs": [{ "step": "install" }],
-      "caches": ["next"],
       "commands": [
         "npm run build",
         "cp -r .next/static .next/standalone/.next/static",
@@ -23,12 +21,16 @@
         "cp -r drizzle .next/standalone/drizzle",
         "mkdir -p .next/standalone/scripts",
         "cp scripts/migrate.mts .next/standalone/scripts/migrate.mts",
+        "mkdir -p .next/standalone/node_modules",
         "cp -r node_modules/drizzle-orm .next/standalone/node_modules/drizzle-orm"
       ]
     }
   },
   "deploy": {
-    "inputs": [{ "step": "build", "include": [".next/standalone"] }],
+    "inputs": [
+      { "step": "packages:mise", "include": ["/mise/shims", "/mise/installs"] },
+      { "step": "build", "include": [".next/standalone"] }
+    ],
     "startCommand": "node .next/standalone/server.js",
     "variables": {
       "NODE_ENV": "production",
