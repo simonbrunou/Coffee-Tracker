@@ -39,7 +39,12 @@ const queryDb = { query: (text: string, params?: unknown[]) => query(text, param
 // cookies via req.cookies); req is undefined from a server action's signIn()/
 // unstable_update() — both correct.
 export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(async (req) => ({
-  session: { strategy: "jwt", maxAge: 1800 }, // 30-min rolling
+  // 30-day rolling session: the JWT is re-issued at most once a day on activity
+  // (updateAge), so active users effectively never get logged out; only sessions
+  // idle for a full 30 days expire. Length is a UX choice — the real force-logout
+  // control is session_version revocation (isLiveSession), which invalidates every
+  // existing JWT immediately on "sign out everywhere" / password change.
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
   trustHost: true,
   pages: { signIn: "/login" },
   providers: [
