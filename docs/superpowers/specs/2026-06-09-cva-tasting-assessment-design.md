@@ -141,6 +141,11 @@ flavors").
 - `lib/brew-validation.ts`: add `validateTastingAssessment` — clamp each of the
   6 intensities to 0–15 or pass through null (reuse the existing `num()` /
   `clamp()` helpers). No flavor array on the assessment, so no array caps here.
+- **Sliders default to *unset* (null), not a midpoint.** A user who drags only
+  some sliders must leave the rest null — never emit a fabricated 7.5. The
+  schema, validation, and radar are all NULL-aware to support partial fills;
+  the UI must distinguish "unset" from a deliberate 0. Slider control primitive
+  and step/precision are a P2 implementer call.
 
 ### Write path
 
@@ -199,7 +204,9 @@ flavors").
   asserts 11 tables but deliberately applies only `0000_init.sql` (pre-migration
   constraint testing) — leave it at 11. Add a **new** integration test that uses
   `allMigrationsSql()` (`test/integration/_db.ts`) and asserts the full-schema
-  table count is **12**.
+  table count is **15** (the all-migrations schema has 14 tables today; the new
+  `tasting_assessments` makes 15 — note this is *not* `11 + 1`; the two tests
+  exercise different SQL surfaces).
 - `test/log-brew.test.ts` mocks only `query`; the transaction refactor changes
   the import surface — update the mock to also cover `withTransaction` and keep
   the ownership-guard SQL assertion.
@@ -235,7 +242,8 @@ commit P3's radar wiring.
 - **Integration:** 1:1 PK constraint; cascade delete from `tastings`; the 6
   intensity range CHECKs reject out-of-range; **new** full-schema table-count
   test (`allMigrationsSql` → 12); `getMyBeanRadar` (own-scoped, NULL-aware
-  per-axis counts, empty state when no assessments).
+  per-axis counts, empty state when no assessments). The new full-schema
+  table-count test asserts **15** (via `allMigrationsSql`).
 - **Action:** `logBrew`/`updateBrew` write the assessment in-transaction;
   ownership guard preserved; assessment skipped when no payload; `updateBrew`
   upsert sets `updated_at`.
