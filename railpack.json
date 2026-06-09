@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "24"
+  },
+  "caches": {
+    "npm": { "directory": "/root/.npm", "type": "shared" }
+  },
+  "steps": {
+    "install": {
+      "commands": ["npm ci --include=dev"],
+      "caches": ["npm"]
+    },
+    "build": {
+      "inputs": [{ "step": "install" }],
+      "commands": [
+        "npm run build",
+        "cp -r .next/static .next/standalone/.next/static",
+        "if [ -d public ]; then cp -r public .next/standalone/public; fi",
+        "cp -r drizzle .next/standalone/drizzle",
+        "mkdir -p .next/standalone/scripts",
+        "cp scripts/migrate.mts .next/standalone/scripts/migrate.mts",
+        "mkdir -p .next/standalone/node_modules",
+        "cp -r node_modules/drizzle-orm .next/standalone/node_modules/drizzle-orm"
+      ]
+    }
+  },
+  "deploy": {
+    "inputs": [
+      { "step": "packages:mise", "include": ["/mise/shims", "/mise/installs"] },
+      { "step": "build", "include": [".next/standalone"] }
+    ],
+    "startCommand": "node .next/standalone/server.js",
+    "variables": {
+      "NODE_ENV": "production",
+      "HOSTNAME": "0.0.0.0"
+    }
+  }
+}
