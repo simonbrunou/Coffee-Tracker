@@ -1,17 +1,17 @@
 "use client";
 /* ============ Cortado — Bean detail, Roaster detail, Profile ============ */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useData } from "./data-context";
 import { useShell } from "@/components/app-provider";
 import { useLoadMore } from "./use-load-more";
-import { loadMoreBeanReviews, loadMoreRoasterBeans } from "@/app/actions";
+import { loadMoreBeanReviews, loadMoreRoasterBeans, getMyBeanRadar } from "@/app/actions";
 import { BeanCard, TastingCard } from "./cards";
 import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
 import { flavorColor } from "@/lib/seed-data";
 import { computeTopFlavors } from "@/lib/profile-flavors";
-import type { Bean, Page, Tasting, User } from "@/lib/types";
+import type { Bean, BeanRadar, Page, Tasting, User } from "@/lib/types";
 
 // Shown when a /bean/:id or /roaster/:id deep-link points at an id not in the catalog.
 function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void }) {
@@ -65,6 +65,12 @@ export function BeanDetail({
   const { rows: reviews, loadMore, hasMore, pending } = useLoadMore(initialReviews, (c) =>
     loadMoreBeanReviews(beanId, c),
   );
+  const [radar, setRadar] = useState<BeanRadar | null>(null);
+  useEffect(() => {
+    let active = true;
+    getMyBeanRadar(beanId).then((r) => { if (active) setRadar(r); }).catch(() => {});
+    return () => { active = false; };
+  }, [beanId, reviews.length]); // refetch after a brew is logged from this screen (reviews grows)
   if (!bean) return <NotFoundPanel label="Bean" onBack={onBack} />;
   const wished = shell.wishedBeans.has(bean.id);
   const isOwner = bean.ownerId != null && bean.ownerId === D.currentUserId;
@@ -273,36 +279,28 @@ export function BeanDetail({
       </div>
 
       {/* flavor radar + chips */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "auto 1fr",
-          gap: 24,
-          alignItems: "center",
-          marginBottom: 30,
-          padding: 22,
-          background: "var(--surface)",
-          border: "1px solid var(--line-soft)",
-          borderRadius: "var(--r-lg)",
-          boxShadow: "var(--shadow-sm)",
-        }}
-        className="radar-row"
-      >
-        <FlavorRadar bean={bean} />
-        <div>
-          <h2 className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, marginBottom: 4 }}>
-            SCA tasting notes
-          </h2>
-          <p style={{ fontSize: "var(--text-sm)", color: "var(--mocha)", marginBottom: 14, lineHeight: 1.5 }}>
-            {bean.flavors.length ? "The roaster's official cupping notes." : "No notes recorded yet."}
-          </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {bean.flavors.map((f) => (
-              <FlavorChip key={f} flavor={f} />
-            ))}
-          </div>
+      {radar ? (
+        <div
+          style={{
+            display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center",
+            marginBottom: 30, padding: 22, background: "var(--surface)",
+            border: "1px solid var(--line-soft)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-sm)",
+          }}
+          className="radar-row"
+        >
+          <FlavorRadar bean={bean} radar={radar} />
+          <NotesBlock bean={bean} />
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            marginBottom: 30, padding: 22, background: "var(--surface)",
+            border: "1px solid var(--line-soft)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <NotesBlock bean={bean} />
+        </div>
+      )}
 
       {/* reviews */}
       <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 16 }}>
@@ -366,21 +364,32 @@ function Spec({ label, value, span }: { label: string; value: string; span?: boo
   );
 }
 
-// Radar built from flavor intensities (deterministic from bean)
-export function FlavorRadar({ bean }: { bean: Bean }) {
+function NotesBlock({ bean }: { bean: Bean }) {
+  return (
+    <div>
+      <h2 className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600, marginBottom: 4 }}>
+        SCA tasting notes
+      </h2>
+      <p style={{ fontSize: "var(--text-sm)", color: "var(--mocha)", marginBottom: 14, lineHeight: 1.5 }}>
+        {bean.flavors.length ? "The roaster's official cupping notes." : "No notes recorded yet."}
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {bean.flavors.map((f) => (
+          <FlavorChip key={f} flavor={f} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Radar built from the current user's averaged tasting intensities for this bean
+export function FlavorRadar({ bean, radar }: { bean: Bean; radar: BeanRadar | null }) {
   const axes = ["Body", "Acidity", "Sweetness", "Fruit", "Florals", "Finish"];
-  // Seed beans keep their original 'bN' shape; user bags ('b-<uuid>') hash the
-  // whole id so each gets a distinct radar (a single index would always be '-').
-  const seed =
-    bean.id.length <= 2
-      ? bean.id.charCodeAt(1)
-      : [...bean.id].reduce((s, ch) => s + ch.charCodeAt(0), 0);
-  const vals = axes.map((a, i) => {
-    let base = 0.5 + 0.4 * Math.sin(seed + i * 1.7);
-    if (bean.roast === "Dark" && (a === "Body" || a === "Finish")) base = 0.85;
-    if (bean.roast === "Light" && (a === "Acidity" || a === "Florals")) base = 0.82;
-    if (bean.process === "Natural" && a === "Fruit") base = 0.9;
-    return Math.round(Math.max(0.3, Math.min(0.95, base)) * 1000) / 1000;
+  if (!radar) return null; // caller collapses the card; nothing to draw
+  const order: (keyof BeanRadar)[] = ["body", "acidity", "sweetness", "fruit", "floral", "finish"];
+  const vals = order.map((k) => {
+    const v = radar[k] as number | null;
+    return v == null ? 0 : Math.round((v / 15) * 1000) / 1000;
   });
   const size = 150,
     c = size / 2,
