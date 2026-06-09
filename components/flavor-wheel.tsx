@@ -77,7 +77,7 @@ export function FlavorWheelPicker({
         type="single"
         collapsible
         value={openCat ?? ""}
-        onValueChange={(v) => setOpenCat(v || null)}
+        onValueChange={(v) => { setOpenCat(v || null); setDraft(""); }}
         style={{ display: "flex", flexDirection: "column", gap: 7 }}
       >
         {FLAVOR_WHEEL.map((cat) => {
