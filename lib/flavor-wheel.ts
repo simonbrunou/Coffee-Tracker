@@ -16,7 +16,7 @@ export const FLAVOR_WHEEL: WheelCategory[] = [
     name: "Fruity",
     color: "#C0264A",
     groups: [
-      { name: "Berry", notes: ["Blackberry", "Raspberry", "Blueberry", "Strawberry"] },
+      { name: "Berry", notes: ["Blackberry", "Raspberry", "Blueberry", "Strawberry", "Cranberry"] },
       { name: "Dried Fruit", notes: ["Raisin", "Prune"] },
       {
         name: "Other Fruit",

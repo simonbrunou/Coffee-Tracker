@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Icon } from "./ui";
 import { FLAVOR_WHEEL, WHEEL_FLAT } from "@/lib/flavor-wheel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Accordion,
   AccordionItem,
@@ -21,6 +23,13 @@ export function FlavorWheelPicker({
 }) {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const atMax = value.length >= max;
+  const [draft, setDraft] = useState("");
+  const addCustom = () => {
+    const v = draft.trim().slice(0, 40);
+    if (!v || value.includes(v) || value.length >= max) { setDraft(""); return; }
+    onChange([...value, v]);
+    setDraft("");
+  };
   const toggle = (n: string) => {
     if (value.includes(n)) onChange(value.filter((x) => x !== n));
     else if (value.length < max) onChange([...value, n]);
@@ -70,11 +79,12 @@ export function FlavorWheelPicker({
         type="single"
         collapsible
         value={openCat ?? ""}
-        onValueChange={(v) => setOpenCat(v || null)}
+        onValueChange={(v) => { setOpenCat(v || null); setDraft(""); }}
         style={{ display: "flex", flexDirection: "column", gap: 7 }}
       >
         {FLAVOR_WHEEL.map((cat) => {
           const open = openCat === cat.name;
+          // Counts wheel leaves only; free-text custom notes aren't tagged to a category (flat string[] model), so they show in the selected-chips row above, not in this per-category badge.
           const countSel = value.filter((v) => cat.groups.some((g) => g.notes.includes(v))).length;
           return (
             <AccordionItem
@@ -181,6 +191,29 @@ export function FlavorWheelPicker({
                     </div>
                   </div>
                 ))}
+                <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                  <Input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+                    maxLength={40}
+                    placeholder="Add your own…"
+                    aria-label={`Add a custom ${cat.name} note`}
+                    disabled={atMax}
+                    className="h-10 flex-1 rounded-full border-[var(--line)] bg-[var(--surface)] text-[length:var(--text-xs)] text-[var(--coffee)]"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addCustom}
+                    disabled={!draft.trim() || atMax}
+                    aria-label={`Add custom ${cat.name} note`}
+                    className="h-10 rounded-full border-[length:1px] text-[length:var(--text-xs)] font-semibold"
+                    style={{ borderColor: cat.color, color: cat.color }}
+                  >
+                    Add
+                  </Button>
+                </div>
               </AccordionContent>
             </AccordionItem>
           );

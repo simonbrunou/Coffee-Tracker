@@ -1,4 +1,5 @@
-import type { AddBagInput, LogBrewInput, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type { AddBagInput, LogBrewInput, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import { ASSESSMENT_AXES } from "@/lib/types";
 import { BREW_METHODS } from "@/lib/seed-data";
 
 type Ok<T> = { ok: true; value: T };
@@ -37,7 +38,8 @@ function validateBrewFields(r: Record<string, unknown>): Result<Omit<LogBrewInpu
   const brewRaw = str(r.brew).trim();
   const brew = BREW_ALLOW.includes(brewRaw) ? brewRaw : "V60";
   const note = str(r.note).slice(0, 1000);
-  return { ok: true, value: { rating, brew, note, dose: normalizeDose(r.dose), ratio: normalizeRatio(r.ratio), temp: normalizeTemp(r.temp) } };
+  const assessment = validateTastingAssessment(r.assessment);
+  return { ok: true, value: { rating, brew, note, dose: normalizeDose(r.dose), ratio: normalizeRatio(r.ratio), temp: normalizeTemp(r.temp), assessment } };
 }
 
 export function validateLogBrew(raw: unknown): Result<LogBrewInput> {
@@ -71,7 +73,7 @@ function validateBagFields(r: Record<string, unknown>): Result<AddBagInput> {
   const scaScore = clamp(num(r.scaScore) ?? 86, 80, 100);
   const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => (x as string).trim()).filter(Boolean) : []);
   const varieties = arr(r.varieties).slice(0, 12);
-  const flavors = arr(r.flavors).slice(0, 10);
+  const flavors = arr(r.flavors).map((s) => s.slice(0, 40)).slice(0, 10);
   return { ok: true, value: { name, roasterName, origin, farm, varieties, process, roast, scaScore, flavors, color } };
 }
 
@@ -85,4 +87,19 @@ export function validateUpdateBag(raw: unknown): Result<UpdateBagInput> {
   if (!id) return { ok: false, error: "Missing bag id." };
   const f = validateBagFields(r);
   return f.ok ? { ok: true, value: { id, ...f.value } } : f;
+}
+
+/** Clamp each of the six intensities to 0–15 or null. Returns null when the
+ *  whole assessment is empty (so callers skip writing a row). */
+export function validateTastingAssessment(raw: unknown): TastingAssessment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const out = {} as TastingAssessment;
+  let any = false;
+  for (const k of ASSESSMENT_AXES) {
+    const n = num(r[k]);
+    out[k] = n == null ? null : clamp(n, 0, 15);
+    if (out[k] != null) any = true;
+  }
+  return any ? out : null;
 }

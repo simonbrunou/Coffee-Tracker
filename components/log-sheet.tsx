@@ -16,12 +16,46 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type { AddBagInput, Bean, LogBrewInput, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import { TastingAssessmentFields, EMPTY_ASSESSMENT } from "./tasting-assessment-fields";
 
 // Section header inside the sheets (was the shared `Label`). Accepts an optional
 // `id` so a section prompt can label an associated control via aria-labelledby.
 function SectionLabel({ id, children }: { id?: string; children: React.ReactNode }) {
   return <div id={id} style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
+}
+
+// A controlled ghost-Button expander used by both "Add brew details" and "Add
+// tasting notes". The open state stays owned by the caller (BrewFlow reads it in
+// `submit`); this only renders the toggle + the fade-up content when open.
+function ToggleSection({
+  open,
+  onToggle,
+  label,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onToggle}
+        className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
+      >
+        <Icon name={open ? "close" : "plus"} size={15} color="var(--mocha)" /> {open ? "Hide" : "Add"} {label}
+      </Button>
+      {open && (
+        <div className="fade-up" style={{ marginTop: 12 }}>
+          {children}
+        </div>
+      )}
+    </>
+  );
 }
 
 export function LogSheet({
@@ -132,6 +166,8 @@ function BrewFlow({
   const [brew, setBrew] = useState(editBrew?.brew ?? "V60");
   const [note, setNote] = useState(editBrew?.note ?? "");
   const [showParams, setShowParams] = useState(hadParams);
+  const [showAssess, setShowAssess] = useState(false);
+  const [assessment, setAssessment] = useState<TastingAssessment>(EMPTY_ASSESSMENT);
   const [dose, setDose] = useState(hadParams ? editBrew!.dose.replace(/[^\d.]/g, "") : "15");
   const [ratio, setRatio] = useState(hadParams ? editBrew!.ratio.replace(/^1:/, "") : "16");
   const [temp, setTemp] = useState(hadParams ? editBrew!.temp.replace(/[^\d.]/g, "") : "94");
@@ -160,10 +196,13 @@ function BrewFlow({
       temp: showParams ? temp + "°C" : "—",
     };
     try {
-      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...params });
-      else await onLogBrew({ beanId, rating, ...params });
+      const payload = showAssess ? { ...params, assessment } : params;
+      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...payload });
+      else await onLogBrew({ beanId, rating, ...payload });
       setDone(true);
-      timerRef.current = setTimeout(onClose, 1300);
+      // Quick path auto-closes; if the user filled an assessment, let them dismiss
+      // manually so they can confirm their entries.
+      if (!showAssess) timerRef.current = setTimeout(onClose, 1300);
     } catch (e) {
       setPending(false);
       setError(e instanceof Error ? e.message : "Couldn't save that brew — please try again.");
@@ -172,10 +211,17 @@ function BrewFlow({
 
   if (done)
     return (
-      <DonePanel
-        title={isEdit ? "Brew updated!" : "Brew logged!"}
-        sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
-      />
+      <>
+        <DonePanel
+          title={isEdit ? "Brew updated!" : "Brew logged!"}
+          sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
+        />
+        {showAssess && (
+          <div style={{ padding: "0 20px calc(20px + env(safe-area-inset-bottom))" }}>
+            <Button onClick={onClose} className="w-full">Done</Button>
+          </div>
+        )}
+      </>
     );
 
   return (
@@ -291,22 +337,13 @@ function BrewFlow({
         </div>
 
         {/* Optional params */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowParams((s) => !s)}
-          className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
-          style={{ marginBottom: showParams ? 12 : 4 }}
-        >
-          <Icon name={showParams ? "close" : "plus"} size={15} color="var(--mocha)" /> {showParams ? "Hide" : "Add"} brew details
-        </Button>
-        {showParams && (
-          <div className="fade-up" style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <ToggleSection open={showParams} onToggle={() => setShowParams((s) => !s)} label="brew details">
+          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <MiniField label="Dose (g)" value={dose} onChange={setDose} />
             <MiniField label="Ratio (1:)" value={ratio} onChange={setRatio} />
             <MiniField label="Temp (°C)" value={temp} onChange={setTemp} />
           </div>
-        )}
+        </ToggleSection>
 
         {/* Note */}
         <SectionLabel>
@@ -319,6 +356,17 @@ function BrewFlow({
           placeholder="How did it taste today? How'd you dial it in?"
           className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[length:var(--text-base)]"
         />
+
+        {/* Assessment capture is log-only for v1: editing can't load an existing
+            assessment (Tasting carries none), so showing the expander on edit
+            would overwrite/null prior intensities. Hide it in edit mode. */}
+        {!isEdit && (
+          <div style={{ marginTop: 18 }}>
+            <ToggleSection open={showAssess} onToggle={() => setShowAssess((s) => !s)} label="tasting notes">
+              <TastingAssessmentFields value={assessment} onChange={setAssessment} />
+            </ToggleSection>
+          </div>
+        )}
       </div>
       <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
