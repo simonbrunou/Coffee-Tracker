@@ -82,6 +82,7 @@ export function FlavorWheelPicker({
       >
         {FLAVOR_WHEEL.map((cat) => {
           const open = openCat === cat.name;
+          // Counts wheel leaves only; free-text custom notes aren't tagged to a category (flat string[] model), so they show in the selected-chips row above, not in this per-category badge.
           const countSel = value.filter((v) => cat.groups.some((g) => g.notes.includes(v))).length;
           return (
             <AccordionItem
@@ -206,11 +207,12 @@ export function FlavorWheelPicker({
                   <button
                     onClick={addCustom}
                     disabled={!draft.trim() || atMax}
-                    aria-label="Add custom note"
+                    aria-label={`Add custom ${cat.name} note`}
                     style={{
                       minHeight: 40, padding: "0 14px", borderRadius: 99, fontWeight: 600,
                       fontSize: "var(--text-xs)", background: cat.color, color: "#fff",
                       opacity: !draft.trim() || atMax ? 0.4 : 1,
+                      cursor: !draft.trim() || atMax ? "not-allowed" : "pointer", transition: "opacity 0.12s",
                     }}
                   >
                     Add
