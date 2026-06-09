@@ -51,15 +51,17 @@ That write-in concept is exactly what is missing here.
    length cap (≤40 chars), count cap (≤10, already present). Independent of the
    picker (defense in depth).
 
-Back-compat: `getTopFlavors` (`lib/queries.ts:272`) is `unnest(b.flavors)` and is
-string-agnostic; free-text values aggregate exactly like wheel values. No schema
-or query change.
+Back-compat: `getTopFlavors` (`lib/queries.ts:272`, `unnest(b.flavors)` at
+`:275`) is string-agnostic; free-text values aggregate exactly like wheel
+values. No schema or query change.
 
 ## Tier 1 — lean per-tasting assessment + own-tasting radar
 
 ### Schema — new `tasting_assessments` table
 
 Add to `lib/db/schema.ts`; generate `drizzle/0007_tasting_assessments.sql`.
+**Six homogeneous intensity sliders, one per radar axis — all the same 0–15
+measured scale (no chip-derived axes).**
 
 ```
 tasting_assessments
@@ -67,10 +69,35 @@ tasting_assessments
   body_intensity      numeric  CHECK (body_intensity      IS NULL OR body_intensity      BETWEEN 0 AND 15)
   acidity_intensity   numeric  CHECK (acidity_intensity   IS NULL OR acidity_intensity   BETWEEN 0 AND 15)
   sweetness_intensity numeric  CHECK (sweetness_intensity IS NULL OR sweetness_intensity BETWEEN 0 AND 15)
+  fruit_intensity     numeric  CHECK (fruit_intensity     IS NULL OR fruit_intensity     BETWEEN 0 AND 15)
+  floral_intensity    numeric  CHECK (floral_intensity    IS NULL OR floral_intensity    BETWEEN 0 AND 15)
   finish_intensity    numeric  CHECK (finish_intensity    IS NULL OR finish_intensity    BETWEEN 0 AND 15)
-  flavors  text[] NOT NULL DEFAULT '{}'::text[]   -- the user's own per-cup notes (reuses the picker)
   created_at timestamptz NOT NULL DEFAULT now()
-  updated_at timestamptz
+  updated_at timestamptz                          -- nullable, no default; mirrors comments.updated_at
+```
+
+Drizzle form (matching the house pattern in `schema.ts`):
+
+```ts
+export const tastingAssessments = pgTable("tasting_assessments", {
+  tastingId: text("tasting_id").primaryKey()
+    .references(() => tastings.id, { onDelete: "cascade" }),
+  bodyIntensity:      numeric("body_intensity"),
+  acidityIntensity:   numeric("acidity_intensity"),
+  sweetnessIntensity: numeric("sweetness_intensity"),
+  fruitIntensity:     numeric("fruit_intensity"),
+  floralIntensity:    numeric("floral_intensity"),
+  finishIntensity:    numeric("finish_intensity"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (t) => [
+  check("ta_body_range",  sql`${t.bodyIntensity}      is null or ${t.bodyIntensity}      between 0 and 15`),
+  check("ta_acid_range",  sql`${t.acidityIntensity}   is null or ${t.acidityIntensity}   between 0 and 15`),
+  check("ta_sweet_range", sql`${t.sweetnessIntensity} is null or ${t.sweetnessIntensity} between 0 and 15`),
+  check("ta_fruit_range", sql`${t.fruitIntensity}     is null or ${t.fruitIntensity}     between 0 and 15`),
+  check("ta_floral_range",sql`${t.floralIntensity}    is null or ${t.floralIntensity}    between 0 and 15`),
+  check("ta_finish_range",sql`${t.finishIntensity}    is null or ${t.finishIntensity}    between 0 and 15`),
+]);
 ```
 
 - **1:1 via PK = FK.** No nullable FKs, no exactly-one CHECK (assessment has a
@@ -81,116 +108,155 @@ tasting_assessments
   assessment automatically (consistent with likes/comments/saves).
 - **No backfill.** Historical tastings simply have no assessment row (the
   natural empty state). Intensities cannot be reconstructed from existing data.
-- Add an index supporting the radar query: `tasting_assessments(tasting_id)` is
-  the PK; the radar joins via `tastings.bean_idx` (already exists).
+- **`updated_at` is NULL on insert** (the `logBrew`/initial path does not set
+  it) and set to `now()` only on the `updateBrew` upsert path — mirrors the
+  `comments.updated_at` convention. Do not add it to the INSERT column list.
+- Radar query joins via `tastings_bean_idx` (already exists, `schema.ts:120`);
+  the PK on `tasting_assessments` covers the assessment side.
 
 ### Captured fields → radar axes
 
-The radar (`components/detail.tsx:371`) has 6 axes. Mapping:
+The radar (`components/detail.tsx:371`) renders axes in this exact array order —
+the `FlavorRadar` value array MUST be built in the same order:
 
-| Radar axis | Source |
-|---|---|
-| Body | `avg(body_intensity)` |
-| Acidity | `avg(acidity_intensity)` |
-| Sweetness | `avg(sweetness_intensity)` |
-| Finish | `avg(finish_intensity)` |
-| Fruit | frequency of Fruity-category leaves in the user's tasting `flavors` |
-| Florals | frequency of Floral-category leaves in the user's tasting `flavors` |
+| # | Radar axis (code order) | Source |
+|---|---|---|
+| 0 | Body | `avg(body_intensity)` |
+| 1 | Acidity | `avg(acidity_intensity)` |
+| 2 | Sweetness | `avg(sweetness_intensity)` |
+| 3 | Fruit | `avg(fruit_intensity)` |
+| 4 | Florals | `avg(floral_intensity)` |
+| 5 | Finish | `avg(finish_intensity)` |
 
-Dropped from v1 (not rendered anywhere): the ~24 CATA checkbox grid, main tastes,
-mouthfeel CATA, per-section free descriptors, fragrance/aroma/flavor/aftertaste
-intensity split, roast level.
+All six axes are the same measured 0–15 quantity → divide by 15 for the 0–1
+polygon. No chip-frequency derivation, no `LEAF_CATEGORY` map, no second flavor
+list. Dropped from v1 (not rendered anywhere): the ~24 CATA checkbox grid, main
+tastes, mouthfeel CATA, per-section free descriptors, the fragrance/aroma/
+flavor/aftertaste intensity split, roast level, and per-tasting flavor-note
+capture (Tier 0 free-text + the bean's roaster chips already cover "what
+flavors").
 
-### Reference data + validation (no new lib files)
+### Validation (no new lib files)
 
-- `lib/flavor-wheel.ts`: add a derived `LEAF_CATEGORY: Record<string,string>`
-  map (built like `WHEEL_FLAT`) so a leaf resolves to its top category — used
-  for the Fruit/Florals radar derivation and free-text colouring.
-- `lib/brew-validation.ts`: add `validateTastingAssessment` — clamp the 4
-  intensities to 0–15 or null; reuse the Tier-0 flavor trim/length/count caps for
-  the assessment's `flavors`.
+- `lib/brew-validation.ts`: add `validateTastingAssessment` — clamp each of the
+  6 intensities to 0–15 or pass through null (reuse the existing `num()` /
+  `clamp()` helpers). No flavor array on the assessment, so no array caps here.
 
 ### Write path
 
 - `withTransaction` **already exists** (`lib/db.ts:46-64`, tested in
   `test/db.test.ts`) — reuse it.
-- `logBrew` (`app/actions.ts`) gains an optional `assessment` payload. Inside one
-  transaction: insert the tasting **with its existing embedded ownership guard**
-  (`from beans where id=$3 and user_id=$2`), then insert the assessment **only if
-  the tasting row was created** (preserve the `rows.length` check). Use
-  `client.query` inside the transaction.
-- `updateBrew` gains the same optional payload and upserts the assessment by PK
-  (`insert … on conflict (tasting_id) do update …`), so edits can add/fix an
-  assessment. Maintain `updated_at` on update.
+- `logBrew` (`app/actions.ts`) gains an optional `assessment` payload. When it is
+  present, run inside one transaction: insert the tasting **with its existing
+  embedded ownership guard** (`from beans where id=$3 and user_id=$2`), then
+  insert the assessment **only if the tasting row was created** (preserve the
+  `rows.length` check). Use `client.query` inside the transaction. When no
+  assessment payload is present, the existing single-query path is unchanged.
+- `updateBrew` gains the same optional payload; when present, wrap in a
+  transaction and upsert the assessment by PK (`insert … on conflict (tasting_id)
+  do update set …, updated_at = now()`), so edits can add/fix an assessment.
+  When absent, the existing `query()` path is unchanged.
 - Types: extend `LogBrewInput` / `UpdateBrewInput` (`lib/types.ts`) with an
-  optional `assessment` object.
+  optional `assessment` object. **The prop-chain TS signatures must update
+  together:** `BrewFlow.onLogBrew` → `LogSheet.onLogBrew` →
+  `app-provider.tsx handleLogBrew` all carry the extended input. `handleLogBrew`
+  needs no logic change — it passes the `assessment` field through opaquely; the
+  assessment is **not** added to the `Tasting` type or any optimistic update.
 
 ### Own-tasting radar
 
-- New server action `getMyBeanRadar(beanId)` (in `app/actions.ts` or
-  `lib/queries.ts`): averages the **current user's** assessments for that bean.
-  - NULL-aware: each intensity axis is `avg(col)` plus a per-axis `count(col)`
-    so axes computed over different sample sizes can be labelled/dimmed.
-  - Fruit/Florals: aggregate the user's tasting `flavors` for that bean, count
-    leaves whose `LEAF_CATEGORY` is Fruity / Floral, normalize.
-  - Scoped `where t.bean_id = $1 and t.user_id = $me`.
+- New server action `getMyBeanRadar(beanId)` — lives in `app/actions.ts` (it
+  calls the auth helper `getCurrentUserId()` / `requireVerifiedUserId()`, so it
+  must be a `"use server"` action, not a bare query fn). It averages the
+  **current user's** assessments for that bean.
+  - NULL-aware: each of the 6 axes is `avg(col)::float8` plus a per-axis
+    `count(col)` so axes computed over different sample sizes can be
+    labelled/dimmed.
+  - Scoped `from tasting_assessments ta join tastings t on t.id = ta.tasting_id
+    where t.bean_id = $1 and t.user_id = $me`.
   - Returns null/empty when the user has no assessments for the bean.
 - `BeanDetail` is a context-fed client component (no server props / no per-bean
-  server fetch today). It fetches the radar **lazily** on panel open (server
-  action via `useEffect`/`startTransition`). This is new wiring (~0.5–1 day).
-- `FlavorRadar` is rewritten to render real data or an **honest empty state**
-  ("not enough tastings yet"). The hash-fabricated radar (`detail.tsx:379`) is
-  removed.
+  server fetch today; the only existing read-action precedent is
+  `fetchComments`, called on user interaction in `comment-thread.tsx`). It
+  fetches the radar **lazily** via `useEffect`/`startTransition` keyed on
+  `beanId`, holding the result in local `useState`, with a loading state while
+  pending. After the user logs/edits a brew **with** an assessment from this
+  screen, the radar must **refetch** so the just-entered data lands without a
+  navigation round-trip. This is new wiring (~1–1.5 days).
+- `FlavorRadar` is rewritten to render real data or an **honest empty state**.
+  When the user has no assessments for the bean, **collapse the radar card
+  entirely** (don't render a large empty box) — ~95% of catalog beans have no
+  user assessment. The hash-fabricated radar (`detail.tsx:379`) is removed.
 
 ## Corrections folded in (from council review)
 
 - `withTransaction` already exists — reuse, do not rebuild.
 - `numeric` intensities (not integer); spell CHECKs as `col IS NULL OR col BETWEEN …`.
-- Array-length checks use `coalesce(array_length(col,1),0) <= N` form.
-- Per-item descriptor length caps are enforced in app validation (not a DB
-  constraint) — do not claim DB-level element-length enforcement.
-- Integration table-count assertion: `test/integration/constraints.test.ts:17`
-  asserts 11 but applies only `0000_init.sql`; the all-migrations schema check
-  (`allMigrationsSql`, `test/integration/_db.ts`) is the right target for the
-  new table (→12). Update whichever assertion actually exercises the full schema.
+- **Radar axis order** is `[Body, Acidity, Sweetness, Fruit, Florals, Finish]`
+  (`detail.tsx:371`); the value array and the column→axis mapping above are in
+  that order. A plan-writer must not reorder them.
+- **Table-count test does not exist yet.** `test/integration/constraints.test.ts:17`
+  asserts 11 tables but deliberately applies only `0000_init.sql` (pre-migration
+  constraint testing) — leave it at 11. Add a **new** integration test that uses
+  `allMigrationsSql()` (`test/integration/_db.ts`) and asserts the full-schema
+  table count is **12**.
 - `test/log-brew.test.ts` mocks only `query`; the transaction refactor changes
-  the import surface — update the mock and keep the ownership-guard assertion.
+  the import surface — update the mock to also cover `withTransaction` and keep
+  the ownership-guard SQL assertion.
+- `getMyBeanRadar` is a `"use server"` action in `app/actions.ts` (auth helper),
+  not a bare `lib/queries.ts` function.
+- **Success auto-close UX** (`log-sheet.tsx:166`, the 1300 ms `setTimeout(onClose)`):
+  keep the auto-close on the quick path (assessment expander never opened);
+  when the assessment fields were used, **do not auto-close** — let the user
+  dismiss the `DonePanel` manually so they can confirm their entries.
 
 ## Phasing (each independently shippable)
 
 - **Tier 0** — free-text picker + Cranberry + `brew-validation` hardening.
-- **P1** — `tasting_assessments` schema + migration + `LEAF_CATEGORY` +
-  `validateTastingAssessment` (+ unit tests; table-count test update).
-- **P2** — `<TastingAssessmentFields>` component (4 sliders + reused flavor
-  picker), opt-in "Add tasting notes" expander in `BrewFlow`
-  (`components/log-sheet.tsx`); `logBrew` + `updateBrew` transactional writes
+- **P1** — `tasting_assessments` schema + migration +
+  `validateTastingAssessment` (+ unit tests; new full-schema table-count test).
+- **P2** — `<TastingAssessmentFields>` component (6 intensity sliders), opt-in
+  "Add tasting notes" expander in `BrewFlow` (`components/log-sheet.tsx`);
+  `logBrew` + `updateBrew` transactional writes + prop-chain type updates
   (+ updated tests). Success auto-close timer stays on the quick path only.
-- **P3** — `getMyBeanRadar` + lazy load in `BeanDetail` + real/empty
-  `FlavorRadar` (retire the fabricated radar).
+- **P3** — `getMyBeanRadar` + lazy load + refetch in `BeanDetail` + real/empty
+  (collapsing) `FlavorRadar` (retire the fabricated radar).
+
+**Process gate:** P1→P2 can proceed continuously, but **gate P3 on observed P2
+assessment fill-rate** — the radar's entire value depends on users opting into
+the expander on a speed-oriented flow. Ship Tier 0 + P2, watch adoption, then
+commit P3's radar wiring.
 
 ## Testing
 
-- **Unit:** `validateTastingAssessment` (clamping 0–15, null handling, flavor
-  trim/length/count caps); `LEAF_CATEGORY` map (every wheel leaf resolves;
-  Fruity/Floral detection).
-- **Integration:** 1:1 PK constraint; cascade delete from `tastings`; intensity
-  range CHECKs reject out-of-range; table-count update; `getMyBeanRadar`
-  (own-scoped, NULL-aware per-axis counts, empty state when no assessments).
+- **Unit:** `validateTastingAssessment` (clamping 0–15, null pass-through for
+  each of the 6 intensities); Tier-0 `brew-validation` flavor hardening
+  (trim + ≤40 char per-item + ≤10 count).
+- **Integration:** 1:1 PK constraint; cascade delete from `tastings`; the 6
+  intensity range CHECKs reject out-of-range; **new** full-schema table-count
+  test (`allMigrationsSql` → 12); `getMyBeanRadar` (own-scoped, NULL-aware
+  per-axis counts, empty state when no assessments).
 - **Action:** `logBrew`/`updateBrew` write the assessment in-transaction;
-  ownership guard preserved; assessment skipped when no payload.
+  ownership guard preserved; assessment skipped when no payload; `updateBrew`
+  upsert sets `updated_at`.
 - **Known gap:** no component-test infra (no jsdom/testing-library). The
   assessment form gets logic-level coverage only; full DOM testing is out of
   scope unless a jsdom Vitest project is added.
 
 ## Estimated effort
 
-~3–4 developer-days for Tier 1 (P1–P3); Tier 0 ~1 day. Biggest non-obvious cost
-is the P3 lazy-fetch wiring into the context-fed `BeanDetail`.
+Tier 0 ~1 day. Tier 1: P1 ~0.5 day, P2 ~1.5–2 days, P3 ~1.5 days — ~3.5–4
+developer-days. Biggest non-obvious cost is the P3 lazy-fetch + refetch wiring
+into the context-fed `BeanDetail` (no existing on-mount read-fetch pattern).
 
 ## Out of scope / deferred
 
-- Full CVA descriptive form (7-section intensities, ~24 CATA grid, main tastes,
-  mouthfeel CATA, per-section free descriptors, roast level).
+- Full CVA descriptive form (fragrance/aroma/flavor/aftertaste intensity split,
+  ~24 CATA grid, main tastes, mouthfeel CATA, per-section free descriptors,
+  roast level).
 - CVA on the bean (reference assessment).
+- Per-tasting flavor-note capture (a "what I tasted" list distinct from the
+  bean's roaster notes) — dropped with the 6-slider radar; revisit only as its
+  own feature, not to feed the radar.
 - Community / cross-user radar aggregation (own-tasting only for v1).
 - Exporting CVA-format records.
