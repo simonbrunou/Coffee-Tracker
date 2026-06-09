@@ -16,7 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type { AddBagInput, Bean, LogBrewInput, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import { TastingAssessmentFields, EMPTY_ASSESSMENT } from "./tasting-assessment-fields";
 
 // Section header inside the sheets (was the shared `Label`). Accepts an optional
 // `id` so a section prompt can label an associated control via aria-labelledby.
@@ -132,6 +133,8 @@ function BrewFlow({
   const [brew, setBrew] = useState(editBrew?.brew ?? "V60");
   const [note, setNote] = useState(editBrew?.note ?? "");
   const [showParams, setShowParams] = useState(hadParams);
+  const [showAssess, setShowAssess] = useState(false);
+  const [assessment, setAssessment] = useState<TastingAssessment>(EMPTY_ASSESSMENT);
   const [dose, setDose] = useState(hadParams ? editBrew!.dose.replace(/[^\d.]/g, "") : "15");
   const [ratio, setRatio] = useState(hadParams ? editBrew!.ratio.replace(/^1:/, "") : "16");
   const [temp, setTemp] = useState(hadParams ? editBrew!.temp.replace(/[^\d.]/g, "") : "94");
@@ -160,10 +163,13 @@ function BrewFlow({
       temp: showParams ? temp + "°C" : "—",
     };
     try {
-      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...params });
-      else await onLogBrew({ beanId, rating, ...params });
+      const payload = showAssess ? { ...params, assessment } : params;
+      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...payload });
+      else await onLogBrew({ beanId, rating, ...payload });
       setDone(true);
-      timerRef.current = setTimeout(onClose, 1300);
+      // Quick path auto-closes; if the user filled an assessment, let them dismiss
+      // manually so they can confirm their entries.
+      if (!showAssess) timerRef.current = setTimeout(onClose, 1300);
     } catch (e) {
       setPending(false);
       setError(e instanceof Error ? e.message : "Couldn't save that brew — please try again.");
@@ -319,6 +325,22 @@ function BrewFlow({
           placeholder="How did it taste today? How'd you dial it in?"
           className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[length:var(--text-base)]"
         />
+
+        <div style={{ marginTop: 18 }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAssess((s) => !s)}
+            className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
+          >
+            <Icon name={showAssess ? "close" : "plus"} size={15} color="var(--mocha)" /> {showAssess ? "Hide" : "Add"} tasting notes
+          </Button>
+          {showAssess && (
+            <div className="fade-up" style={{ marginTop: 12 }}>
+              <TastingAssessmentFields value={assessment} onChange={setAssessment} />
+            </div>
+          )}
+        </div>
       </div>
       <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
