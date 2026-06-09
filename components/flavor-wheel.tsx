@@ -21,6 +21,13 @@ export function FlavorWheelPicker({
 }) {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const atMax = value.length >= max;
+  const [draft, setDraft] = useState("");
+  const addCustom = () => {
+    const v = draft.trim().slice(0, 40);
+    if (!v || value.includes(v) || value.length >= max) { setDraft(""); return; }
+    onChange([...value, v]);
+    setDraft("");
+  };
   const toggle = (n: string) => {
     if (value.includes(n)) onChange(value.filter((x) => x !== n));
     else if (value.length < max) onChange([...value, n]);
@@ -181,6 +188,34 @@ export function FlavorWheelPicker({
                     </div>
                   </div>
                 ))}
+                <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                  <input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+                    maxLength={40}
+                    placeholder="Add your own…"
+                    aria-label={`Add a custom ${cat.name} note`}
+                    disabled={atMax}
+                    style={{
+                      flex: 1, minHeight: 40, padding: "8px 12px", borderRadius: 99,
+                      border: "1px solid var(--line)", background: "var(--surface)",
+                      fontSize: "var(--text-xs)", color: "var(--coffee)",
+                    }}
+                  />
+                  <button
+                    onClick={addCustom}
+                    disabled={!draft.trim() || atMax}
+                    aria-label="Add custom note"
+                    style={{
+                      minHeight: 40, padding: "0 14px", borderRadius: 99, fontWeight: 600,
+                      fontSize: "var(--text-xs)", background: cat.color, color: "#fff",
+                      opacity: !draft.trim() || atMax ? 0.4 : 1,
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
               </AccordionContent>
             </AccordionItem>
           );
