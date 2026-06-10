@@ -4,6 +4,7 @@ import { query } from "./db";
 import { getCurrentUserId } from "./auth";
 import { getSessionState } from "./users-repo";
 import { type Page, decodeCursor, clampLimit, toPage } from "./pagination";
+import { escapeLike } from "./like";
 import type { AppData, AssessmentAxis, Bean, BeanRadar, Comment, PublicProfile, Roaster, Tasting, User } from "./types";
 import { ASSESSMENT_AXES } from "./types";
 
@@ -349,7 +350,8 @@ export async function getDiscoverBeansPage(
   const limit = clampLimit(opts.limit);
   const cur = decodeCursor(opts.cursor);
   const process = opts.process && opts.process !== "All" ? opts.process : null;
-  const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
+  // Escape LIKE metacharacters so a user's % / _ can't act as wildcards (I2).
+  const q = opts.q?.trim() ? `%${escapeLike(opts.q.trim())}%` : null;
   const { rows } = await query<Bean>(
     `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
      where ($2::timestamptz is null or (beans.created_at, beans.id) < ($2::timestamptz, $3))

@@ -7,7 +7,7 @@ import { randomAvatarTint } from "@/lib/avatar";
 import { validateSignup, type SignupInput } from "@/lib/signup-validation";
 import { createCredentialUser } from "@/lib/users-repo";
 import { sendVerificationEmail } from "@/lib/verify-email";
-import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
+import { throttle, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 import { mapRegisterError } from "@/lib/register-errors";
 
@@ -19,9 +19,9 @@ export async function registerUser(input: SignupInput): Promise<{ error: string 
   const ip = clientIp(hdrs.get("x-forwarded-for"), TRUSTED_PROXY_HOPS);
   warnIfUnknownIp(ip);
   // Cap the email in the key (RFC max 254) so a giant value can't bloat the PK.
-  if (!(await checkRateLimit(`signup:email:${input.email.toLowerCase().slice(0, 254)}`, RL_EMAIL_LIMIT))) return { error: "Too many attempts, try again later." };
+  if (!(await throttle(`signup:email:${input.email.toLowerCase().slice(0, 254)}`, RL_EMAIL_LIMIT))) return { error: "Too many attempts, try again later." };
   // Skip the per-IP check when the IP is unknown (see auth.ts rationale).
-  if (ip !== "unknown" && !(await checkRateLimit(`signup:ip:${ip}`, RL_IP_LIMIT))) return { error: "Too many attempts, try again later." };
+  if (ip !== "unknown" && !(await throttle(`signup:ip:${ip}`, RL_IP_LIMIT))) return { error: "Too many attempts, try again later." };
 
   const v = validateSignup(input);
   if (!v.ok) return { error: v.error };

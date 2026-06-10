@@ -2,10 +2,13 @@
 import { signOut } from "@/auth";
 import { pool, withTransaction } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
+import { confirmPasswordReauth } from "@/lib/reauth";
 import { bumpSessionVersion, deleteUserWithPii } from "@/lib/users-repo";
 
 // Match the repo's Queryable wrapper pattern (see app/auth-actions.ts).
 const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, params) };
+
+const REAUTH_ERROR = "Incorrect password. Please try again.";
 
 /** "Sign out everywhere": bump the session_version so EVERY device's frozen JWT
  *  is stale on its next request (reads via getCurrentUserId, writes via
@@ -25,9 +28,14 @@ export async function signOutAllDevices(): Promise<void> {
  *  session-clearing cookie BEFORE the
  *  redirect throw and JWT signOut needs no DB, so the user is logged out on this
  *  same response; read-path revocation (row gone → getSessionVersion null →
- *  getCurrentUserId null) is a backstop only if signOut fails before that write. */
-export async function deleteAccount(): Promise<void> {
+ *  getCurrentUserId null) is a backstop only if signOut fails before that write.
+ *  Requires password re-confirmation for credential users (L3) so a hijacked
+ *  session can't irreversibly delete the account; returns {error} on a failed
+ *  confirm and only throws the success redirect once the delete has run. */
+export async function deleteAccount(confirmPassword?: string): Promise<{ error: string }> {
   const userId = await requireUserId();
+  if (!(await confirmPasswordReauth(userId, confirmPassword))) return { error: REAUTH_ERROR };
   await withTransaction((c) => deleteUserWithPii({ query: (t, p) => c.query(t, p) }, userId));
   await signOut({ redirectTo: "/" }); // redirect throws — last statement
+  return { error: "" }; // unreachable on success (redirect thrown)
 }

@@ -4,17 +4,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // vi.mock factories + the static SUT import run. A bare `const x = vi.fn()`
 // referenced directly inside a factory throws a TDZ ReferenceError under
 // vitest's hoisting ("Cannot access 'x' before initialization").
-const { requireUserId, signOut, bumpSessionVersion, deleteUserWithPii, withTransaction, poolQuery } = vi.hoisted(() => ({
+const { requireUserId, signOut, bumpSessionVersion, deleteUserWithPii, withTransaction, poolQuery, confirmPasswordReauth } = vi.hoisted(() => ({
   requireUserId: vi.fn(async () => "u-me"),
   signOut: vi.fn(async () => {}),
   bumpSessionVersion: vi.fn(async () => {}),
   deleteUserWithPii: vi.fn(async () => {}),
   withTransaction: vi.fn(),
   poolQuery: vi.fn(async () => ({ rows: [] })),
+  confirmPasswordReauth: vi.fn(async () => true),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireUserId }));
 vi.mock("@/auth", () => ({ signOut }));
+vi.mock("@/lib/reauth", () => ({ confirmPasswordReauth }));
 vi.mock("@/lib/users-repo", () => ({ bumpSessionVersion, deleteUserWithPii }));
 vi.mock("@/lib/db", () => ({ pool: { query: poolQuery }, withTransaction, query: vi.fn() }));
 
@@ -27,6 +29,8 @@ beforeEach(() => {
   bumpSessionVersion.mockClear();
   deleteUserWithPii.mockClear();
   withTransaction.mockReset();
+  confirmPasswordReauth.mockReset();
+  confirmPasswordReauth.mockResolvedValue(true);
 });
 
 describe("signOutAllDevices", () => {
@@ -47,8 +51,10 @@ describe("deleteAccount", () => {
     withTransaction.mockImplementation(async (fn: (c: unknown) => unknown) =>
       fn({ query: innerQuery }),
     );
-    await deleteAccount();
+    await deleteAccount("my-password");
     expect(requireUserId).toHaveBeenCalled();
+    // L3: re-auth is confirmed before any destructive work.
+    expect(confirmPasswordReauth).toHaveBeenCalledWith("u-me", "my-password");
     // deleteAccount delegates to deleteUserWithPii (delete user + purge email-keyed
     // rate_limits) inside the transaction, then signs out.
     expect(deleteUserWithPii).toHaveBeenCalledWith({ query: expect.any(Function) }, "u-me");
@@ -58,9 +64,17 @@ describe("deleteAccount", () => {
     );
   });
 
+  it("L3: aborts with an error (no delete) when re-auth fails", async () => {
+    confirmPasswordReauth.mockResolvedValueOnce(false);
+    const r = await deleteAccount("wrong");
+    expect(r.error).toMatch(/password/i);
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
   it("aborts before deleting if the auth gate throws (revoked/unauth)", async () => {
     requireUserId.mockRejectedValueOnce(new Error("Session revoked"));
-    await expect(deleteAccount()).rejects.toThrow(/revoked/i);
+    await expect(deleteAccount("pw")).rejects.toThrow(/revoked/i);
     expect(withTransaction).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();
   });

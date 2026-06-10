@@ -20,7 +20,7 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
   const handle = D.me?.handle ?? "";
   const [confirm, setConfirm] = useState("");
   const [armed, setArmed] = useState(false);
-  const canDelete = handle.length > 0 && confirm.trim() === handle;
+  const [deletePw, setDeletePw] = useState("");
 
   const router = useRouter();
   const params = useSearchParams();
@@ -30,12 +30,24 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
     params.get("linkError") === "expired" ? "That link expired — please try again." : "";
   const methodCount = (authMethods.hasPassword ? 1 : 0) + authMethods.providers.length;
   const [pw, setPw] = useState("");
+  // Current password, re-confirmed before any sign-in-method change or deletion (L3).
+  const [confirmPw, setConfirmPw] = useState("");
   const [err, setErr] = useState("");
   // Run a removal/add action; show its error, else refresh the server-fetched state.
   const run = async (fn: () => Promise<{ error: string }>) => {
     const r = await fn();
     if (r.error) setErr(r.error);
-    else { setErr(""); setPw(""); router.refresh(); }
+    else { setErr(""); setPw(""); setConfirmPw(""); router.refresh(); }
+  };
+  // Credential users must type their current password to confirm destructive changes.
+  const needsReauth = authMethods.hasPassword;
+  const reauthReady = !needsReauth || confirmPw.length > 0;
+  const canDelete = handle.length > 0 && confirm.trim() === handle && (!needsReauth || deletePw.length > 0);
+  const [deleteErr, setDeleteErr] = useState("");
+  const onDelete = async () => {
+    // On success deleteAccount throws the Next redirect; only a failed re-auth returns.
+    const r = await deleteAccount(needsReauth ? deletePw : undefined);
+    if (r?.error) setDeleteErr(r.error);
   };
 
   return (
@@ -50,11 +62,27 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
         {(linkNote || err) && (
           <p role="status" style={{ fontSize: 13.5, color: "var(--caramel-deep)", marginBottom: 12 }}>{err || linkNote}</p>
         )}
+        {needsReauth && (
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="confirm-pw" style={{ display: "block", fontSize: 13.5, marginBottom: 4 }}>
+              Current password <span style={{ color: "var(--mocha)" }}>— required to remove or disconnect a method</span>
+            </label>
+            <Input
+              id="confirm-pw"
+              type="password"
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              placeholder="Your current password"
+              autoComplete="current-password"
+              style={{ maxWidth: 280 }}
+            />
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Password</span>
             {authMethods.hasPassword ? (
-              <Button variant="outline" size="sm" disabled={methodCount <= 1} onClick={() => run(() => removePassword())}>
+              <Button variant="outline" size="sm" disabled={methodCount <= 1 || !reauthReady} onClick={() => run(() => removePassword(confirmPw))}>
                 Remove
               </Button>
             ) : (
@@ -70,7 +98,7 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
               <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>{p.label}</span>
                 {linked ? (
-                  <Button variant="outline" size="sm" disabled={methodCount <= 1} onClick={() => run(() => unlinkOAuth(p.id))}>
+                  <Button variant="outline" size="sm" disabled={methodCount <= 1 || !reauthReady} onClick={() => run(() => unlinkOAuth(p.id, confirmPw))}>
                     Disconnect
                   </Button>
                 ) : (
@@ -112,11 +140,27 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
               placeholder={handle}
               autoComplete="off"
             />
-            <form action={deleteAccount}>
-              <Button type="submit" variant="destructive" disabled={!canDelete}>
-                Permanently delete account
-              </Button>
-            </form>
+            {needsReauth && (
+              <>
+                <label htmlFor="confirm-delete-pw" style={{ fontSize: 13.5 }}>
+                  Enter your current password:
+                </label>
+                <Input
+                  id="confirm-delete-pw"
+                  type="password"
+                  value={deletePw}
+                  onChange={(e) => setDeletePw(e.target.value)}
+                  placeholder="Your current password"
+                  autoComplete="current-password"
+                />
+              </>
+            )}
+            {deleteErr && (
+              <p role="alert" style={{ fontSize: 13.5, color: "var(--destructive, #b24a44)" }}>{deleteErr}</p>
+            )}
+            <Button variant="destructive" disabled={!canDelete} onClick={onDelete}>
+              Permanently delete account
+            </Button>
           </div>
         )}
       </section>

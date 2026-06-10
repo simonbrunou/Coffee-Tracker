@@ -11,7 +11,7 @@ import { consumeLinkToken } from "@/lib/link-tokens";
 import { linkAccount } from "@/lib/account-link-repo";
 import { githubEmailVerified } from "@/lib/oauth-email";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";
-import { checkRateLimit, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
+import { isRateLimited, recordAttempt, clearAttempts, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 
 declare module "next-auth" {
@@ -57,20 +57,31 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(asy
         const password = String(creds?.password ?? "");
         // Rate-limit the unauthenticated login endpoint by BOTH email and IP
         // (either tripping blocks): per-email stops targeted brute force, per-IP
-        // stops spraying one password across many emails.
+        // stops spraying one password across many emails. Only FAILED attempts are
+        // recorded and a success clears the email window, so an attacker can't wedge
+        // a victim out by burning the victim's own legitimate logins (M1).
         const ip = clientIp(request?.headers?.get("x-forwarded-for") ?? null, TRUSTED_PROXY_HOPS);
         warnIfUnknownIp(ip);
         // Cap the email in the key (RFC max 254) so a giant unvalidated value can't
         // bloat the rate_limits PK; the key is built before validateSignup runs.
-        if (!(await checkRateLimit(`login:email:${email.toLowerCase().slice(0, 254)}`, RL_EMAIL_LIMIT))) return null;
-        // Skip the per-IP check when the IP is unknown — never block on a shared
-        // "unknown" bucket (an XFF misconfig would otherwise lock out everyone).
-        if (ip !== "unknown" && !(await checkRateLimit(`login:ip:${ip}`, RL_IP_LIMIT))) return null;
+        const emailKey = `login:email:${email.toLowerCase().slice(0, 254)}`;
+        const ipKey = `login:ip:${ip}`;
+        const hasIp = ip !== "unknown"; // never block on a shared "unknown" bucket
+        if (await isRateLimited(emailKey, RL_EMAIL_LIMIT)) return null;
+        if (hasIp && (await isRateLimited(ipKey, RL_IP_LIMIT))) return null;
         const user = await findCredentialUserByEmail(poolDb, email);
         // Always run a bcrypt compare (dummy hash on the no-user path) so timing
         // is identical → no user-enumeration oracle.
         const ok = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
-        if (!user || !ok) return null;
+        if (!user || !ok) {
+          // Count the failure against both dimensions; legitimate users essentially
+          // never hit this, so it can't self-lock.
+          await recordAttempt(emailKey);
+          if (hasIp) await recordAttempt(ipKey);
+          return null;
+        }
+        // Success: clear ONLY the email window (not the IP one — see clearAttempts).
+        await clearAttempts(emailKey);
         return { id: user.id, sessionVersion: user.session_version } as unknown as { id: string };
       },
     }),
