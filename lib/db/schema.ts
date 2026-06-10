@@ -264,6 +264,11 @@ export const linkTokens = pgTable(
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
     tokenHash: text("token_hash").notNull(),
+    // What the single-use OAuth step-up proves: "link" (connect a provider) or
+    // "reauth_delete" (re-authenticate to confirm irreversible account deletion).
+    // Keyed alongside (user_id, provider) so the two flows never consume each
+    // other's nonce.
+    purpose: text("purpose").notNull().default("link"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

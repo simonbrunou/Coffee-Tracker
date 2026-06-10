@@ -6,9 +6,9 @@ import GitHub from "next-auth/providers/github";
 // is valid under `moduleResolution: bundler`.
 import type {} from "next-auth/jwt";
 import { pool, query, withTransaction } from "@/lib/db";
-import { findCredentialUserByEmail, resolveOrCreateOAuthUser, getSessionVersion } from "@/lib/users-repo";
+import { findCredentialUserByEmail, resolveOrCreateOAuthUser, getSessionVersion, deleteUserWithPii } from "@/lib/users-repo";
 import { consumeLinkToken } from "@/lib/link-tokens";
-import { linkAccount } from "@/lib/account-link-repo";
+import { linkAccount, accountOwner } from "@/lib/account-link-repo";
 import { githubEmailVerified } from "@/lib/oauth-email";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";
 import { isRateLimited, recordAttempt, recordAndCheck, clearAttempts, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
@@ -97,6 +97,24 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(asy
     // a normal sign-in (return true), unchanged behavior.
     async signIn({ account }) {
       if (!account || account.type === "credentials") return true;
+
+      // Reauth-to-delete branch: startDeleteReauth set a per-provider reauth nonce,
+      // so this OAuth callback is the user re-proving control of their provider
+      // before an irreversible delete. Consume the (purpose-scoped) nonce, verify
+      // the returning identity OWNS the account that requested deletion (a different
+      // Google/GitHub can't confirm someone else's delete), then hard-delete and
+      // return a redirect string — which short-circuits sign-in so NO session is
+      // created for the just-deleted user.
+      const delRaw = req?.cookies?.get(`reauth_delete_${account.provider}`)?.value;
+      if (delRaw) {
+        const consumed = await consumeLinkToken(queryDb, delRaw, account.provider, "reauth_delete");
+        if (!consumed) return "/settings?deleteError=expired";
+        const owner = await accountOwner(account.provider, account.providerAccountId);
+        if (!owner || owner !== consumed.userId) return "/settings?deleteError=mismatch";
+        await withTransaction((c) => deleteUserWithPii({ query: (t, p) => c.query(t, p) }, consumed.userId));
+        return "/?deleted=1";
+      }
+
       const raw = req?.cookies?.get(`link_nonce_${account.provider}`)?.value;
       if (!raw) return true; // normal OAuth login/signup → jwt resolves as today
       // R4: no cookie delete (unreliable inside the Auth.js callback); the atomic

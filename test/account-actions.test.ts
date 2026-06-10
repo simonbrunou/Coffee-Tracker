@@ -4,33 +4,44 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // vi.mock factories + the static SUT import run. A bare `const x = vi.fn()`
 // referenced directly inside a factory throws a TDZ ReferenceError under
 // vitest's hoisting ("Cannot access 'x' before initialization").
-const { requireUserId, signOut, bumpSessionVersion, deleteUserWithPii, withTransaction, poolQuery, confirmPasswordReauth } = vi.hoisted(() => ({
+const { requireUserId, signOut, signIn, bumpSessionVersion, deleteUserWithPii, withTransaction, poolQuery, confirmPasswordReauth, userHasPassword, createLinkToken, cookieSet } = vi.hoisted(() => ({
   requireUserId: vi.fn(async () => "u-me"),
   signOut: vi.fn(async () => {}),
+  signIn: vi.fn(async () => {}),
   bumpSessionVersion: vi.fn(async () => {}),
   deleteUserWithPii: vi.fn(async () => {}),
   withTransaction: vi.fn(),
   poolQuery: vi.fn(async () => ({ rows: [] })),
   confirmPasswordReauth: vi.fn(async () => true),
+  userHasPassword: vi.fn(async () => true),
+  createLinkToken: vi.fn(async () => "raw-nonce"),
+  cookieSet: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireUserId }));
-vi.mock("@/auth", () => ({ signOut }));
-vi.mock("@/lib/reauth", () => ({ confirmPasswordReauth, REAUTH_ERROR: "Incorrect password. Please try again." }));
+vi.mock("@/auth", () => ({ signOut, signIn }));
+vi.mock("@/lib/reauth", () => ({ confirmPasswordReauth, userHasPassword, REAUTH_ERROR: "Incorrect password. Please try again." }));
 vi.mock("@/lib/users-repo", () => ({ bumpSessionVersion, deleteUserWithPii }));
+vi.mock("@/lib/link-tokens", () => ({ createLinkToken }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ set: cookieSet }) }));
 vi.mock("@/lib/db", () => ({ pool: { query: poolQuery }, withTransaction, query: vi.fn() }));
 
-import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
+import { signOutAllDevices, deleteAccount, startDeleteReauth } from "@/app/account-actions";
 
 beforeEach(() => {
   requireUserId.mockClear();
   requireUserId.mockResolvedValue("u-me");
   signOut.mockClear();
+  signIn.mockClear();
   bumpSessionVersion.mockClear();
   deleteUserWithPii.mockClear();
   withTransaction.mockReset();
   confirmPasswordReauth.mockReset();
   confirmPasswordReauth.mockResolvedValue(true);
+  userHasPassword.mockReset();
+  userHasPassword.mockResolvedValue(true);
+  createLinkToken.mockClear();
+  cookieSet.mockClear();
 });
 
 describe("signOutAllDevices", () => {
@@ -77,5 +88,30 @@ describe("deleteAccount", () => {
     await expect(deleteAccount("pw")).rejects.toThrow(/revoked/i);
     expect(withTransaction).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("rejects an OAuth-only (password-less) user — they must use the provider re-auth flow", async () => {
+    userHasPassword.mockResolvedValueOnce(false);
+    const r = await deleteAccount();
+    expect(r.error).toMatch(/connected account/i);
+    expect(confirmPasswordReauth).not.toHaveBeenCalled(); // never reaches the no-op password check
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(deleteUserWithPii).not.toHaveBeenCalled();
+  });
+});
+
+describe("startDeleteReauth (OAuth re-auth before delete)", () => {
+  it("mints a reauth_delete nonce, sets the per-provider cookie, then starts OAuth", async () => {
+    await startDeleteReauth("google");
+    expect(createLinkToken).toHaveBeenCalledWith(expect.anything(), "u-me", "google", "reauth_delete");
+    expect(cookieSet).toHaveBeenCalledWith("reauth_delete_google", "raw-nonce", expect.objectContaining({ httpOnly: true, sameSite: "lax", maxAge: 600 }));
+    expect(signIn).toHaveBeenCalledWith("google", { redirectTo: "/settings" });
+    // the cookie is set BEFORE signIn so its Set-Cookie rides the OAuth 302
+    expect(cookieSet.mock.invocationCallOrder[0]).toBeLessThan(signIn.mock.invocationCallOrder[0]);
+  });
+  it("rejects an unsupported provider before minting anything", async () => {
+    await expect(startDeleteReauth("myspace")).rejects.toThrow(/unsupported/i);
+    expect(createLinkToken).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
   });
 });

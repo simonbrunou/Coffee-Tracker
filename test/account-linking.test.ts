@@ -7,8 +7,9 @@ describe("link-tokens lib", () => {
   const src = read("lib/link-tokens.ts");
   it("HMAC-binds to AUTH_SECRET and consumes provider-scoped + single-use", () => {
     expect(src).toMatch(/createHmac\("sha256", process\.env\.AUTH_SECRET/);
-    expect(src).toMatch(/delete from link_tokens where token_hash = \$1 and provider = \$2 and expires_at > now\(\)/i);
-    expect(src).toMatch(/delete from link_tokens where user_id = \$1 and provider = \$2/i); // prior-per-user-provider
+    // consume + prior-cleanup are now scoped by purpose too (link vs reauth_delete)
+    expect(src).toMatch(/delete from link_tokens where token_hash = \$1 and provider = \$2 and purpose = \$3 and expires_at > now\(\)/i);
+    expect(src).toMatch(/delete from link_tokens where user_id = \$1 and provider = \$2 and purpose = \$3/i);
   });
 });
 
@@ -28,6 +29,20 @@ describe("link start + signIn branch", () => {
     expect(src).toMatch(/linkAccount/);
     expect(src).toMatch(/"\/settings\?linkError=taken"/);
     expect(src).toMatch(/"\/settings\?linked=1"/);
+  });
+  it("auth.ts reauth-delete branch consumes the purpose-scoped nonce, verifies the OWNER, then deletes", () => {
+    const src = read("auth.ts");
+    // reads the per-provider reauth cookie and consumes the reauth_delete-scoped nonce
+    expect(src).toMatch(/reauth_delete_\$\{account\.provider\}/);
+    expect(src).toMatch(/consumeLinkToken\(queryDb, delRaw, account\.provider, "reauth_delete"\)/);
+    // SECURITY: the returning OAuth identity must own the account that requested delete
+    expect(src).toMatch(/accountOwner\(account\.provider, account\.providerAccountId\)/);
+    expect(src).toMatch(/owner !== consumed\.userId/);
+    // only then is the hard delete run; a redirect string short-circuits session creation
+    expect(src).toMatch(/deleteUserWithPii/);
+    expect(src).toMatch(/return "\/\?deleted=1"/);
+    // the owner-mismatch guard must return BEFORE the delete call runs
+    expect(src.search(/deleteError=mismatch/)).toBeLessThan(src.search(/deleteUserWithPii\(\{ query/));
   });
 });
 
