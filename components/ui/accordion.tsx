@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDownIcon } from "lucide-react"
 import { Accordion as AccordionPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
@@ -41,7 +40,20 @@ function AccordionTrigger({
         {...props}
       >
         {children}
-        <ChevronDownIcon className="pointer-events-none size-4 shrink-0 translate-y-0.5 text-muted-foreground transition-transform duration-200" />
+        {/* chevron-down (inline so we don't pull in an icon dep for one glyph);
+            the trigger's [&[data-state=open]>svg]:rotate-180 flips it on open. */}
+        <svg
+          className="pointer-events-none size-4 shrink-0 translate-y-0.5 text-muted-foreground transition-transform duration-200"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   )

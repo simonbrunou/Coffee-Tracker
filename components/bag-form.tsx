@@ -1,7 +1,7 @@
 "use client";
 /* ============ Cortado — Add a Bag (rich catalog form) ============ */
 import { useState } from "react";
-import { Icon } from "./ui";
+import { Icon, PillButton } from "./ui";
 import { BeanBag } from "./cards";
 import { FlavorWheelPicker } from "./flavor-wheel";
 import { SheetHeader, DonePanel, SheetLabel as Label } from "./sheet-chrome";
@@ -325,25 +325,9 @@ function ChipRow({
   return (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       {options.map((o) => (
-        <button
-          key={o}
-          onClick={() => onChange(o)}
-          aria-pressed={value === o}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            minHeight: 44,
-            padding: "8px 14px",
-            borderRadius: 99,
-            fontSize: "var(--text-xs)",
-            fontWeight: 600,
-            background: value === o ? "var(--espresso)" : "var(--surface)",
-            color: value === o ? "var(--cream)" : "var(--coffee)",
-            border: "1px solid " + (value === o ? "var(--espresso)" : "var(--line)"),
-          }}
-        >
+        <PillButton key={o} active={value === o} onClick={() => onChange(o)} padding="8px 14px" minHeight={44} fontSize="var(--text-xs)">
           {o}
-        </button>
+        </PillButton>
       ))}
     </div>
   );
