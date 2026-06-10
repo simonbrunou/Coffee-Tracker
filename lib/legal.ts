@@ -41,5 +41,16 @@ export const legal = {
       "LEGAL_LEGAL_BASES",
       "We process your account and content to perform our agreement with you (Art. 6(1)(b) GDPR), and we rate-limit and secure the service under our legitimate interests (Art. 6(1)(f) GDPR).",
     ),
-  dbTls: () => v("LEGAL_DB_TLS", "Database connections are encrypted with TLS in production."),
+  // Derived from the REAL DB-transport config so the page never over-claims: TLS is
+  // opt-in via DATABASE_SSL (off by default — the documented Coolify deploy reaches
+  // Postgres over a private Docker network, not the public internet). LEGAL_DB_TLS
+  // overrides if your posture differs.
+  dbTls: () => {
+    const override = process.env.LEGAL_DB_TLS?.trim();
+    if (override) return override;
+    const ssl = process.env.DATABASE_SSL?.trim();
+    return ssl === "require" || ssl === "no-verify"
+      ? "Connections between the application and our database are encrypted with TLS."
+      : "Our database is not exposed to the public internet; it is reached only over the host's private network. We enable TLS for database connections that cross a public network.";
+  },
 };
