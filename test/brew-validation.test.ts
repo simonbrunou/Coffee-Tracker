@@ -73,10 +73,10 @@ describe("validateAddBag flavor hardening", () => {
   const base = { name: "X", roasterName: "R", origin: "O", color: "#c98a4a" };
   it("trims and caps each flavor to 40 chars", () => {
     const long = "a".repeat(50);
-    const r = validateAddBag({ ...base, flavors: ["  Cranberry  ", long] });
+    const r = validateAddBag({ ...base, flavors: ["  Blackberry  ", long] });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value.flavors[0]).toBe("Cranberry");
+    expect(r.value.flavors[0]).toBe("Blackberry");
     expect(r.value.flavors[1]).toBe("a".repeat(40));
   });
   it("caps the flavor count at 10", () => {
