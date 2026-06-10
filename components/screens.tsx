@@ -6,7 +6,7 @@ import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
-import { BeanGlyph, BeanRating, EmptyState, Icon, LoadMoreButton, PillButton, Placeholder, RelTime, staggerMs } from "./ui";
+import { BeanGlyph, BeanRating, EmptyState, Icon, LoadMoreButton, PillButton, Placeholder, RelTime, ScaScore, staggerMs } from "./ui";
 import type { IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -525,11 +525,8 @@ function ShelfCard({
             {roaster ? roaster.name : bag.roasterName}
           </div>
           {bag.scaScore ? (
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 7 }}>
-              <span className="mono" style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)", letterSpacing: "0.05em" }}>
-                SCA
-              </span>
-              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{bag.scaScore}</span>
+            <div style={{ marginTop: 7 }}>
+              <ScaScore value={bag.scaScore} />
             </div>
           ) : null}
         </div>

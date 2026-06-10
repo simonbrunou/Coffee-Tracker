@@ -18,6 +18,17 @@ export function staggerMs(delay: number): string {
   return `${Math.min(delay, STAGGER_CAP_MS)}ms`;
 }
 
+/** The small inline "SCA <score>" chip shown on bean + shelf cards (the bean
+ *  detail hero keeps its own larger boxed variant). */
+export function ScaScore({ value }: { value: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+      <span className="mono" style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)", letterSpacing: "0.05em" }}>SCA</span>
+      <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{value}</span>
+    </span>
+  );
+}
+
 /** A rounded toggle pill (aria-pressed), hand-rolled six times across the app.
  *  `tone="solid"` is the espresso/surface selector (feed + discover tabs, brew
  *  method); `tone="soft"` is the smaller caramel filter chip (Discover process).

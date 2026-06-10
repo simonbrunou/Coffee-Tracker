@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "./app-provider";
-import { Avatar, BeanRating, FlavorChip, Icon, RelTime, RoastPill, Tag, staggerMs } from "./ui";
+import { Avatar, BeanRating, FlavorChip, Icon, RelTime, RoastPill, ScaScore, Tag, staggerMs } from "./ui";
 import { CommentThread } from "./comment-thread";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -406,12 +406,7 @@ export function BeanCard({
               <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>({bean.ratings})</span>
             </div>
           ) : bean.scaScore ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
-              <span className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.05em" }}>
-                SCA
-              </span>
-              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{bean.scaScore}</span>
-            </span>
+            <ScaScore value={bean.scaScore} />
           ) : (
             <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>New bag</span>
           )}
