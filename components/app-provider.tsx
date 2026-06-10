@@ -5,6 +5,7 @@
    render into {children} and read handlers/state via useShell(). */
 import { createContext, useContext, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 
 // useLayoutEffect on the client (runs before paint / before the browser's
 // scroll-clamp event), useEffect on the server to avoid the SSR warning.
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import { DataProvider } from "./data-context";
 import { LogSheet } from "./log-sheet";
 import { Avatar, Icon, type IconName } from "./ui";
+import { BrandMark as Logo } from "./brand-mark";
 import { Button } from "@/components/ui/button";
 import {
   logBrew as logBrewAction,
@@ -341,11 +343,11 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             </div>
             <nav aria-label="Primary" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {NAV.map((n) => (
-                <button key={n.id} onClick={() => router.push(n.href)} className="nav-item" data-active={activeId === n.id} aria-current={activeId === n.id ? "page" : undefined}>
+                <Link key={n.id} href={n.href} className="nav-item" data-active={activeId === n.id} aria-current={activeId === n.id ? "page" : undefined}>
                   <Icon name={n.icon} size={21} stroke={activeId === n.id ? 2 : 1.7} />
                   <span>{n.label}</span>
                   {n.id === "feed" && <span className="nav-dot" />}
-                </button>
+                </Link>
               ))}
             </nav>
             <div style={{ display: "flex", gap: 8, margin: "20px 0 0" }}>
@@ -361,7 +363,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 <>
                   {/* Identity gets its OWN full-width row so a long name truncates
                       with an ellipsis instead of wrapping into the controls. */}
-                  <button onClick={() => router.push("/profile")} className="nav-user">
+                  <Link href="/profile" className="nav-user">
                     <Avatar user={me} size={36} />
                     <div style={{ textAlign: "left", minWidth: 0 }}>
                       <div
@@ -387,7 +389,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                         @{me.handle}
                       </div>
                     </div>
-                  </button>
+                  </Link>
                   {/* Controls share a second full-width row, so nothing competes
                       with the identity for horizontal space. */}
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -466,13 +468,13 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
           {/* ---- Mobile bottom nav ---- */}
           <nav aria-label="Primary (mobile)" className="bottom-nav">
             {NAV.slice(0, 2).map((n) => (
-              <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
+              <BottomItem key={n.id} n={n} active={activeId === n.id} />
             ))}
             <button onClick={() => openBrew()} className="fab" aria-label="Log a brew">
               <Icon name="drop" size={24} color="var(--cream)" />
             </button>
             {NAV.slice(2).map((n) => (
-              <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
+              <BottomItem key={n.id} n={n} active={activeId === n.id} />
             ))}
           </nav>
 
@@ -510,39 +512,15 @@ function ThemeToggle({ mounted, isDark, onToggle }: { mounted: boolean; isDark: 
 function BottomItem({
   n,
   active,
-  onClick,
 }: {
-  n: { id: string; label: string; icon: IconName };
+  n: { id: string; label: string; icon: IconName; href: string };
   active: boolean;
-  onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="bottom-item" data-active={active} aria-current={active ? "page" : undefined}>
+    <Link href={n.href} className="bottom-item" data-active={active} aria-current={active ? "page" : undefined}>
       <Icon name={n.icon} size={23} stroke={active ? 2.1 : 1.7} />
       <span>{n.label}</span>
-    </button>
+    </Link>
   );
 }
 
-function Logo({ size = 38 }: { size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: "var(--espresso)",
-        flexShrink: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
-      <svg width={size * 0.56} height={size * 0.56} viewBox="0 0 24 24" fill="none">
-        <ellipse cx="12" cy="12" rx="7" ry="10" transform="rotate(35 12 12)" fill="var(--caramel)" />
-        <path d="M 7 6 Q 12 12 17 18" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}

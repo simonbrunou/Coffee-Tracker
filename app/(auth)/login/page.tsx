@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthCard, AuthDivider, OAuthButtons, AuthFooterLink } from "@/components/auth-card";
 
 export const metadata: Metadata = { title: "Sign in — Cortado", robots: { index: false, follow: false } };
 
@@ -35,29 +36,29 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   async function loginWithGoogle() { "use server"; await signIn("google", { redirectTo: "/" }); }
 
   return (
-    <div style={{ width: "100%", maxWidth: 380 }}>
-      <h1 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700, marginBottom: 6 }}>Sign in</h1>
-      <p style={{ fontSize: "var(--text-md)", color: "var(--mocha)", marginBottom: 22 }}>Welcome back to your coffee journal.</p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-        <form action={loginWithGithub}><Button type="submit" variant="outline" style={{ width: "100%" }}>Continue with GitHub</Button></form>
-        <form action={loginWithGoogle}><Button type="submit" variant="outline" style={{ width: "100%" }}>Continue with Google</Button></form>
-      </div>
-
+    <AuthCard
+      title="Sign in"
+      sub="Welcome back to your coffee journal."
+      footer={<AuthFooterLink prompt="No account?" href="/signup" label="Sign up" />}
+    >
+      <OAuthButtons githubAction={loginWithGithub} googleAction={loginWithGoogle} />
+      <AuthDivider />
       {error && (
         <p role="alert" style={{ color: "var(--berry)", fontSize: "var(--text-base)", marginBottom: 12 }}>
           Invalid email or password.
         </p>
       )}
       <form action={loginWithCredentials} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" autoComplete="email" required /></div>
-        <div><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" autoComplete="current-password" required /></div>
-        <Button type="submit" style={{ width: "100%" }}>Sign in</Button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" name="email" type="email" autoComplete="email" required />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" name="password" type="password" autoComplete="current-password" required />
+        </div>
+        <Button type="submit" style={{ width: "100%", marginTop: 4 }}>Sign in</Button>
       </form>
-
-      <p style={{ marginTop: 18, fontSize: "var(--text-base)", color: "var(--mocha)" }}>
-        No account? <a href="/signup" style={{ color: "var(--espresso)", fontWeight: 600 }}>Sign up</a>
-      </p>
-    </div>
+    </AuthCard>
   );
 }
