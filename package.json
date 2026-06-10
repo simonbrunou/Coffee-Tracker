@@ -43,7 +43,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.1.13",
-    "@types/node": "^24.13.1",
+    "@types/node": "^25.9.2",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
