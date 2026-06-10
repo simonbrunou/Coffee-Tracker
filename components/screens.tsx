@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import type { Bean, Page, Roaster, Tasting } from "@/lib/types";
 
 // ---------- Section header ----------
-export function ScreenHead({
+function ScreenHead({
   kicker,
   title,
   sub,

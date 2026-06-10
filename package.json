@@ -18,7 +18,9 @@
     "db:migrate": "node scripts/migrate.mts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "a11y:contrast": "node scripts/contrast-check.mjs",
+    "gen:icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -42,7 +44,6 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.1.13",
-    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.13.1",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.1.0",

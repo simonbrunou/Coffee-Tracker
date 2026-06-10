@@ -74,7 +74,7 @@ npm run db:setup     # apply migrations (additive, NON-destructive) + seed if em
 npm run db:reset     # DESTRUCTIVE: drop schema + re-migrate + seed
 ```
 
-To change the schema: edit `lib/db/schema.ts`, run `npx drizzle-kit generate`, review the new `drizzle/NNNN_*.sql`, then `npm run db:setup`. (See the `/migration` skill.) `db/schema.sql` is a frozen pre-Drizzle snapshot kept only as the fidelity oracle — do not edit it.
+To change the schema: edit `lib/db/schema.ts`, run `npx drizzle-kit generate`, review the new `drizzle/NNNN_*.sql`, then `npm run db:setup`. (See the `/migration` skill.)
 
 ## Integration tests (real Postgres)
 

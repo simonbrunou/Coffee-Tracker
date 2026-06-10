@@ -91,9 +91,10 @@ lib/
   seed-data.ts      seed catalog + static reference maps (flavor colors, methods)
   flavor-wheel.ts   SCA wheel taxonomy + leaf-color map
   db.ts             pg pool (server-only)
+  db/schema.ts      Drizzle table definitions (the schema source of truth)
   queries.ts        read queries
-db/schema.sql       tables (roasters, users, accounts, beans, tastings, likes)
-scripts/db-setup.ts schema + seed runner
+drizzle/*.sql       generated migrations (applied by db:setup / db:migrate)
+scripts/db-setup.ts migrate + seed runner
 ```
 
 ## Data model

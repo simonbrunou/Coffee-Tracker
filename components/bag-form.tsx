@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label as UiLabel } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
-export function Label({ children }: { children: React.ReactNode }) {
+function Label({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
 }
 
@@ -278,7 +278,7 @@ export function BagForm({
   );
 }
 
-export function Field({
+function Field({
   label,
   value,
   onChange,
@@ -309,7 +309,7 @@ export function Field({
   );
 }
 
-export function TwoCol({ children }: { children: React.ReactNode }) {
+function TwoCol({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", gap: 12 }} className="two-col">
       {children}
@@ -317,7 +317,7 @@ export function TwoCol({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ChipRow({
+function ChipRow({
   options,
   value,
   onChange,

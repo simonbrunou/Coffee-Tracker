@@ -239,7 +239,7 @@ function Param({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function BrewBadge({ brew }: { brew: string }) {
+function BrewBadge({ brew }: { brew: string }) {
   return (
     <Badge
       variant="outline"
