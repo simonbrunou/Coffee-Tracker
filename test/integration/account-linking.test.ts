@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 // account-link-repo + link-tokens take explicit args and import only @/lib/db —
 // no @/lib/auth mock needed (unlike tests that import the server actions).
 import { testPool } from "./_db";
-import { getAuthMethods, linkAccount, unlinkAccount, removeUserPassword, setUserPassword } from "@/lib/account-link-repo";
+import { getAuthMethods, linkAccount, unlinkAccount, removeUserPassword, setUserPassword, accountOwner } from "@/lib/account-link-repo";
 import { createLinkToken, consumeLinkToken } from "@/lib/link-tokens";
 import { pool as appPool } from "@/lib/db";
 
@@ -40,12 +40,35 @@ describe.skipIf(!hasDb)("account-linking repo + link-tokens", () => {
     expect(await consumeLinkToken(db, raw, "google")).toBeNull(); // already consumed
   });
 
-  it("createLinkToken drops a prior token for the same (user, provider)", async () => {
+  it("createLinkToken drops a prior token for the same (user, provider, purpose)", async () => {
     await createLinkToken(db, "u-oauth", "google");
     const raw2 = await createLinkToken(db, "u-oauth", "google");
-    const { rows } = await pool!.query(`select count(*)::int as n from link_tokens where user_id=$1 and provider=$2`, ["u-oauth", "google"]);
+    const { rows } = await pool!.query(`select count(*)::int as n from link_tokens where user_id=$1 and provider=$2 and purpose='link'`, ["u-oauth", "google"]);
     expect(rows[0].n).toBe(1);
     expect(await consumeLinkToken(db, raw2, "google")).toEqual({ userId: "u-oauth" });
+  });
+
+  it("nonces are purpose-scoped: a link nonce can't be consumed as reauth_delete (and vice versa)", async () => {
+    await pool!.query(`delete from link_tokens where user_id='u-oauth'`);
+    const linkRaw = await createLinkToken(db, "u-oauth", "google", "link");
+    const delRaw = await createLinkToken(db, "u-oauth", "google", "reauth_delete");
+    // both live at once — minting the reauth nonce did NOT clobber the link nonce
+    const { rows } = await pool!.query(`select count(*)::int as n from link_tokens where user_id='u-oauth' and provider='google'`);
+    expect(rows[0].n).toBe(2);
+    // cross-purpose consume fails both ways
+    expect(await consumeLinkToken(db, linkRaw, "google", "reauth_delete")).toBeNull();
+    expect(await consumeLinkToken(db, delRaw, "google", "link")).toBeNull();
+    // correct-purpose consume succeeds, single-use
+    expect(await consumeLinkToken(db, delRaw, "google", "reauth_delete")).toEqual({ userId: "u-oauth" });
+    expect(await consumeLinkToken(db, delRaw, "google", "reauth_delete")).toBeNull();
+    expect(await consumeLinkToken(db, linkRaw, "google", "link")).toEqual({ userId: "u-oauth" });
+  });
+
+  it("accountOwner returns the userId that owns (provider, providerAccountId), else null", async () => {
+    // seeded in beforeAll: a2 = (github, gh-ola) → u-oauth
+    expect(await accountOwner("github", "gh-ola")).toBe("u-oauth");
+    expect(await accountOwner("github", "nobody")).toBeNull();
+    expect(await accountOwner("google", "g-pw")).toBe("u-pw");
   });
 
   it("linkAccount links, is idempotent for the same user, and rejects a takeover", async () => {
