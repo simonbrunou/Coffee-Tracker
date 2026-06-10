@@ -1,39 +1,76 @@
 "use server";
 
+// Error-handling convention (U10): CONTENT mutations here (log brew, add/edit/
+// delete bag & brew, comment, the social toggles) THROW `Error("Couldn't …")` on
+// failure — the calling sheet/toast layer catches and surfaces it. AUTH and
+// ACCOUNT form flows (auth-actions, account-actions, account-link-actions,
+// verify-actions) instead RETURN `{ error: string }` so the form can render the
+// message inline. Keep new actions on the side of this split that matches their
+// caller (toast vs inline form).
+
 import { randomUUID } from "node:crypto";
-import { query } from "@/lib/db";
-import { BEAN_COLS, TASTING_COLS, getComments } from "@/lib/queries";
-import { requireUserId } from "@/lib/auth";
-import type { AddBagInput, AddCommentInput, Bean, Comment, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import { query, withTransaction } from "@/lib/db";
+import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage, getBeanRadarForUser } from "@/lib/queries";
+import { requireVerifiedUserId, getCurrentUserId } from "@/lib/auth";
+import type { AddBagInput, AddCommentInput, Bean, BeanRadar, Comment, LogBrewInput, Page, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput, UpdateCommentInput } from "@/lib/types";
+import { ASSESSMENT_AXES } from "@/lib/types";
 import { validateComment, validateUpdateComment } from "@/lib/comment-validation";
 import { revalidatePath } from "next/cache";
 import { validateLogBrew, validateAddBag, validateUpdateBrew, validateUpdateBag } from "@/lib/brew-validation";
 
+const TASTING_INSERT = `insert into tastings
+     (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
+   select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0
+   from beans where id = $3 and user_id = $2
+   returning id`;
+
+// Derive the upsert SQL + params from ASSESSMENT_AXES so the column order, the
+// $1..$7 param order, and the on-conflict update set can't drift apart. $1 is
+// the tasting_id; $2..$7 are the axes in ASSESSMENT_AXES order.
+const ASSESSMENT_UPSERT = `insert into tasting_assessments
+     (tasting_id, ${ASSESSMENT_AXES.map((a) => `${a}_intensity`).join(", ")})
+   values ($1, ${ASSESSMENT_AXES.map((_, i) => `$${i + 2}`).join(", ")})
+   on conflict (tasting_id) do update set
+     ${ASSESSMENT_AXES.map((a) => `${a}_intensity = excluded.${a}_intensity`).join(",\n     ")},
+     updated_at = now()`;
+
+const assessParams = (tastingId: string, a: TastingAssessment) =>
+  [tastingId, ...ASSESSMENT_AXES.map((k) => a[k])];
+
+const UPDATE_TASTING = `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
+     where id = $1 and user_id = $2`;
+
 /** Log a brew against a bag — the fast, everyday action. Persists and returns
  *  the new tasting so the client can prepend it to the journal/feed. */
 export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const v = validateLogBrew(rawInput);
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
   const id = `t-${randomUUID()}`;
-  const { rows } = await query<Tasting>(
-    `insert into tastings
-       (id, user_id, bean_id, rating, brew, dose, ratio, temp, note, likes)
-     select $1, $2, $3, $4, $5, $6, $7, $8, $9, 0
-     from beans where id = $3 and user_id = $2
-     returning ${TASTING_COLS}`,
-    [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
-  );
-  if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
+  const tastingParams = [id, userId, input.beanId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note];
+
+  if (input.assessment) {
+    const assessment = input.assessment;
+    await withTransaction(async (client) => {
+      const { rows } = await client.query<{ id: string }>(TASTING_INSERT, tastingParams);
+      if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
+      await client.query(ASSESSMENT_UPSERT, assessParams(id, assessment));
+    });
+  } else {
+    const { rows } = await query<{ id: string }>(TASTING_INSERT, tastingParams);
+    if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
+  }
   revalidatePath("/", "layout");
-  return { ...rows[0], likedByMe: false, savedByMe: false, commentsCount: 0 };
+  const tasting = await getTastingById(userId, id);
+  if (!tasting) throw new Error("Couldn't log a brew for that bag.");
+  return tasting;
 }
 
 /** Add a bag — the rich catalog record, created once. Becomes a real catalog
  *  entry on the user's shelf. */
 export async function addBag(rawInput: AddBagInput): Promise<Bean> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const v = validateAddBag(rawInput);
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
@@ -62,34 +99,31 @@ export async function addBag(rawInput: AddBagInput): Promise<Bean> {
 
 /** Edit a brew's mutable fields. Never touches time/created_at (feed order). */
 export async function updateBrew(rawInput: UpdateBrewInput): Promise<Tasting> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const v = validateUpdateBrew(rawInput);
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
-  const { rowCount } = await query(
-    `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
-     where id = $1 and user_id = $2`,
-    [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note],
-  );
-  if (!rowCount) throw new Error("Couldn't update that brew.");
-  // Re-select the updated row (TASTING_COLS carries created_at, which the UPDATE
-  // must not RETURN — it would set off the feed-reorder guard test). Keep the
-  // ownership predicate here too so a row deleted mid-flight can't surface.
-  const { rows } = await query<Tasting>(
-    `select ${TASTING_COLS},
-       (select count(*)::int from comments where comments.tasting_id = tastings.id) as "commentsCount",
-       exists (select 1 from likes where likes.tasting_id = tastings.id and likes.user_id = $2) as "likedByMe",
-       exists (select 1 from tasting_saves where tasting_saves.tasting_id = tastings.id and tasting_saves.user_id = $2) as "savedByMe"
-     from tastings where id = $1 and user_id = $2`,
-    [input.id, userId],
-  );
-  if (rows.length === 0) throw new Error("Couldn't update that brew.");
+  const updateParams = [input.id, userId, input.rating, input.brew, input.dose, input.ratio, input.temp, input.note];
+
+  if (input.assessment) {
+    const assessment = input.assessment;
+    await withTransaction(async (client) => {
+      const { rowCount } = await client.query(UPDATE_TASTING, updateParams);
+      if (!rowCount) throw new Error("Couldn't update that brew.");
+      await client.query(ASSESSMENT_UPSERT, assessParams(input.id, assessment));
+    });
+  } else {
+    const { rowCount } = await query(UPDATE_TASTING, updateParams);
+    if (!rowCount) throw new Error("Couldn't update that brew.");
+  }
   revalidatePath("/", "layout");
-  return rows[0];
+  const tasting = await getTastingById(userId, input.id);
+  if (!tasting) throw new Error("Couldn't update that brew.");
+  return tasting;
 }
 
 export async function deleteBrew(id: string): Promise<void> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const { rowCount } = await query(`delete from tastings where id = $1 and user_id = $2`, [id, userId]);
   if (!rowCount) throw new Error("Couldn't delete that brew.");
   revalidatePath("/", "layout");
@@ -97,7 +131,7 @@ export async function deleteBrew(id: string): Promise<void> {
 
 /** Edit a bag's catalog fields. */
 export async function updateBag(rawInput: UpdateBagInput): Promise<Bean> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const v = validateUpdateBag(rawInput);
   if (!v.ok) throw new Error(v.error);
   const input = v.value;
@@ -117,7 +151,7 @@ export async function updateBag(rawInput: UpdateBagInput): Promise<Bean> {
 
 /** Delete a bag. FK `on delete cascade` removes its tastings + their likes. */
 export async function deleteBag(id: string): Promise<void> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const { rowCount } = await query(`delete from beans where id = $1 and user_id = $2`, [id, userId]);
   if (!rowCount) throw new Error("Couldn't delete that bag.");
   revalidatePath("/", "layout");
@@ -125,7 +159,7 @@ export async function deleteBag(id: string): Promise<void> {
 
 /** Persist a like/unlike of a tasting for the current user. */
 export async function toggleLike(tastingId: string, liked: boolean): Promise<void> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   if (liked) {
     await query(
       `insert into likes (user_id, tasting_id) values ($1, $2) on conflict do nothing`,
@@ -138,30 +172,72 @@ export async function toggleLike(tastingId: string, liked: boolean): Promise<voi
 }
 
 // ---- Follows / saves / wishlist (idempotent toggles, mirroring toggleLike) ----
-export async function toggleFollowUser(targetUserId: string, follow: boolean): Promise<void> {
-  const userId = await requireUserId();
-  if (userId === targetUserId) throw new Error("You can't follow yourself.");
-  if (follow) await query(`insert into user_follows (follower_id, followee_id) values ($1, $2) on conflict do nothing`, [userId, targetUserId]);
-  else await query(`delete from user_follows where follower_id = $1 and followee_id = $2`, [userId, targetUserId]);
+// Idempotent insert-or-delete on a two-column (self, target) join table. The
+// table + column names always come from hardcoded literals at the call sites
+// below (never user input), so interpolating them into the SQL is injection-safe;
+// the values stay parameterized.
+async function toggleMembership(
+  userId: string,
+  table: string,
+  selfCol: string,
+  targetCol: string,
+  targetId: string,
+  on: boolean,
+): Promise<void> {
+  if (on) await query(`insert into ${table} (${selfCol}, ${targetCol}) values ($1, $2) on conflict do nothing`, [userId, targetId]);
+  else await query(`delete from ${table} where ${selfCol} = $1 and ${targetCol} = $2`, [userId, targetId]);
   revalidatePath("/", "layout");
+}
+
+export async function toggleFollowUser(targetUserId: string, follow: boolean): Promise<void> {
+  const userId = await requireVerifiedUserId();
+  if (userId === targetUserId) throw new Error("You can't follow yourself.");
+  await toggleMembership(userId, "user_follows", "follower_id", "followee_id", targetUserId, follow);
 }
 export async function toggleFollowRoaster(roasterId: string, follow: boolean): Promise<void> {
-  const userId = await requireUserId();
-  if (follow) await query(`insert into roaster_follows (user_id, roaster_id) values ($1, $2) on conflict do nothing`, [userId, roasterId]);
-  else await query(`delete from roaster_follows where user_id = $1 and roaster_id = $2`, [userId, roasterId]);
-  revalidatePath("/", "layout");
+  const userId = await requireVerifiedUserId();
+  await toggleMembership(userId, "roaster_follows", "user_id", "roaster_id", roasterId, follow);
 }
 export async function toggleSaveTasting(tastingId: string, save: boolean): Promise<void> {
-  const userId = await requireUserId();
-  if (save) await query(`insert into tasting_saves (user_id, tasting_id) values ($1, $2) on conflict do nothing`, [userId, tastingId]);
-  else await query(`delete from tasting_saves where user_id = $1 and tasting_id = $2`, [userId, tastingId]);
-  revalidatePath("/", "layout");
+  const userId = await requireVerifiedUserId();
+  await toggleMembership(userId, "tasting_saves", "user_id", "tasting_id", tastingId, save);
 }
 export async function toggleWishlistBean(beanId: string, wish: boolean): Promise<void> {
-  const userId = await requireUserId();
-  if (wish) await query(`insert into bean_wishlist (user_id, bean_id) values ($1, $2) on conflict do nothing`, [userId, beanId]);
-  else await query(`delete from bean_wishlist where user_id = $1 and bean_id = $2`, [userId, beanId]);
-  revalidatePath("/", "layout");
+  const userId = await requireVerifiedUserId();
+  await toggleMembership(userId, "bean_wishlist", "user_id", "bean_id", beanId, wish);
+}
+
+// ---- Feed pagination (M3·D) ----
+/** Fetch the next keyset page of the feed for a tab. Validates the tab; the
+ *  cursor is validated (and rejected if malformed) inside getFeedPage. */
+export async function loadMoreFeed(tab: string, cursor: string | null): Promise<Page<Tasting>> {
+  if (!isFeedTab(tab)) throw new Error("Invalid feed tab");
+  const uid = await getCurrentUserId();
+  return getFeedPage(uid, { tab, cursor });
+}
+
+export async function loadMoreBeans(
+  cursor: string | null,
+  process?: string | null,
+  q?: string | null,
+): Promise<Page<Bean>> {
+  const uid = await getCurrentUserId();
+  return getDiscoverBeansPage(uid, { cursor, process, q });
+}
+
+export async function loadMoreBeanReviews(beanId: string, cursor: string | null): Promise<Page<Tasting>> {
+  const uid = await getCurrentUserId();
+  return getBeanReviewsPage(uid, beanId, { cursor });
+}
+
+export async function loadMoreUserTastings(userId: string, cursor: string | null): Promise<Page<Tasting>> {
+  const uid = await getCurrentUserId();
+  return getUserTastingsPage(uid, userId, { cursor });
+}
+
+export async function loadMoreRoasterBeans(roasterId: string, cursor: string | null): Promise<Page<Bean>> {
+  const uid = await getCurrentUserId();
+  return getRoasterBeansPage(uid, roasterId, { cursor });
 }
 
 // ---- Comments ----
@@ -169,36 +245,43 @@ export async function fetchComments(tastingId: string): Promise<Comment[]> {
   return getComments(tastingId);
 }
 export async function addComment(rawInput: AddCommentInput): Promise<Comment> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const v = validateComment(rawInput);
   if (!v.ok) throw new Error(v.error);
   const id = `c-${randomUUID()}`;
-  const { rows } = await query<Comment>(
-    `insert into comments (id, tasting_id, user_id, body) values ($1, $2, $3, $4)
-     returning id, tasting_id as "tastingId", user_id as "userId", body,
-               created_at as "createdAt", updated_at as "updatedAt"`,
+  await query(
+    `insert into comments (id, tasting_id, user_id, body) values ($1, $2, $3, $4)`,
     [id, v.value.tastingId, userId, v.value.body],
   );
   revalidatePath("/", "layout");
-  return rows[0];
+  const comment = await getCommentById(id);
+  if (!comment) throw new Error("Couldn't add that comment.");
+  return comment;
 }
 export async function updateComment(rawInput: UpdateCommentInput): Promise<Comment> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const v = validateUpdateComment(rawInput);
   if (!v.ok) throw new Error(v.error);
-  const { rows } = await query<Comment>(
-    `update comments set body = $3, updated_at = now() where id = $1 and user_id = $2
-     returning id, tasting_id as "tastingId", user_id as "userId", body,
-               created_at as "createdAt", updated_at as "updatedAt"`,
+  const { rowCount } = await query(
+    `update comments set body = $3, updated_at = now() where id = $1 and user_id = $2`,
     [v.value.id, userId, v.value.body],
   );
-  if (rows.length === 0) throw new Error("Couldn't update that comment.");
+  if (!rowCount) throw new Error("Couldn't update that comment.");
   revalidatePath("/", "layout");
-  return rows[0];
+  const comment = await getCommentById(v.value.id);
+  if (!comment) throw new Error("Couldn't update that comment.");
+  return comment;
 }
 export async function deleteComment(id: string): Promise<void> {
-  const userId = await requireUserId();
+  const userId = await requireVerifiedUserId();
   const { rowCount } = await query(`delete from comments where id = $1 and user_id = $2`, [id, userId]);
   if (!rowCount) throw new Error("Couldn't delete that comment.");
   revalidatePath("/", "layout");
+}
+
+/** The current user's own-tasting radar for a bean (null when they have none). */
+export async function getMyBeanRadar(beanId: string): Promise<BeanRadar | null> {
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+  return getBeanRadarForUser(userId, beanId);
 }

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": { "node": "24" },
+  "deploy": {
+    "startCommand": "node .next/standalone/scripts/migrate.mts && node .next/standalone/server.js",
+    "variables": {
+      "NODE_ENV": "production",
+      "HOSTNAME": "0.0.0.0"
+    }
+  }
+}

@@ -1,9 +1,11 @@
 "use client";
 
-// Catches a crash in the ROOT layout itself (e.g. getAppData() throwing when the
-// DB is unreachable). It REPLACES the root layout, so it must render its own
-// <html>/<body> and cannot rely on app fonts/Tailwind layers → inline styles.
-// Only fires in a production build (dev shows the Next overlay).
+// Catches a crash in the minimal root layout itself. It REPLACES the root
+// layout, so it must render its own <html>/<body> and cannot rely on app
+// fonts/Tailwind layers → inline styles. (getAppData() now lives in
+// app/(app)/layout.tsx, so a DB-unreachable failure bubbles to the root
+// error.tsx instead of here.) Only fires in a production build (dev shows the
+// Next overlay).
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <html lang="en">

@@ -68,7 +68,7 @@ export const FLAVOR_WHEEL: WheelCategory[] = [
     color: "#C2542F",
     groups: [
       { name: "Tobacco", notes: ["Pipe Tobacco", "Tobacco"] },
-      { name: "Burnt", notes: ["Acrid", "Ashy", "Smoky", "Brown Roast"] },
+      { name: "Burnt", notes: ["Acrid", "Ashy", "Smoky", "Brown", "Roast"] },
       { name: "Cereal", notes: ["Grain", "Malt"] },
     ],
   },
@@ -102,7 +102,7 @@ export const FLAVOR_WHEEL: WheelCategory[] = [
   },
 ];
 
-/** Flat leaf → color map (for chips). Includes a few legacy seed names. */
+/** Flat leaf → color map (for chips), built only from the official wheel. */
 export const WHEEL_FLAT: Record<string, string> = (() => {
   const flat: Record<string, string> = {};
   for (const cat of FLAVOR_WHEEL) {
@@ -110,10 +110,5 @@ export const WHEEL_FLAT: Record<string, string> = (() => {
       for (const n of g.notes) flat[n] = cat.color;
     }
   }
-  const legacy: Record<string, string> = {
-    "Stone Fruit": "#C0264A", Citrus: "#E0902F", "Brown Sugar": "#E0902F",
-    Tropical: "#E0902F", Toffee: "#8C5A33", Caramel: "#E0902F", "Red Apple": "#C0264A",
-    Plum: "#C0264A", Cocoa: "#8C5A33", Floral: "#C75B95", Maple: "#E0902F",
-  };
-  return { ...flat, ...legacy };
+  return flat;
 })();

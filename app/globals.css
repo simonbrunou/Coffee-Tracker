@@ -23,7 +23,9 @@
   --color-caramel-deep: var(--caramel-deep);
   --color-caramel-soft: var(--caramel-soft);
   --color-sage: var(--sage);
+  --color-sage-deep: var(--sage-deep);
   --color-gold: var(--gold);
+  --color-berry: var(--berry);
 
   /* shadcn/ui semantic tokens — mapped onto the warm palette above */
   --color-background: var(--background);
@@ -62,17 +64,37 @@
   --surface-2:    oklch(0.975 0.010 80);
   --line:         oklch(0.89 0.018 74);
   --line-soft:    oklch(0.92 0.014 76);
+  --control-border: oklch(0.63 0.020 74); /* a11y: control/input border ≥3:1 on cream (1.4.11) */
 
   --espresso:     oklch(0.27 0.030 52);   /* primary text */
   --coffee:       oklch(0.42 0.040 55);   /* secondary text */
-  --mocha:        oklch(0.58 0.030 58);   /* tertiary text */
+  --mocha:        oklch(0.50 0.030 58);   /* tertiary text — a11y: 5.46:1 on cream (1.4.3) */
 
   --caramel:      oklch(0.62 0.125 55);   /* primary accent */
   --caramel-deep: oklch(0.52 0.115 50);
   --caramel-soft: oklch(0.90 0.045 70);
-  --sage:         oklch(0.62 0.055 140);  /* secondary accent (same L) */
+  --sage:         oklch(0.62 0.055 140);  /* secondary accent (decorative/large only) */
+  --sage-deep:    oklch(0.48 0.07 145);   /* small green status text ("On shelf"/"Saved") — a11y: 5.72:1 on cream (1.4.3) */
 
   --gold:         oklch(0.78 0.115 80);   /* rating stars */
+  --berry:        oklch(0.52 0.19 27);    /* destructive / error TEXT — a11y: 5.49:1 on cream, 5.94:1 on surface (1.4.3) */
+
+  /* Striped image-placeholder stripe — token so it inverts in dark mode (see .dark). */
+  --ph-stripe: oklch(0.88 0.02 74 / 0.5);
+
+  /* ---- Type scale (rem; honors user zoom). Replace inline hardcoded px
+     font-sizes with the nearest --text-* step. ---- */
+  --text-2xs: 0.6875rem;  /* ~11px */
+  --text-xs:  0.75rem;    /* 12px  */
+  --text-sm:  0.8125rem;  /* ~13px */
+  --text-base:0.875rem;   /* 14px  */
+  --text-md:  0.9375rem;  /* ~15px */
+  --text-lg:  1rem;       /* 16px  */
+  --text-xl:  1.125rem;   /* ~18px */
+  --text-2xl: 1.375rem;   /* ~22px */
+  --text-3xl: 1.625rem;   /* ~26px */
+  --text-4xl: 1.875rem;   /* ~30px */
+  --text-5xl: 2.25rem;    /* ~36px */
 
   /* shadcn/ui semantic tokens (light) — references so dark mode only flips the base palette */
   --radius: 0.75rem;
@@ -90,15 +112,19 @@
   --muted-foreground:      var(--mocha);
   --accent:                var(--cream-deep);
   --accent-foreground:     var(--espresso);
-  --destructive:           oklch(0.58 0.20 25);
-  --border:                var(--line);
-  --input:                 var(--line);
+  --destructive:           oklch(0.58 0.20 25);  /* destructive FILL (button/badge bg); for destructive TEXT use --berry */
+  --border:                var(--control-border);
+  --input:                 var(--control-border);
   --ring:                  var(--caramel);
 
   --shadow-sm: 0 1px 2px oklch(0.30 0.03 50 / 0.06), 0 1px 3px oklch(0.30 0.03 50 / 0.05);
   --shadow-md: 0 4px 12px oklch(0.30 0.03 50 / 0.08), 0 2px 4px oklch(0.30 0.03 50 / 0.05);
   --shadow-lg: 0 12px 32px oklch(0.30 0.03 50 / 0.12), 0 4px 8px oklch(0.30 0.03 50 / 0.06);
 
+  /* ---- Radius — STANDARDIZE on --r-* for app components (chips, cards, sheets).
+     These are the source of truth. The shadcn --radius / --radius-* scale (above,
+     in @theme inline) stays only for shadcn primitives; do not mix the two on one
+     element. New app CSS should use --r-sm/md/lg/xl. ---- */
   --r-sm: 8px;
   --r-md: 14px;
   --r-lg: 20px;
@@ -118,6 +144,7 @@
   --surface-2:    oklch(0.275 0.016 64);  /* insets */
   --line:         oklch(0.34 0.018 62);
   --line-soft:    oklch(0.30 0.016 62);
+  --control-border: oklch(0.52 0.020 62); /* a11y: control border ≥3:1 on the dark bg (3.34:1) */
 
   --espresso:     oklch(0.93 0.012 82);   /* primary text / light fills */
   --coffee:       oklch(0.80 0.020 76);   /* secondary text */
@@ -127,31 +154,51 @@
   --caramel-deep: oklch(0.80 0.120 66);   /* accent text (brighter on dark) */
   --caramel-soft: oklch(0.34 0.060 58);   /* accent fill (selected pills) */
   --sage:         oklch(0.70 0.060 150);
+  --sage-deep:    oklch(0.72 0.07 150);   /* small green status text — a11y: 7.11:1 on the dark card surface */
   --gold:         oklch(0.80 0.120 82);
+  --berry:        oklch(0.72 0.15 27);    /* destructive / error TEXT — a11y: 6.48:1 on the dark card surface (was the 2.9:1 hardcoded #a8434a) */
+
+  /* destructive TEXT must also hit AA on dark cards: lighten from the 0.58 light
+     value (3.62:1, fails) to an AA-passing red. Use for any token-driven dest text;
+     --berry remains the primary destructive-text token. */
+  --destructive:  oklch(0.72 0.15 27);
+
+  /* Placeholder stripe inverts to a subtle light-on-dark sweep. */
+  --ph-stripe:    oklch(0.45 0.02 74 / 0.5);
 
   --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.30), 0 1px 3px oklch(0 0 0 / 0.28);
   --shadow-md: 0 4px 12px oklch(0 0 0 / 0.38), 0 2px 4px oklch(0 0 0 / 0.30);
   --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.50), 0 4px 8px oklch(0 0 0 / 0.34);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* These element resets live in @layer base so Tailwind's utilities layer outranks
+   them: an UNLAYERED rule beats layered utilities regardless of specificity.
+   Unlayered, the universal reset killed every padding, margin and width utility,
+   and the button background reset killed bg-primary on every filled Button — which
+   is why the app leaned on inline styles and every primary CTA rendered as bare
+   text. Layering keeps the resets as defaults while letting utilities win.
+   (Keep this comment free of the comment-close sequence and CSS braces — the CSS
+   optimizer parses comment text, and a stray close would leak the rest as CSS.) */
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; }
+  html, body { height: 100%; }
 
-body {
-  font-family: var(--font-body);
-  background: var(--cream);
-  color: var(--espresso);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  body {
+    font-family: var(--font-body);
+    background: var(--cream);
+    color: var(--espresso);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #root, #app-root { height: 100%; }
+
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, textarea { font-family: inherit; }
+
+  ::selection { background: var(--caramel-soft); }
 }
-
-#root, #app-root { height: 100%; }
-
-button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
-input, textarea { font-family: inherit; }
-
-::selection { background: var(--caramel-soft); }
 
 /* Scrollbar */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -168,7 +215,7 @@ input, textarea { font-family: inherit; }
   background-color: var(--surface-2);
   background-image: repeating-linear-gradient(
     -45deg,
-    oklch(0.88 0.02 74 / 0.5) 0 1px,
+    var(--ph-stripe) 0 1px,
     transparent 1px 9px
   );
   display: flex; align-items: center; justify-content: center;
@@ -193,6 +240,31 @@ input, textarea { font-family: inherit; }
 }
 
 .fade-up { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ---- Motion helpers ----------------------------------------------------- */
+/* Pressed/active affordance for chips & segmented buttons: a subtle squeeze on
+   press. Apply `.pressable` to any chip/pill/segmented control. The transition
+   is neutralized by the reduced-motion block below. */
+.pressable { transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1); }
+.pressable:active { transform: scale(0.97); }
+
+/* Staggered list entrance: put `.stagger` on the container; each child fades up
+   with a delay of (index * 40ms). Children get their incremental --i either from
+   an inline style (style={{'--i': i}}) or from the nth-child fallbacks below, so
+   e.g. Trending cards animate in sequence instead of all at once. */
+.stagger > * {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+/* Fallback delays when no inline --i is provided (covers the first 8 children). */
+.stagger > *:nth-child(1) { --i: 0; }
+.stagger > *:nth-child(2) { --i: 1; }
+.stagger > *:nth-child(3) { --i: 2; }
+.stagger > *:nth-child(4) { --i: 3; }
+.stagger > *:nth-child(5) { --i: 4; }
+.stagger > *:nth-child(6) { --i: 5; }
+.stagger > *:nth-child(7) { --i: 6; }
+.stagger > *:nth-child(8) { --i: 7; }
 
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
@@ -236,7 +308,7 @@ input, textarea { font-family: inherit; }
 .nav-item {
   display: flex; align-items: center; gap: 13px; padding: 11px 14px; border-radius: 12px;
   font-size: 15px; font-weight: 600; color: var(--coffee); position: relative;
-  transition: background 0.14s, color 0.14s;
+  text-decoration: none; transition: background 0.14s, color 0.14s;
 }
 .nav-item:hover { background: var(--surface-2); }
 .nav-item[data-active="true"] { background: var(--cream-deep); color: var(--espresso); }
@@ -246,6 +318,7 @@ input, textarea { font-family: inherit; }
 .nav-user {
   display: flex; align-items: center; gap: 11px; padding: 9px; border-radius: 12px; width: 100%;
   border: 1px solid var(--line-soft); background: var(--surface); transition: background 0.14s;
+  text-decoration: none; color: inherit;
 }
 .nav-user:hover { background: var(--surface-2); }
 
@@ -255,15 +328,23 @@ input, textarea { font-family: inherit; }
   .mobile-only-spacer { display: block; }
   .mobile-top {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 18px; position: sticky; top: 0; z-index: 50;
+    /* extra top padding clears the notch / Dynamic Island in standalone mode
+       (the manifest is display:standalone + viewport-fit=cover). */
+    padding: calc(14px + env(safe-area-inset-top)) 18px 14px; position: sticky; top: 0; z-index: 50;
     background: color-mix(in oklch, var(--cream) 88%, transparent);
     backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-soft);
   }
+  /* Comfortable touch targets for the mobile header controls (icon buttons are
+     36px by default — below the 44px recommended minimum on touch). */
+  .mobile-top button { min-height: 44px; min-width: 44px; }
   .screen-pad { padding: 22px 18px 40px; }
 
   .bottom-nav {
     display: flex; align-items: center; justify-content: space-around;
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 60; gap: 4px;
+    /* Sits BELOW the dialog layer (overlay/content are z-50) so an open
+       bottom-sheet's overlay covers the nav and the sheet's footer button is
+       reachable. Still above page content (z-auto). */
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; gap: 4px;
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
     background: color-mix(in oklch, var(--surface) 92%, transparent);
     backdrop-filter: blur(14px); border-top: 1px solid var(--line-soft);
@@ -271,6 +352,7 @@ input, textarea { font-family: inherit; }
   .bottom-item {
     display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;
     font-size: 10.5px; font-weight: 600; color: var(--mocha); padding: 5px 0;
+    text-decoration: none;
   }
   .bottom-item[data-active="true"] { color: var(--caramel-deep); }
   .fab {
@@ -282,5 +364,67 @@ input, textarea { font-family: inherit; }
 }
 @media (min-width: 880px) { .mobile-only-spacer { display: none; } }
 
-@media (max-width: 540px) { .two-col { flex-direction: column; gap: 0; } }
+/* Stack paired fields whenever the mobile layout is active (matches the 879px
+   breakpoint used for the rest of the mobile chrome), not only on the smallest
+   phones — avoids the cramped two-up fields in the 541–879px band. */
+@media (max-width: 879px) { .two-col { flex-direction: column; gap: 0; } }
 @media (max-width: 600px) { .radar-row { grid-template-columns: 1fr !important; justify-items: center; text-align: center; } }
+
+/* ============ Accessibility (M5·B) ============ */
+/* Visible keyboard focus for raw controls (shadcn Button/Input/Slider already ring). */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="radio"]:focus-visible,
+.nav-item:focus-visible,
+.nav-user:focus-visible,
+.bottom-item:focus-visible {
+  outline: 3px solid var(--caramel-deep);
+  outline-offset: 2px;
+}
+/* The content wrapper is a script/skip focus target — never paint a page-wide ring. */
+#main-content:focus { outline: none; }
+
+/* Skip to content (revealed on keyboard focus). */
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 300; }
+.skip-link:focus {
+  left: 8px; top: 8px; width: auto; height: auto; padding: 8px 14px;
+  background: var(--cream); color: var(--espresso);
+  border: 1px solid var(--caramel-deep); border-radius: 8px; box-shadow: var(--shadow-sm);
+}
+
+/* ---- Skeleton loaders (M5·C) ---- */
+/* A surface block with a moving highlight sweep. The sweep is a CSS animation,
+   so the reduced-motion block below already neutralizes it (no per-rule guard). */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--cream) 65%, transparent),
+    transparent
+  );
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Respect reduced-motion: neutralize the fade-up/sheet/pop animations + transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

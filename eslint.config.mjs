@@ -21,8 +21,13 @@ export default tseslint.config(
       "next-env.d.ts",
       "*.config.js",
       "*.config.mjs",
+      "scripts/**",
     ],
   },
   ...compat.extends("next/core-web-vitals"),
+  // M5·B: jsx-a11y registers the plugin via next/core-web-vitals already, so extend
+  // the EXISTING plugin's recommended set (error-severity → `eslint .` actually gates)
+  // rather than re-registering it (which throws "Cannot redefine plugin").
+  ...compat.extends("plugin:jsx-a11y/recommended"),
   ...tseslint.configs.recommended,
 );

@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 describe("client projection guard", () => {
-  it("getUsers selects no sensitive columns", () => {
+  it("getUserById selects no sensitive columns", () => {
     const src = readFileSync(join(process.cwd(), "lib/queries.ts"), "utf8");
-    const start = src.indexOf("export async function getUsers");
+    const start = src.indexOf("export async function getUserById");
     expect(start).toBeGreaterThan(-1);
     // Slice up to the next top-level export so we capture the whole function body
     const nextExport = src.indexOf("\nexport", start + 1);

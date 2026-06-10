@@ -5,6 +5,7 @@ import {
   createCredentialUser,
   getSessionVersion,
   bumpSessionVersion,
+  getSessionState,
 } from "@/lib/users-repo";
 
 function fakeClient(responses: Array<{ rows: unknown[] }>) {
@@ -91,6 +92,24 @@ describe("createCredentialUser", () => {
   });
 });
 
+describe("resolveOrCreateOAuthUser email_verified", () => {
+  it("stamps email_verified (a Date) when emailVerified is true", async () => {
+    const { client, queries } = fakeClient([{ rows: [] }, { rows: [] }, { rows: [] }]);
+    await resolveOrCreateOAuthUser(client, {
+      provider: "google", providerAccountId: "g-1", name: "M", email: "m@e.com", image: null, type: "oidc", emailVerified: true,
+    });
+    expect(queries[1].text).toMatch(/insert into users/i);
+    expect(queries[1].params.some((x) => x instanceof Date)).toBe(true);
+  });
+  it("leaves email_verified null when emailVerified is unset", async () => {
+    const { client, queries } = fakeClient([{ rows: [] }, { rows: [] }, { rows: [] }]);
+    await resolveOrCreateOAuthUser(client, {
+      provider: "github", providerAccountId: "gh-1", name: "T", email: "t@e.com", image: null, type: "oauth",
+    });
+    expect(queries[1].params.some((x) => x instanceof Date)).toBe(false);
+  });
+});
+
 describe("getSessionVersion", () => {
   it("returns the session_version integer when the user exists", async () => {
     const { client } = fakeClient([{ rows: [{ session_version: 5 }] }]);
@@ -111,5 +130,16 @@ describe("bumpSessionVersion", () => {
     await bumpSessionVersion(client, "u-1");
     expect(queries[0].text).toMatch(/update users set session_version = session_version \+ 1/i);
     expect(queries[0].params).toEqual(["u-1"]);
+  });
+});
+
+describe("getSessionState", () => {
+  it("returns sv + emailVerified + hasPassword", async () => {
+    const { client } = fakeClient([{ rows: [{ session_version: 2, email_verified: null, has_password: true }] }]);
+    expect(await getSessionState(client, "u-1")).toEqual({ sessionVersion: 2, emailVerified: null, hasPassword: true });
+  });
+  it("returns null when no row", async () => {
+    const { client } = fakeClient([{ rows: [] }]);
+    expect(await getSessionState(client, "x")).toBeNull();
   });
 });

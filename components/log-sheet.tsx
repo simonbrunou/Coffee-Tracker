@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useData } from "./data-context";
 import { BeanBag } from "./cards";
-import { BeanRating, Icon } from "./ui";
+import { BeanRating, Icon, PillButton } from "./ui";
 import { BagForm } from "./bag-form";
-import { SheetHeader, DonePanel } from "./sheet-chrome";
+import { SheetHeader, DonePanel, SheetLabel as SectionLabel } from "./sheet-chrome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,11 +16,40 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { AddBagInput, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type { AddBagInput, Bean, LogBrewInput, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import { TastingAssessmentFields, EMPTY_ASSESSMENT } from "./tasting-assessment-fields";
 
-// Section header inside the sheets (was the shared `Label`).
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 13, fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
+// A controlled ghost-Button expander used by both "Add brew details" and "Add
+// tasting notes". The open state stays owned by the caller (BrewFlow reads it in
+// `submit`); this only renders the toggle + the fade-up content when open.
+function ToggleSection({
+  open,
+  onToggle,
+  label,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onToggle}
+        className="mb-1 h-auto gap-2 p-0 text-[length:var(--text-sm)] font-semibold text-[var(--coffee)] hover:bg-transparent"
+      >
+        <Icon name={open ? "close" : "plus"} size={15} color="var(--mocha)" /> {open ? "Hide" : "Add"} {label}
+      </Button>
+      {open && (
+        <div className="fade-up" style={{ marginTop: 12 }}>
+          {children}
+        </div>
+      )}
+    </>
+  );
 }
 
 export function LogSheet({
@@ -53,9 +82,23 @@ export function LogSheet({
     if (open) setView(mode || "brew");
   }, [open, mode, presetBeanId]);
 
+  // a11y: on an INTRA-sheet view switch (brew↔bag), the focused control in the
+  // old view unmounts and focus would fall to <body>. Move it back to the dialog
+  // container so keyboard/SR users stay oriented. Skip the initial open (Radix
+  // handles that focus).
+  const contentRef = useRef<HTMLDivElement>(null);
+  const openedRef = useRef(false);
+  useEffect(() => {
+    if (!open) { openedRef.current = false; return; }
+    if (!openedRef.current) { openedRef.current = true; return; }
+    contentRef.current?.focus();
+  }, [view, open]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
+        ref={contentRef}
+        tabIndex={-1}
         showCloseButton={false}
         className={cn(
           "log-sheet flex flex-col gap-0 overflow-hidden p-0 shadow-[var(--shadow-lg)]",
@@ -117,6 +160,8 @@ function BrewFlow({
   const [brew, setBrew] = useState(editBrew?.brew ?? "V60");
   const [note, setNote] = useState(editBrew?.note ?? "");
   const [showParams, setShowParams] = useState(hadParams);
+  const [showAssess, setShowAssess] = useState(false);
+  const [assessment, setAssessment] = useState<TastingAssessment>(EMPTY_ASSESSMENT);
   const [dose, setDose] = useState(hadParams ? editBrew!.dose.replace(/[^\d.]/g, "") : "15");
   const [ratio, setRatio] = useState(hadParams ? editBrew!.ratio.replace(/^1:/, "") : "16");
   const [temp, setTemp] = useState(hadParams ? editBrew!.temp.replace(/[^\d.]/g, "") : "94");
@@ -125,7 +170,10 @@ function BrewFlow({
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-  const bean = beanId ? D.bean(beanId) ?? shelf.find((b) => b.id === beanId) : null;
+  // Preset/edit bag resolves from the user's shelf (myShelf); logBrew requires
+  // an owned bag, so the target is always on the shelf (optimistically prepended
+  // by handleAddBag for the "& continue" hand-off).
+  const bean = beanId ? shelf.find((b) => b.id === beanId) ?? null : null;
 
   // Await the write before showing success — a failed action surfaces a real
   // error instead of a false "Brew logged!". Only send brew params if the user
@@ -142,10 +190,13 @@ function BrewFlow({
       temp: showParams ? temp + "°C" : "—",
     };
     try {
-      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...params });
-      else await onLogBrew({ beanId, rating, ...params });
+      const payload = showAssess ? { ...params, assessment } : params;
+      if (isEdit && onUpdateBrew) await onUpdateBrew({ id: editBrew!.id, rating, ...payload });
+      else await onLogBrew({ beanId, rating, ...payload });
       setDone(true);
-      timerRef.current = setTimeout(onClose, 1300);
+      // Quick path auto-closes; if the user filled an assessment, let them dismiss
+      // manually so they can confirm their entries.
+      if (!showAssess) timerRef.current = setTimeout(onClose, 1300);
     } catch (e) {
       setPending(false);
       setError(e instanceof Error ? e.message : "Couldn't save that brew — please try again.");
@@ -154,10 +205,17 @@ function BrewFlow({
 
   if (done)
     return (
-      <DonePanel
-        title={isEdit ? "Brew updated!" : "Brew logged!"}
-        sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
-      />
+      <>
+        <DonePanel
+          title={isEdit ? "Brew updated!" : "Brew logged!"}
+          sub={`Your ${bean?.name ?? "coffee"} brew is in your journal.`}
+        />
+        {showAssess && (
+          <div style={{ padding: "0 20px calc(20px + env(safe-area-inset-bottom))" }}>
+            <Button onClick={onClose} className="w-full">Done</Button>
+          </div>
+        )}
+      </>
     );
 
   return (
@@ -171,7 +229,7 @@ function BrewFlow({
             variant="link"
             size="sm"
             onClick={onNewBag}
-            className="h-auto gap-1 p-0 text-[12.5px] font-semibold text-[var(--caramel-deep)] no-underline hover:no-underline"
+            className="h-auto gap-1 p-0 text-[length:var(--text-xs)] font-semibold text-[var(--caramel-deep)] no-underline hover:no-underline"
           >
             <Icon name="plus" size={14} color="var(--caramel-deep)" /> New bag
           </Button>
@@ -183,6 +241,7 @@ function BrewFlow({
               <button
                 key={b.id}
                 onClick={() => setBeanId(b.id)}
+                aria-pressed={on}
                 style={{
                   flexShrink: 0,
                   width: 132,
@@ -198,12 +257,12 @@ function BrewFlow({
                   <BeanBag color={b.color} size={34} />
                   {b.remaining != null && <RemainingRing pct={b.remaining} />}
                 </div>
-                <div className="display" style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.1, marginTop: 9 }}>
+                <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-sm)", lineHeight: 1.1, marginTop: 9 }}>
                   {b.name}
                 </div>
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--text-2xs)",
                     color: "var(--mocha)",
                     marginTop: 2,
                     whiteSpace: "nowrap",
@@ -218,6 +277,7 @@ function BrewFlow({
           })}
           <button
             onClick={onNewBag}
+            aria-label="Add a bag to your shelf"
             style={{
               flexShrink: 0,
               width: 132,
@@ -230,7 +290,7 @@ function BrewFlow({
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              fontSize: 12.5,
+              fontSize: "var(--text-xs)",
               fontWeight: 600,
             }}
           >
@@ -239,8 +299,8 @@ function BrewFlow({
         </div>
 
         {/* Rating */}
-        <SectionLabel>How was it?</SectionLabel>
-        <div style={{ display: "flex", justifyContent: "center", padding: "6px 0 20px" }}>
+        <SectionLabel id="brew-rating-label">How was it?</SectionLabel>
+        <div role="group" aria-labelledby="brew-rating-label" style={{ display: "flex", justifyContent: "center", padding: "6px 0 20px" }}>
           <BeanRating value={rating} size={40} onChange={setRating} />
         </div>
 
@@ -248,41 +308,18 @@ function BrewFlow({
         <SectionLabel>Brew method</SectionLabel>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
           {D.BREW_METHODS.map((m) => (
-            <button
-              key={m}
-              onClick={() => setBrew(m)}
-              style={{
-                padding: "8px 13px",
-                borderRadius: 99,
-                fontSize: 13,
-                fontWeight: 600,
-                background: brew === m ? "var(--espresso)" : "var(--surface)",
-                color: brew === m ? "var(--cream)" : "var(--coffee)",
-                border: "1px solid " + (brew === m ? "var(--espresso)" : "var(--line)"),
-              }}
-            >
-              {m}
-            </button>
+            <PillButton key={m} active={brew === m} onClick={() => setBrew(m)} padding="8px 14px" minHeight={44}>{m}</PillButton>
           ))}
         </div>
 
         {/* Optional params */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowParams((s) => !s)}
-          className="mb-1 h-auto gap-2 p-0 text-[13px] font-semibold text-[var(--coffee)] hover:bg-transparent"
-          style={{ marginBottom: showParams ? 12 : 4 }}
-        >
-          <Icon name={showParams ? "close" : "plus"} size={15} color="var(--mocha)" /> {showParams ? "Hide" : "Add"} brew details
-        </Button>
-        {showParams && (
-          <div className="fade-up" style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <ToggleSection open={showParams} onToggle={() => setShowParams((s) => !s)} label="brew details">
+          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <MiniField label="Dose (g)" value={dose} onChange={setDose} />
             <MiniField label="Ratio (1:)" value={ratio} onChange={setRatio} />
             <MiniField label="Temp (°C)" value={temp} onChange={setTemp} />
           </div>
-        )}
+        </ToggleSection>
 
         {/* Note */}
         <SectionLabel>
@@ -293,12 +330,23 @@ function BrewFlow({
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           placeholder="How did it taste today? How'd you dial it in?"
-          className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[14.5px] leading-[1.55]"
+          className="resize-y rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] text-[16px] leading-[1.55] md:text-[length:var(--text-base)]"
         />
+
+        {/* Assessment capture is log-only for v1: editing can't load an existing
+            assessment (Tasting carries none), so showing the expander on edit
+            would overwrite/null prior intensities. Hide it in edit mode. */}
+        {!isEdit && (
+          <div style={{ marginTop: 18 }}>
+            <ToggleSection open={showAssess} onToggle={() => setShowAssess((s) => !s)} label="tasting notes">
+              <TastingAssessmentFields value={assessment} onChange={setAssessment} />
+            </ToggleSection>
+          </div>
+        )}
       </div>
-      <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line-soft)" }}>
+      <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--line-soft)" }}>
         {error && (
-          <div role="alert" style={{ marginBottom: 10, fontSize: 13, color: "var(--berry, #a8434a)" }}>
+          <div role="alert" style={{ marginBottom: 10, fontSize: "var(--text-sm)", color: "var(--berry)" }}>
             {error}
           </div>
         )}
@@ -334,14 +382,14 @@ function RemainingRing({ pct }: { pct: number }) {
 function MiniField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label style={{ flex: 1 }}>
-      <div className="mono" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--mocha)", marginBottom: 5 }}>
+      <div className="mono" style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--mocha)", marginBottom: 5 }}>
         {label}
       </div>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode="decimal"
-        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[11px] py-[9px] text-[14px] font-semibold"
+        className="h-auto rounded-[10px] border-[var(--line)] bg-[var(--surface)] px-[11px] py-[9px] text-[16px] font-semibold md:text-[length:var(--text-base)]"
       />
     </label>
   );

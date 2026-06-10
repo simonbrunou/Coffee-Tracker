@@ -1,4 +1,17 @@
 import { Pool, Client } from "pg";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+/** Concatenate every drizzle/*.sql migration in order — one raw SQL batch for a
+ *  scratch DB. Auto-includes new migrations (no hardcoded list to maintain). */
+export function allMigrationsSql(): string {
+  const dir = join(process.cwd(), "drizzle");
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => readFileSync(join(dir, f), "utf8"))
+    .join("\n");
+}
 
 /** Base test connection string (from .env.test locally or the CI job env). */
 export function baseUrl(): string {
@@ -48,51 +61,3 @@ export async function dropDb(name: string) {
   });
 }
 
-/** Normalize a column_default so cosmetic representations compare equal:
- *  '0'::numeric -> 0, '{}'::text[] -> {}, ''::text -> '', 'now'::text -> now.
- *  Assumes default literals contain no embedded "::" (true for this schema); a
- *  future textual default whose body contains "::" would need a smarter parse. */
-function normDefault(d: string | null): string | null {
-  if (d == null) return null;
-  return d
-    .replace(/::[a-zA-Z0-9_ "[\]]+/g, "") // strip ::type casts
-    .replace(/^'([\s\S]*)'$/, "$1") // unwrap surrounding quotes
-    .trim();
-}
-
-/** Catalog snapshot for the fidelity gate.
- *  Constraint NAMES are only asserted for CHECKs (stable + app-meaningful) and,
- *  separately, the load-bearing standalone index `users_email_lower_uq`.
- *  FK/PK/UNIQUE auto-names differ between drizzle-kit and Postgres, so those are
- *  compared by DEFINITION only (def still encodes columns, refs, ON DELETE). */
-export async function catalog(client: Client) {
-  const columns = (
-    await client.query(`
-      select table_name, column_name, udt_name, is_nullable, column_default
-      from information_schema.columns
-      where table_schema = 'public'
-      order by table_name, column_name`)
-  ).rows.map((r) => ({ ...r, column_default: normDefault(r.column_default) }));
-
-  const cons = (
-    await client.query(`
-      select conname, contype, pg_get_constraintdef(oid) as def
-      from pg_constraint
-      where connamespace = 'public'::regnamespace
-      order by contype, def, conname`)
-  ).rows;
-  const checks = cons
-    .filter((c) => c.contype === "c")
-    .map((c) => ({ conname: c.conname, def: c.def }));
-  const constraintDefs = cons.filter((c) => c.contype !== "c").map((c) => c.def).sort();
-
-  const conNames = new Set(cons.map((c) => c.conname));
-  const indexes = (
-    await client.query(`
-      select indexname, indexdef from pg_indexes
-      where schemaname = 'public'
-      order by indexname`)
-  ).rows.filter((i) => !conNames.has(i.indexname));
-
-  return { columns, checks, constraintDefs, indexes };
-}

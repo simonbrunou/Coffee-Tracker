@@ -13,8 +13,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { DataProvider } from "./data-context";
 import { LogSheet } from "./log-sheet";
-import { Avatar, Icon, type IconName } from "./ui";
-import { Button } from "@/components/ui/button";
+import { Sidebar, MobileTopBar, MobileBottomNav, VerifyBanner, NAV } from "./shell-chrome";
 import {
   logBrew as logBrewAction,
   addBag as addBagAction,
@@ -28,15 +27,8 @@ import {
   toggleSaveTasting as saveTastingAction,
   toggleWishlistBean as wishlistBeanAction,
 } from "@/app/actions";
-import { signOutAction } from "@/app/auth-actions";
 import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
-
-const NAV: { id: string; label: string; icon: IconName; href: string }[] = [
-  { id: "feed", label: "Feed", icon: "home", href: "/" },
-  { id: "journal", label: "Journal", icon: "journal", href: "/journal" },
-  { id: "discover", label: "Discover", icon: "compass", href: "/discover" },
-  { id: "profile", label: "Profile", icon: "user", href: "/profile" },
-];
+import { THEME_LIGHT, THEME_DARK } from "@/lib/theme-colors";
 
 interface ShellApi {
   likes: Set<string>;
@@ -51,6 +43,7 @@ interface ShellApi {
   toggleWishlistBean: (id: string) => void;
   openBean: (id: string) => void;
   openRoaster: (id: string) => void;
+  openUser: (handle: string) => void;
   openBrew: (beanId?: string) => void;
   openAddBag: () => void;
   openEditBrew: (t: Tasting) => void;
@@ -68,19 +61,19 @@ export function useShell(): ShellApi {
 }
 
 export function AppProvider({ initialData, children }: { initialData: AppData; children: React.ReactNode }) {
-  const { roasters, users, currentUserId } = initialData;
+  const { roasters, currentUserId, needsEmailVerification } = initialData;
 
   // Server truth is the canonical base: useOptimistic re-bases on `initialData`
   // whenever a Server Action's revalidatePath re-runs the force-dynamic layout.
   // Optimistic updates (in a transition) cover the in-flight latency window, then
   // reconcile to the re-based server value automatically.
-  const [beans, setBeansOptimistic] = useOptimistic(initialData.beans, (_state: Bean[], next: Bean[]) => next);
-  const [tastings, setTastingsOptimistic] = useOptimistic(
-    initialData.tastings,
+  const [myShelf, setMyShelfOptimistic] = useOptimistic(initialData.myShelf, (_state: Bean[], next: Bean[]) => next);
+  const [myTastings, setMyTastingsOptimistic] = useOptimistic(
+    initialData.myTastings,
     (_state: Tasting[], next: Tasting[]) => next,
   );
   const [likes, setLikes] = useState<Set<string>>(
-    () => new Set(initialData.tastings.filter((t) => t.likedByMe).map((t) => t.id)),
+    () => new Set([...initialData.feed.rows, ...initialData.myTastings].filter((t) => t.likedByMe).map((t) => t.id)),
   );
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(() => new Set(initialData.followedUserIds));
   const [followedRoasters, setFollowedRoasters] = useState<Set<string>>(() => new Set(initialData.followedRoasterIds));
@@ -99,10 +92,11 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const pathname = usePathname();
 
   // ---- Scroll restoration for the single persistent scroll container ----
-  // The <main> scroll container lives in this provider and survives route
-  // changes, so we save its position per route and restore it on Back/Forward
+  // The .main-scroll container (a <div>; the <main> landmark is its child) lives
+  // in this provider and survives route changes, so we save its position per
+  // route and restore it on Back/Forward
   // (popstate); a forward push resets to the top.
-  const scrollRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Map<string, number>>(new Map());
   const currentRouteKey = useRef(pathname);
   const isPopNav = useRef(false);
@@ -154,34 +148,12 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
       meta.name = "theme-color";
       document.head.appendChild(meta);
     }
-    meta.setAttribute("content", isDark ? "#1b1610" : "#f4ece1");
+    meta.setAttribute("content", isDark ? THEME_DARK : THEME_LIGHT);
   }, [isDark, mounted]);
 
-  const me = users.find((u) => u.id === currentUserId);
-
-  const toggleLike = (id: string) => {
-    if (!currentUserId) { router.push("/login"); return; }
-    const willLike = !likes.has(id);
-    setLikes((prev) => {
-      const n = new Set(prev);
-      if (willLike) n.add(id);
-      else n.delete(id);
-      return n;
-    });
-    // persist; on failure roll the optimistic update back and surface it
-    toggleLikeAction(id, willLike).catch(() => {
-      setLikes((prev) => {
-        const n = new Set(prev);
-        if (willLike) n.delete(id);
-        else n.add(id);
-        return n;
-      });
-      toast("Couldn't save that like — please try again");
-    });
-  };
+  const me = initialData.me;
 
   const optimisticToggle = (
-    set: Set<string>,
     setSet: (updater: (prev: Set<string>) => Set<string>) => void,
     id: string,
     action: (id: string, on: boolean) => Promise<void>,
@@ -198,10 +170,11 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     });
   };
 
-  const toggleFollowUser = (id: string) => optimisticToggle(followedUsers, setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
-  const toggleFollowRoaster = (id: string) => optimisticToggle(followedRoasters, setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
-  const toggleSaveTasting = (id: string) => optimisticToggle(savedTastings, setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
-  const toggleWishlistBean = (id: string) => optimisticToggle(wishedBeans, setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
+  const toggleLike = (id: string) => optimisticToggle(setLikes, id, toggleLikeAction, "Couldn't save that like — please try again");
+  const toggleFollowUser = (id: string) => optimisticToggle(setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
+  const toggleFollowRoaster = (id: string) => optimisticToggle(setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
+  const toggleSaveTasting = (id: string) => optimisticToggle(setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
+  const toggleWishlistBean = (id: string) => optimisticToggle(setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
 
   const openBrew = (beanId?: string) => {
     if (!currentUserId) return router.push("/login");
@@ -219,7 +192,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     setLog({ open: true, mode: "brew", preset: t.beanId });
   };
   const openEditBag = (beanId: string) => {
-    const b = beans.find((x) => x.id === beanId);
+    const b = myShelf.find((x) => x.id === beanId);
     if (!b || b.ownerId !== currentUserId) return;
     setEdit({ kind: "bag", bean: b });
     setLog({ open: true, mode: "bag", preset: null });
@@ -230,20 +203,23 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
   const openBean = (id: string) => router.push(`/bean/${id}`);
   const openRoaster = (id: string) => router.push(`/roaster/${id}`);
+  const openUser = (handle: string) => router.push(`/u/${handle}`);
 
   // Re-throw on failure so the sheet can show a real error instead of a false
   // success. The new row appears via the action's revalidatePath re-base (proven
   // fast on the spike); the success panel masks the round-trip.
   const handleLogBrew = async (input: LogBrewInput) => {
-    const b = beans.find((x) => x.id === input.beanId);
+    const b = myShelf.find((x) => x.id === input.beanId);
     await logBrewAction(input);
-    toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
+    // Drop the article so a proper-noun bag name reads right ("Logged your Idido
+    // brew", not "Logged a Idido brew").
+    toast(b ? `Logged your ${b.name} brew ✓` : "Brew logged ✓");
   };
 
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
     const bean = await addBagAction(input);
     // keep the new bag visible in the shelf for the "& continue" → brew hand-off
-    startTransition(() => setBeansOptimistic([bean, ...beans]));
+    startTransition(() => setMyShelfOptimistic([bean, ...myShelf]));
     if (backToBrew) setLog({ open: true, mode: "brew", preset: bean.id });
     else {
       toast(`${bean.name} added to your shelf ✓`);
@@ -259,7 +235,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     // async work INSIDE the transition so useOptimistic auto-reverts the removal
     // if the delete fails (the canonical base still has the row until revalidate).
     startTransition(async () => {
-      setTastingsOptimistic(tastings.filter((t) => t.id !== id));
+      setMyTastingsOptimistic(myTastings.filter((t) => t.id !== id));
       try {
         await deleteBrewAction(id);
         toast("Brew deleted");
@@ -274,8 +250,8 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
   const handleDeleteBag = async (beanId: string) => {
     startTransition(async () => {
-      setBeansOptimistic(beans.filter((b) => b.id !== beanId));
-      setTastingsOptimistic(tastings.filter((t) => t.beanId !== beanId));
+      setMyShelfOptimistic(myShelf.filter((b) => b.id !== beanId));
+      setMyTastingsOptimistic(myTastings.filter((t) => t.beanId !== beanId));
       try {
         await deleteBagAction(beanId);
         toast("Bag and its brews deleted");
@@ -302,6 +278,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     toggleWishlistBean,
     openBean,
     openRoaster,
+    openUser,
     openBrew,
     openAddBag,
     openEditBrew,
@@ -311,97 +288,31 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
 
   return (
-    <DataProvider roasters={roasters} users={users} beans={beans} tastings={tastings} followingTastings={initialData.followingTastings} currentUserId={currentUserId}>
+    <DataProvider roasters={roasters} feed={initialData.feed} me={me} myTastings={myTastings} myShelf={myShelf} savedTastings={initialData.savedTastings} wishlistBeans={initialData.wishlistBeans} currentUserId={currentUserId}>
       <ShellContext.Provider value={shell}>
         <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
-          {/* ---- Desktop sidebar ---- */}
-          <aside className="sidebar">
-            <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 8px 26px" }}>
-              <Logo />
-              <div>
-                <div className="display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1 }}>
-                  Cortado
-                </div>
-                <div
-                  className="mono"
-                  style={{ fontSize: 9.5, letterSpacing: "0.14em", color: "var(--mocha)", textTransform: "uppercase", marginTop: 3 }}
-                >
-                  coffee journal
-                </div>
-              </div>
-            </div>
-            <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {NAV.map((n) => (
-                <button key={n.id} onClick={() => router.push(n.href)} className="nav-item" data-active={activeId === n.id}>
-                  <Icon name={n.icon} size={21} stroke={activeId === n.id ? 2 : 1.7} />
-                  <span>{n.label}</span>
-                  {n.id === "feed" && <span className="nav-dot" />}
-                </button>
-              ))}
-            </nav>
-            <div style={{ display: "flex", gap: 8, margin: "20px 0 0" }}>
-              <Button onClick={() => openBrew()} style={{ flex: 1 }}>
-                <Icon name="drop" size={18} color="currentColor" /> Log a brew
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => openAddBag()} title="Add a bag to your shelf">
-                <Icon name="plus" size={18} />
-              </Button>
-            </div>
-            <div style={{ marginTop: "auto", paddingTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
-              {me ? (
-                <>
-                  <button onClick={() => router.push("/profile")} className="nav-user" style={{ flex: 1, minWidth: 0 }}>
-                    <Avatar user={me} size={36} />
-                    <div style={{ textAlign: "left", minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{me.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>@{me.handle}</div>
-                    </div>
-                  </button>
-                  <form action={signOutAction}>
-                    <Button variant="ghost" size="sm" type="submit">Sign out</Button>
-                  </form>
-                </>
-              ) : (
-                <Button variant="outline" onClick={() => router.push("/login")} style={{ flex: 1 }}>
-                  Sign in
-                </Button>
-              )}
-              <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
-            </div>
-          </aside>
+          <a href="#main-content" className="skip-link">Skip to content</a>
+          <Sidebar
+            me={me}
+            activeId={activeId}
+            mounted={mounted}
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+            onBrew={() => openBrew()}
+            onAddBag={() => openAddBag()}
+          />
 
           {/* ---- Main scroll area ---- */}
-          <main ref={scrollRef} className="main-scroll">
-            <header className="mobile-top">
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <Logo size={30} />
-                <span className="display" style={{ fontSize: 18, fontWeight: 700 }}>
-                  Cortado
-                </span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <ThemeToggle mounted={mounted} isDark={isDark} onToggle={toggleTheme} />
-                <Button variant="ghost" size="icon" onClick={() => router.push("/discover")} aria-label="Search">
-                  <Icon name="search" size={21} />
-                </Button>
-              </div>
-            </header>
-            <div className="screen-pad">{children}</div>
+          <div ref={scrollRef} className="main-scroll">
+            <MobileTopBar currentUserId={currentUserId} mounted={mounted} isDark={isDark} onToggleTheme={toggleTheme} />
+            <main id="main-content" tabIndex={-1} className="screen-pad">
+              {needsEmailVerification && <VerifyBanner />}
+              {children}
+            </main>
             <div style={{ height: 90 }} className="mobile-only-spacer" />
-          </main>
+          </div>
 
-          {/* ---- Mobile bottom nav ---- */}
-          <nav className="bottom-nav">
-            {NAV.slice(0, 2).map((n) => (
-              <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
-            ))}
-            <button onClick={() => openBrew()} className="fab" aria-label="Log a brew">
-              <Icon name="drop" size={24} color="var(--cream)" />
-            </button>
-            {NAV.slice(2).map((n) => (
-              <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
-            ))}
-          </nav>
+          <MobileBottomNav activeId={activeId} onBrew={() => openBrew()} />
 
           <LogSheet
             open={log.open}
@@ -421,55 +332,3 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   );
 }
 
-function ThemeToggle({ mounted, isDark, onToggle }: { mounted: boolean; isDark: boolean; onToggle: () => void }) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={onToggle}
-      aria-label={mounted && isDark ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {mounted && isDark ? <Icon name="sun" size={20} /> : <Icon name="moon" size={20} />}
-    </Button>
-  );
-}
-
-function BottomItem({
-  n,
-  active,
-  onClick,
-}: {
-  n: { id: string; label: string; icon: IconName };
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button onClick={onClick} className="bottom-item" data-active={active}>
-      <Icon name={n.icon} size={23} stroke={active ? 2.1 : 1.7} />
-      <span>{n.label}</span>
-    </button>
-  );
-}
-
-function Logo({ size = 38 }: { size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: "var(--espresso)",
-        flexShrink: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
-      <svg width={size * 0.56} height={size * 0.56} viewBox="0 0 24 24" fill="none">
-        <ellipse cx="12" cy="12" rx="7" ry="10" transform="rotate(35 12 12)" fill="var(--caramel)" />
-        <path d="M 7 6 Q 12 12 17 18" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({
   requireUserId: vi.fn(async () => "u-me"),
+  requireVerifiedUserId: vi.fn(async () => "u-me"),
   getCurrentUserId: vi.fn(async () => "u-me"),
 }));
 const queryMock = vi.fn();
@@ -25,14 +26,17 @@ describe("edit/delete ownership guards", () => {
     expect(params).toContain("t-1");
     expect(params).toContain("u-me");
   });
-  it("updateBrew re-selects the row WITH the ownership guard (no foreign row leak)", async () => {
-    queryMock.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "t-1", userId: "u-me" }] }); // SELECT
+  it("updateBrew re-selects the denormalized row by id after the ownership-guarded UPDATE", async () => {
+    // Ownership is enforced by the UPDATE (prior test); the re-select (getTastingById)
+    // fetches by id with $1=viewer for likedByMe — a foreign/deleted row can't surface
+    // because the UPDATE's rowCount==0 throws before this runs.
+    queryMock.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE (where id=$1 and user_id=$2)
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "t-1", userId: "u-me" }] }); // getTastingById SELECT
     const t = await updateBrew(brew);
     expect(t.id).toBe("t-1");
     const [selSql, selParams] = queryMock.mock.calls[1] as [string, unknown[]];
-    expect(selSql).toMatch(/select[\s\S]*from tastings where id = \$1 and user_id = \$2/i);
-    expect(selParams).toEqual(["t-1", "u-me"]);
+    expect(selSql).toMatch(/select[\s\S]*from tastings t[\s\S]*where t\.id = \$2/i);
+    expect(selParams).toEqual(["u-me", "t-1"]); // [viewer, id]
   });
   it("deleteBrew is ownership-guarded", async () => {
     queryMock.mockResolvedValue({ rowCount: 1, rows: [{ id: "t-1" }] });

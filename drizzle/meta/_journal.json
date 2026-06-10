@@ -8,6 +8,62 @@
       "when": 1780747682340,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780755814518,
+      "tag": "0001_pagination_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780779906521,
+      "tag": "0002_account_deletion_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780813624899,
+      "tag": "0003_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780819410506,
+      "tag": "0004_verification_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780938760562,
+      "tag": "0005_public_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780944635383,
+      "tag": "0006_link_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781022490977,
+      "tag": "0007_chubby_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781079796082,
+      "tag": "0008_link_token_purpose",
+      "breakpoints": true
     }
   ]
 }

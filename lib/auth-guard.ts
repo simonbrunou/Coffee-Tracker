@@ -1,3 +1,9 @@
+/** True only when the session's frozen version matches the live DB version.
+ *  A missing/non-number sv (e.g. a legacy JWT) is treated as NOT live. */
+export function isLiveSession(sv: number | undefined, liveVersion: number | null): boolean {
+  return liveVersion !== null && typeof sv === "number" && sv === liveVersion;
+}
+
 /** Pure gate: given the session's {id, sv} and the live session_version, return
  *  the id or throw. Read paths do not call this; write paths do (revocation). */
 export function resolveUserOrThrow(
@@ -5,6 +11,12 @@ export function resolveUserOrThrow(
   liveVersion: number | null,
 ): string {
   if (!session) throw new Error("Unauthenticated");
-  if (liveVersion === null || liveVersion !== session.sv) throw new Error("Session revoked");
+  if (!isLiveSession(session.sv, liveVersion)) throw new Error("Session revoked");
   return session.id;
+}
+
+/** Content writes require a verified email for CREDENTIAL users; OAuth users
+ *  (no password) are always allowed. */
+export function isWriteAllowed(hasPassword: boolean, emailVerified: Date | null): boolean {
+  return !(hasPassword && !emailVerified);
 }

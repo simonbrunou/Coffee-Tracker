@@ -1,18 +1,184 @@
 "use client";
 /* ============ Cortado — Shared UI primitives ============ */
-import { useState } from "react";
-import { flavorColor } from "@/lib/seed-data";
+import { useEffect, useState } from "react";
+import { flavorColor } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Avatar as AvatarRoot, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
+import { relativeTime } from "@/lib/relative-time";
+
+// The cap past which a per-item entrance-stagger stops growing. Capping matters
+// for appended "load more" pages: without it a later item's delay (index * step)
+// can leave it invisibly waiting for hundreds of ms after it mounts.
+const STAGGER_CAP_MS = 400;
+/** CSS animation-delay (ms string) for a staggered list item, capped. */
+export function staggerMs(delay: number): string {
+  return `${Math.min(delay, STAGGER_CAP_MS)}ms`;
+}
+
+/** The small inline "SCA <score>" chip shown on bean + shelf cards (the bean
+ *  detail hero keeps its own larger boxed variant). */
+export function ScaScore({ value }: { value: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+      <span className="mono" style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)", letterSpacing: "0.05em" }}>SCA</span>
+      <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{value}</span>
+    </span>
+  );
+}
+
+/** A rounded toggle pill (aria-pressed), hand-rolled seven times across the app.
+ *  `tone="solid"` is the espresso/surface selector (feed + discover tabs, brew
+ *  method, bag-form roast); `tone="soft"` is the smaller caramel filter chip
+ *  (Discover process). `padding`/`minHeight`/`fontSize` cover the minor per-site
+ *  size differences. */
+export function PillButton({
+  active,
+  onClick,
+  children,
+  tone = "solid",
+  padding,
+  minHeight,
+  fontSize,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  tone?: "solid" | "soft";
+  padding?: string;
+  minHeight?: number;
+  fontSize?: string;
+}) {
+  const solid = tone === "solid";
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: padding ?? (solid ? "8px 16px" : "6px 13px"),
+        minHeight,
+        borderRadius: 99,
+        fontSize: fontSize ?? (solid ? "var(--text-sm)" : "var(--text-xs)"),
+        fontWeight: 600,
+        background: active ? (solid ? "var(--espresso)" : "var(--caramel-soft)") : solid ? "var(--surface)" : "transparent",
+        color: active ? (solid ? "var(--cream)" : "var(--caramel-deep)") : solid ? "var(--coffee)" : "var(--mocha)",
+        border: "1px solid " + (active ? (solid ? "var(--espresso)" : "transparent") : "var(--line)"),
+        transition: "all 0.15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Centered "Load more" footer for keyset-paginated lists. Renders nothing when
+ *  there's no next page. Replaces six hand-rolled copies whose margins had drifted. */
+export function LoadMoreButton({
+  hasMore,
+  pending,
+  onClick,
+  marginTop = 18,
+}: {
+  hasMore: boolean;
+  pending: boolean;
+  onClick: () => void;
+  marginTop?: number;
+}) {
+  if (!hasMore) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "center", marginTop }}>
+      <Button variant="outline" onClick={onClick} disabled={pending}>
+        {pending ? "Loading…" : "Load more"}
+      </Button>
+    </div>
+  );
+}
+
+/** Shared empty / not-found state: a dimmed icon, optional title, a hint, and an
+ *  optional CTA. `variant="section"` is the in-page version (feed/journal/search
+ *  empties); `variant="page"` is the larger full-route version (bean/roaster not
+ *  found). Replaces four near-identical hand-rolled blocks. */
+export function EmptyState({
+  icon,
+  title,
+  hint,
+  cta,
+  variant = "section",
+}: {
+  icon: IconName;
+  title?: string;
+  hint: React.ReactNode;
+  cta?: { label: string; icon?: IconName; onClick: () => void; variant?: "default" | "outline" };
+  variant?: "section" | "page";
+}) {
+  const page = variant === "page";
+  return (
+    <div
+      className={page ? "fade-up" : undefined}
+      style={{
+        textAlign: "center",
+        color: "var(--mocha)",
+        padding: page ? "80px 20px" : "60px 20px",
+        ...(page ? { maxWidth: 820, margin: "0 auto" } : null),
+      }}
+    >
+      <div style={{ display: "inline-flex", marginBottom: page ? 16 : 14, opacity: 0.5 }}>
+        <Icon name={icon} size={40} />
+      </div>
+      {title &&
+        (page ? (
+          <h1 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700 }}>{title}</h1>
+        ) : (
+          <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
+        ))}
+      <p
+        style={{
+          fontSize: page ? "var(--text-md)" : "var(--text-base)",
+          marginTop: page ? 8 : 6,
+          ...(page ? null : { maxWidth: 360, marginInline: "auto" }),
+        }}
+      >
+        {hint}
+      </p>
+      {cta && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: page ? 22 : 18 }}>
+          <Button variant={cta.variant ?? "default"} onClick={cta.onClick}>
+            {cta.icon && <Icon name={cta.icon} size={page ? 18 : 17} color="currentColor" />} {cta.label}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Hydration-safe relative "time ago". SSR and the first client render compute the
+// wall clock at different instants, so render an empty placeholder on first paint
+// (identical server + client), then fill the live value in a mount effect.
+// suppressHydrationWarning covers the swap. Shared by cards, the journal grid, and
+// comment threads so every relative time is hydration-safe.
+export function RelTime({ iso }: { iso: string }) {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    setLabel(relativeTime(iso));
+  }, [iso]);
+  return (
+    <time dateTime={iso} suppressHydrationWarning>
+      {label ? ` · ${label}` : ""}
+    </time>
+  );
+}
 
 // ---- Avatar (initial on tinted circle) — shadcn Avatar with a tinted fallback ----
-export function Avatar({ user, size = 40 }: { user: User; size?: number }) {
+export function Avatar({ user, size = 40 }: { user: Pick<User, "name" | "avatar">; size?: number }) {
   const initials =
     user.name === "You" ? "You" : user.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
   return (
-    <AvatarRoot className="shrink-0" style={{ width: size, height: size }}>
+    <AvatarRoot className="shrink-0" aria-hidden="true" style={{ width: size, height: size }}>
       <AvatarFallback
         style={{
           background: user.avatar,
@@ -34,10 +200,14 @@ export function BeanRating({
   value,
   size = 16,
   onChange,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-label": ariaLabel,
 }: {
   value: number;
   size?: number;
   onChange?: (n: number) => void;
+  "aria-labelledby"?: string;
+  "aria-label"?: string;
 }) {
   const [hover, setHover] = useState(0);
   const interactive = !!onChange;
@@ -52,12 +222,25 @@ export function BeanRating({
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onChange(n);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      onChange(1);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      onChange(5);
     }
   };
   return (
     <div
       role={interactive ? "radiogroup" : "img"}
-      aria-label={interactive ? "Rating" : `Rated ${value} of 5`}
+      aria-labelledby={interactive ? ariaLabelledBy : undefined}
+      aria-label={
+        interactive
+          ? ariaLabelledBy
+            ? undefined
+            : ariaLabel ?? "Rating"
+          : `Rated ${Math.round(value * 10) / 10} of 5`
+      }
       style={{ display: "inline-flex", gap: size * 0.18 }}
     >
       {[1, 2, 3, 4, 5].map((n) => {
@@ -99,8 +282,8 @@ export function BeanGlyph({ size = 16, filled = true }: { size?: number; filled?
         rx="7"
         ry="10"
         transform="rotate(35 12 12)"
-        fill={filled ? "var(--caramel)" : "transparent"}
-        stroke={filled ? "var(--caramel)" : "var(--line)"}
+        fill={filled ? "var(--gold)" : "transparent"}
+        stroke={filled ? "var(--gold)" : "var(--line)"}
         strokeWidth="1.6"
       />
       <path
@@ -127,7 +310,7 @@ export function FlavorChip({ flavor, small }: { flavor: string; small?: boolean 
         borderRadius: 99,
         background: "var(--surface-2)",
         border: "1px solid var(--line-soft)",
-        fontSize: small ? 11.5 : 12.5,
+        fontSize: small ? "var(--text-2xs)" : "var(--text-xs)",
         fontWeight: 500,
         color: "var(--coffee)",
         whiteSpace: "nowrap",
@@ -155,7 +338,7 @@ export function RoastPill({ roast }: { roast: string }) {
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        fontSize: 12,
+        fontSize: "var(--text-xs)",
         color: "var(--coffee)",
         fontWeight: 500,
       }}
@@ -180,7 +363,7 @@ export function Tag({ children, accent }: { children: React.ReactNode; accent?: 
     <Badge
       variant="outline"
       className={cn(
-        "rounded-[6px] px-[9px] py-[4px] text-[11px] font-semibold uppercase leading-none tracking-[0.04em]",
+        "rounded-[6px] px-[9px] py-[4px] text-[length:var(--text-2xs)] font-semibold uppercase leading-none tracking-[0.04em]",
         accent
           ? "border-transparent bg-[var(--caramel-soft)] text-[var(--caramel-deep)]"
           : "border-[var(--line-soft)] bg-[var(--surface-2)] text-[var(--mocha)]",
@@ -195,7 +378,7 @@ export function Tag({ children, accent }: { children: React.ReactNode; accent?: 
 export type IconName =
   | "home" | "journal" | "compass" | "user" | "heart" | "comment" | "bookmark"
   | "plus" | "search" | "close" | "back" | "pin" | "drop" | "check" | "star"
-  | "settings" | "trend" | "grid" | "sun" | "moon";
+  | "settings" | "edit" | "trend" | "grid" | "sun" | "moon";
 
 export function Icon({
   name,
@@ -203,13 +386,14 @@ export function Icon({
   stroke = 1.7,
   fill = "none",
   color = "currentColor",
+  ...rest
 }: {
   name: IconName;
   size?: number;
   stroke?: number;
   fill?: string;
   color?: string;
-}) {
+} & Omit<React.SVGProps<SVGSVGElement>, "stroke" | "fill" | "color" | "name">) {
   const p = {
     fill: "none",
     stroke: color,
@@ -298,6 +482,12 @@ export function Icon({
         <path {...p} d="M12 3v3M12 18v3M5 5l2 2M17 17l2 2M3 12h3M18 12h3M5 19l2-2M17 7l2-2" />
       </>
     ),
+    edit: (
+      <>
+        <path {...p} d="M4 20h4l10-10-4-4L4 16z" />
+        <path {...p} d="M14 6l4 4" />
+      </>
+    ),
     trend: (
       <>
         <path {...p} d="M3 17l5-5 4 3 6-7" />
@@ -321,7 +511,15 @@ export function Icon({
     moon: <path {...p} d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />,
   };
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>
+    <svg
+      {...rest}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ display: "block", flexShrink: 0 }}
+      aria-hidden={(rest["aria-hidden"] as boolean | undefined) ?? true}
+      focusable="false"
+    >
       {paths[name]}
     </svg>
   );

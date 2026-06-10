@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-vi.mock("@/lib/auth", () => ({ requireUserId: vi.fn(async () => "u-me"), getCurrentUserId: vi.fn(async () => "u-me") }));
+vi.mock("@/lib/auth", () => ({ requireUserId: vi.fn(async () => "u-me"), requireVerifiedUserId: vi.fn(async () => "u-me"), getCurrentUserId: vi.fn(async () => "u-me") }));
 const queryMock = vi.fn();
 vi.mock("@/lib/db", () => ({ query: (...a: unknown[]) => queryMock(...a) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/queries", () => ({ getComments: vi.fn(async () => [{ id: "c-1" }]), BEAN_COLS: "", TASTING_COLS: "" }));
+vi.mock("@/lib/queries", () => ({
+  getComments: vi.fn(async () => [{ id: "c-1" }]),
+  getCommentById: vi.fn(async () => ({
+    id: "c-9", tastingId: "t-1", userId: "u-me", body: "hi", createdAt: "", updatedAt: null,
+    authorName: "Me", authorHandle: "me", authorAvatar: "#000",
+  })),
+  getTastingById: vi.fn(),
+  BEAN_COLS: "",
+}));
 
 import { toggleFollowUser, toggleSaveTasting, addComment, updateComment, deleteComment } from "@/app/actions";
 
@@ -34,13 +42,13 @@ describe("social actions", () => {
   it("addComment validates then inserts and returns the row", async () => {
     await expect(addComment({ tastingId: "t-1", body: "" })).rejects.toThrow();
     expect(queryMock).not.toHaveBeenCalled();
-    queryMock.mockResolvedValue({ rows: [{ id: "c-9", tastingId: "t-1", userId: "u-me", body: "hi" }] });
+    queryMock.mockResolvedValue({}); // insert; the row is re-selected via getCommentById
     const c = await addComment({ tastingId: "t-1", body: "hi" });
-    expect(c.id).toBe("c-9");
+    expect(c.id).toBe("c-9"); // from the getCommentById mock
     expect((queryMock.mock.calls[0][0] as string)).toMatch(/insert into comments/i);
   });
   it("updateComment is ownership-guarded", async () => {
-    queryMock.mockResolvedValue({ rows: [{ id: "c-1" }] });
+    queryMock.mockResolvedValue({ rowCount: 1 });
     await updateComment({ id: "c-1", body: "edited" });
     expect((queryMock.mock.calls[0][0] as string)).toMatch(/update comments set body = \$3, updated_at = now\(\) where id = \$1 and user_id = \$2/i);
   });

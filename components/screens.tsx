@@ -1,17 +1,18 @@
 "use client";
 /* ============ Cortado — Screens (Feed, Journal, Discover) ============ */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "./data-context";
 import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
-import { BeanGlyph, BeanRating, Icon, Placeholder } from "./ui";
+import { useLoadMore } from "./use-load-more";
+import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
+import { BeanGlyph, BeanRating, EmptyState, Icon, LoadMoreButton, PillButton, Placeholder, RelTime, ScaScore, staggerMs } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { relativeTime } from "@/lib/relative-time";
-import type { Bean, Roaster } from "@/lib/types";
+import type { Bean, Page, Roaster, Tasting } from "@/lib/types";
 
 // ---------- Section header ----------
-export function ScreenHead({
+function ScreenHead({
   kicker,
   title,
   sub,
@@ -38,7 +39,7 @@ export function ScreenHead({
           <div
             className="mono"
             style={{
-              fontSize: 11.5,
+              fontSize: "var(--text-2xs)",
               letterSpacing: "0.14em",
               textTransform: "uppercase",
               color: "var(--caramel-deep)",
@@ -48,11 +49,24 @@ export function ScreenHead({
             {kicker}
           </div>
         )}
-        <h1 className="display" style={{ fontSize: 34, fontWeight: 600, lineHeight: 1.05, letterSpacing: "-0.01em" }}>
+        <h1
+          className="display"
+          style={{ fontSize: "var(--text-4xl)", fontWeight: 600, lineHeight: 1.05, letterSpacing: "-0.01em" }}
+        >
           {title}
         </h1>
         {sub && (
-          <p style={{ fontSize: 14.5, color: "var(--mocha)", marginTop: 8, maxWidth: 460, textWrap: "pretty" }}>{sub}</p>
+          <p
+            style={{
+              fontSize: "var(--text-base)",
+              color: "var(--mocha)",
+              marginTop: 8,
+              maxWidth: 460,
+              textWrap: "pretty",
+            }}
+          >
+            {sub}
+          </p>
         )}
       </div>
       {action}
@@ -75,10 +89,25 @@ export function FeedScreen({
   setFilter: (f: string) => void;
 }) {
   const D = useData();
+  const { openBrew } = useShell();
   const tabs = ["Recent", "Following", "Popular"];
-  const list = filter === "Following" ? [...D.FOLLOWING]
-           : filter === "Popular"   ? [...D.TASTINGS].sort((a, b) => b.likes - a.likes)
-           : [...D.TASTINGS];
+  // Recent page 1 ships in the server payload (D.feed); load-more + other tabs
+  // fetch keyset pages via the loadMoreFeed action (M3·D).
+  const { rows, loadMore, hasMore, pending, reset } = useLoadMore<Tasting>(D.feed, (c) => loadMoreFeed(filter, c));
+  const [tabLoading, setTabLoading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (filter === "Recent") {
+      reset(D.feed);
+      return;
+    }
+    setTabLoading(true);
+    loadMoreFeed(filter, null)
+      .then((p) => { if (active) reset(p); })
+      .catch(() => { if (active) reset({ rows: [], nextCursor: null }); })
+      .finally(() => { if (active) setTabLoading(false); });
+    return () => { active = false; };
+  }, [filter, D.feed, reset]);
   const sub =
     filter === "Following"
       ? "Fresh tastings from the people you follow."
@@ -86,67 +115,54 @@ export function FeedScreen({
         ? "The most-loved brews on Cortado right now."
         : "The latest brews across Cortado.";
   return (
-    <div style={{ maxWidth: 620, margin: "0 auto" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <ScreenHead kicker="Your daily pour" title="The Feed" sub={sub} />
       <div role="group" aria-label="Filter feed" style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {tabs.map((t) => {
-          const active = filter === t;
-          return (
-            <button
-              key={t}
-              onClick={() => setFilter(t)}
-              aria-pressed={active}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 99,
-                fontSize: 13.5,
-                fontWeight: 600,
-                background: active ? "var(--espresso)" : "var(--surface)",
-                color: active ? "var(--cream)" : "var(--coffee)",
-                border: "1px solid " + (active ? "var(--espresso)" : "var(--line)"),
-                transition: "all 0.15s",
-              }}
-            >
-              {t}
-            </button>
-          );
-        })}
+        {tabs.map((t) => (
+          <PillButton key={t} active={filter === t} onClick={() => setFilter(t)}>{t}</PillButton>
+        ))}
       </div>
-      {filter === "Following" && list.length === 0 ? (
-        <FeedEmpty
+      {tabLoading ? (
+        <div
+          style={{ textAlign: "center", padding: "48px 20px", color: "var(--mocha)", fontSize: "var(--text-base)" }}
+        >
+          Loading…
+        </div>
+      ) : filter === "Following" && rows.length === 0 ? (
+        <EmptyState
+          icon="user"
           title="You're not following anyone yet"
           hint="Find people and roasters to follow over on Discover."
         />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon="drop"
+          title="Your feed is brewing"
+          hint="Log your first brew and it'll appear here — alongside tastings from people you follow."
+          cta={{ label: "Log your first brew", icon: "drop", onClick: () => openBrew() }}
+        />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {list.map((t, i) => (
-            <TastingCard
-              key={t.id}
-              tasting={t}
-              delay={i * 50}
-              onOpenBean={onOpenBean}
-              onLike={onLike}
-              liked={likes.has(t.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div role="list" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {rows.map((t, i) => (
+              <div role="listitem" key={t.id}>
+                <TastingCard
+                  tasting={t}
+                  delay={i * 50}
+                  onOpenBean={onOpenBean}
+                  onLike={onLike}
+                  liked={likes.has(t.id)}
+                />
+              </div>
+            ))}
+          </div>
+          <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} marginTop={22} />
+        </>
       )}
     </div>
   );
 }
 
-// Empty state for feed tabs (e.g. Following with no follows yet).
-function FeedEmpty({ title, hint }: { title: string; hint: string }) {
-  return (
-    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-        <Icon name="user" size={40} />
-      </div>
-      <p style={{ fontSize: 16, fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
-      <p style={{ fontSize: 14, marginTop: 6 }}>{hint}</p>
-    </div>
-  );
-}
 
 // ---------- JOURNAL ----------
 export function JournalScreen({
@@ -163,14 +179,15 @@ export function JournalScreen({
   onAddBag: () => void;
 }) {
   const D = useData();
-  const mine = D.currentUserId ? D.TASTINGS.filter((t) => t.userId === D.currentUserId) : [];
+  const mine = D.myTastings;
   const [section, setSection] = useState<"brews" | "shelf" | "saved">("brews");
   const [view, setView] = useState<"timeline" | "grid">("timeline");
-  const shelf = D.shelf();
-  // Filter by the optimistic Sets (instant after a Save), not the server snapshot.
+  const shelf = D.myShelf;
+  // Server-scoped saved/wishlist, filtered by the optimistic Sets so an un-save
+  // hides instantly (a new save appears after the action's revalidate).
   const { savedTastings: savedSet, wishedBeans: wishedSet } = useShell();
-  const savedTastings = D.TASTINGS.filter((t) => savedSet.has(t.id));
-  const wishlistedBeans = D.BEANS.filter((b) => wishedSet.has(b.id));
+  const savedTastings = D.savedTastings.filter((t) => savedSet.has(t.id));
+  const wishlistedBeans = D.wishlistBeans.filter((b) => wishedSet.has(b.id));
   const avg = mine.length ? (mine.reduce((s, t) => s + t.rating, 0) / mine.length).toFixed(1) : "0.0";
   const beansLogged = new Set(mine.map((t) => t.beanId)).size;
 
@@ -230,7 +247,7 @@ export function JournalScreen({
               style={{
                 padding: "10px 4px",
                 marginBottom: -1,
-                fontSize: 15,
+                fontSize: "var(--text-md)",
                 fontWeight: 600,
                 color: active ? "var(--espresso)" : "var(--mocha)",
                 borderBottom: "2px solid " + (active ? "var(--caramel)" : "transparent"),
@@ -238,7 +255,7 @@ export function JournalScreen({
             >
               {lbl}
               {count != null && (
-                <span style={{ marginLeft: 7, fontSize: 12, color: "var(--mocha)" }}>{count}</span>
+                <span style={{ marginLeft: 7, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>{count}</span>
               )}
             </button>
           );
@@ -246,169 +263,260 @@ export function JournalScreen({
       </div>
 
       {section === "shelf" ? (
-        <div
-          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}
-        >
-          <button
-            onClick={onAddBag}
-            style={{
-              minHeight: 132,
-              borderRadius: "var(--r-lg)",
-              border: "2px dashed var(--line)",
-              background: "transparent",
-              color: "var(--mocha)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              fontSize: 13.5,
-              fontWeight: 600,
-            }}
-          >
-            <Icon name="plus" size={26} color="var(--mocha)" /> Add a bag
-          </button>
-          {shelf.map((b, i) => (
-            <ShelfCard key={b.id} bag={b} onBrew={onBrew} onOpen={onOpenBean} delay={i * 40} />
-          ))}
-        </div>
+        <ShelfSection shelf={shelf} onAddBag={onAddBag} onBrew={onBrew} onOpenBean={onOpenBean} />
       ) : section === "saved" ? (
-        savedTastings.length === 0 && wishlistedBeans.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-            <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-              <Icon name="bookmark" size={40} />
-            </div>
-            <p style={{ fontSize: 16, fontWeight: 600, color: "var(--coffee)" }}>Nothing saved yet</p>
-            <p style={{ fontSize: 14, marginTop: 6 }}>
-              Save a brew you love, or mark a bean you want to try.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-            {savedTastings.length > 0 && (
-              <div>
-                <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
-                  Saved brews
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {savedTastings.map((t, i) => (
-                    <TastingCard
-                      key={t.id}
-                      tasting={t}
-                      delay={i * 50}
-                      onOpenBean={onOpenBean}
-                      onLike={onLike}
-                      liked={likes.has(t.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {wishlistedBeans.length > 0 && (
-              <div>
-                <h2 className="display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>
-                  Want to try
-                </h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
-                  {wishlistedBeans.map((b, i) => (
-                    <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )
+        <SavedSection
+          savedTastings={savedTastings}
+          wishlistedBeans={wishlistedBeans}
+          onOpenBean={onOpenBean}
+          onLike={onLike}
+          likes={likes}
+        />
       ) : (
-        <>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 16 }}>
-            <div
-              style={{
-                display: "flex",
-                gap: 4,
-                padding: 4,
-                background: "var(--surface-2)",
-                borderRadius: 10,
-                border: "1px solid var(--line-soft)",
-              }}
-            >
-              {(
-                [
-                  ["timeline", "journal"],
-                  ["grid", "grid"],
-                ] as const
-              ).map(([v, ic]) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 7,
-                    display: "flex",
-                    alignItems: "center",
-                    background: view === v ? "var(--surface)" : "transparent",
-                    boxShadow: view === v ? "var(--shadow-sm)" : "none",
-                    color: view === v ? "var(--espresso)" : "var(--mocha)",
-                  }}
-                >
-                  <Icon name={ic} size={17} />
-                </button>
-              ))}
-            </div>
-          </div>
-          {view === "timeline" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {mine.map((t, i) => (
-                <TastingCard
-                  key={t.id}
-                  tasting={t}
-                  delay={i * 50}
-                  onOpenBean={onOpenBean}
-                  onLike={onLike}
-                  liked={likes.has(t.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-              {mine.map((t, i) => {
-                const bean = D.bean(t.beanId);
-                if (!bean) return null;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => onOpenBean(bean.id)}
-                    className="fade-up"
-                    style={{
-                      animationDelay: i * 40 + "ms",
-                      textAlign: "left",
-                      padding: 14,
-                      borderRadius: "var(--r-md)",
-                      background: "var(--surface)",
-                      border: "1px solid var(--line-soft)",
-                      boxShadow: "var(--shadow-sm)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
-                    <BeanBag color={bean.color} size={44} />
-                    <div className="display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
-                      {bean.name}
-                    </div>
-                    <BeanRating value={t.rating} size={13} />
-                    <div style={{ fontSize: 11.5, color: "var(--mocha)" }}>
-                      {t.brew} · {relativeTime(t.createdAt)}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </>
+        <BrewsSection
+          mine={mine}
+          view={view}
+          setView={setView}
+          onBrew={onBrew}
+          onOpenBean={onOpenBean}
+          onLike={onLike}
+          likes={likes}
+        />
       )}
     </div>
   );
 }
+
+// The shelf of bags you own, with an "add a bag" tile leading the grid.
+function ShelfSection({
+  shelf,
+  onAddBag,
+  onBrew,
+  onOpenBean,
+}: {
+  shelf: Bean[];
+  onAddBag: () => void;
+  onBrew: (beanId?: string) => void;
+  onOpenBean: (id: string) => void;
+}) {
+  if (shelf.length === 0) {
+    return (
+      <EmptyState
+        icon="bookmark"
+        title="Your shelf is empty"
+        hint="Add the bags you're brewing with to track what's left and rate every pour."
+        cta={{ label: "Add your first bag", icon: "plus", onClick: onAddBag }}
+      />
+    );
+  }
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+      <button
+        onClick={onAddBag}
+        aria-label="Add a bag to your shelf"
+        style={{
+          minHeight: 132,
+          borderRadius: "var(--r-lg)",
+          border: "2px dashed var(--line)",
+          background: "transparent",
+          color: "var(--mocha)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          fontSize: "var(--text-sm)",
+          fontWeight: 600,
+        }}
+      >
+        <Icon name="plus" size={26} color="var(--mocha)" /> Add a bag
+      </button>
+      {shelf.map((b, i) => (
+        <ShelfCard key={b.id} bag={b} onBrew={onBrew} onOpen={onOpenBean} delay={i * 40} />
+      ))}
+    </div>
+  );
+}
+
+// Saved brews + wishlisted ("want to try") beans, each in its own labelled block.
+function SavedSection({
+  savedTastings,
+  wishlistedBeans,
+  onOpenBean,
+  onLike,
+  likes,
+}: {
+  savedTastings: Tasting[];
+  wishlistedBeans: Bean[];
+  onOpenBean: (id: string) => void;
+  onLike: (id: string) => void;
+  likes: Set<string>;
+}) {
+  if (savedTastings.length === 0 && wishlistedBeans.length === 0) {
+    return (
+      <EmptyState
+        icon="bookmark"
+        title="Nothing saved yet"
+        hint="Save a brew you love, or mark a bean you want to try."
+      />
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      {savedTastings.length > 0 && (
+        <div>
+          <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 14 }}>
+            Saved brews
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {savedTastings.map((t, i) => (
+              <TastingCard
+                key={t.id}
+                tasting={t}
+                delay={i * 50}
+                onOpenBean={onOpenBean}
+                onLike={onLike}
+                liked={likes.has(t.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {wishlistedBeans.length > 0 && (
+        <div>
+          <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, marginBottom: 14 }}>
+            Want to try
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
+            {wishlistedBeans.map((b, i) => (
+              <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Your logged brews, with a timeline/grid view toggle (view state lives in the
+// parent so it survives section switches).
+function BrewsSection({
+  mine,
+  view,
+  setView,
+  onBrew,
+  onOpenBean,
+  onLike,
+  likes,
+}: {
+  mine: Tasting[];
+  view: "timeline" | "grid";
+  setView: (v: "timeline" | "grid") => void;
+  onBrew: (beanId?: string) => void;
+  onOpenBean: (id: string) => void;
+  onLike: (id: string) => void;
+  likes: Set<string>;
+}) {
+  if (mine.length === 0) {
+    return (
+      <EmptyState
+        icon="drop"
+        title="No brews logged yet"
+        hint="Pull a shot, pour a cup, and log how it tasted. Your tasting history builds from here."
+        cta={{ label: "Log your first brew", icon: "drop", onClick: () => onBrew() }}
+      />
+    );
+  }
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 16 }}>
+        <div
+          role="group"
+          aria-label="View as"
+          style={{
+            display: "flex",
+            gap: 4,
+            padding: 4,
+            background: "var(--surface-2)",
+            borderRadius: 10,
+            border: "1px solid var(--line-soft)",
+          }}
+        >
+          {(
+            [
+              ["timeline", "journal"],
+              ["grid", "grid"],
+            ] as const
+          ).map(([v, ic]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              aria-label={v === "timeline" ? "Timeline view" : "Grid view"}
+              aria-pressed={view === v}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 7,
+                display: "flex",
+                alignItems: "center",
+                background: view === v ? "var(--surface)" : "transparent",
+                boxShadow: view === v ? "var(--shadow-sm)" : "none",
+                color: view === v ? "var(--espresso)" : "var(--mocha)",
+              }}
+            >
+              <Icon name={ic} size={17} />
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === "timeline" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {mine.map((t, i) => (
+            <TastingCard
+              key={t.id}
+              tasting={t}
+              delay={i * 50}
+              onOpenBean={onOpenBean}
+              onLike={onLike}
+              liked={likes.has(t.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+          {mine.map((t, i) => (
+            <button
+              key={t.id}
+              onClick={() => onOpenBean(t.beanId)}
+              className="fade-up"
+              style={{
+                animationDelay: staggerMs(i * 40),
+                textAlign: "left",
+                padding: 14,
+                borderRadius: "var(--r-md)",
+                background: "var(--surface)",
+                border: "1px solid var(--line-soft)",
+                boxShadow: "var(--shadow-sm)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              <BeanBag color={t.beanColor} size={44} />
+              <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-md)", lineHeight: 1.15 }}>
+                {t.beanName}
+              </div>
+              <BeanRating value={t.rating} size={13} />
+              <div style={{ fontSize: "var(--text-2xs)", color: "var(--mocha)" }}>
+                {t.brew}<RelTime iso={t.createdAt} />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 
 // Shelf card — a bag you own, with remaining indicator + quick brew
 function ShelfCard({
@@ -428,7 +536,7 @@ function ShelfCard({
     <div
       className="fade-up"
       style={{
-        animationDelay: delay + "ms",
+        animationDelay: staggerMs(delay),
         background: "var(--surface)",
         border: "1px solid var(--line-soft)",
         borderRadius: "var(--r-lg)",
@@ -451,18 +559,15 @@ function ShelfCard({
       >
         <BeanBag color={bag.color} size={42} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="display" style={{ fontWeight: 600, fontSize: 15.5, lineHeight: 1.1 }}>
+          <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-md)", lineHeight: 1.1 }}>
             {bag.name}
           </div>
-          <div style={{ fontSize: 12, color: "var(--mocha)", marginTop: 2 }}>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 2 }}>
             {roaster ? roaster.name : bag.roasterName}
           </div>
           {bag.scaScore ? (
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 7 }}>
-              <span className="mono" style={{ fontSize: 10, color: "var(--mocha)", letterSpacing: "0.05em" }}>
-                SCA
-              </span>
-              <span style={{ fontWeight: 700, fontSize: 13, color: "var(--caramel-deep)" }}>{bag.scaScore}</span>
+            <div style={{ marginTop: 7 }}>
+              <ScaScore value={bag.scaScore} />
             </div>
           ) : null}
         </div>
@@ -471,7 +576,7 @@ function ShelfCard({
         {bag.remaining != null && (
           <div style={{ marginBottom: 12 }}>
             <div
-              style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--mocha)", marginBottom: 4 }}
+              style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-2xs)", color: "var(--mocha)", marginBottom: 4 }}
               className="mono"
             >
               <span>{bag.remaining === 0 ? "EMPTY" : Math.round(bag.remaining * 100) + "% LEFT"}</span>
@@ -508,22 +613,29 @@ function Stat({ big, label, icon }: { big: React.ReactNode; label: string; icon?
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="display" style={{ fontSize: 28, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+      <div
+        className="display"
+        style={{ fontSize: "var(--text-3xl)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
+      >
         {icon && <BeanGlyph size={20} filled />}
         {big}
       </div>
-      <div style={{ fontSize: 12.5, color: "var(--mocha)", marginTop: 3 }}>{label}</div>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 3 }}>{label}</div>
     </div>
   );
 }
 
 // ---------- DISCOVER ----------
 export function DiscoverScreen({
+  initialBeans,
+  trending,
   onOpenBean,
   onOpenRoaster,
   query,
   setQuery,
 }: {
+  initialBeans: Page<Bean>;
+  trending: Bean[];
   onOpenBean: (id: string) => void;
   onOpenRoaster: (id: string) => void;
   query: string;
@@ -534,13 +646,25 @@ export function DiscoverScreen({
   const [process, setProcess] = useState("All");
   const processes = ["All", "Washed", "Natural", "Honey"];
 
-  let beans = D.BEANS;
-  if (process !== "All") beans = beans.filter((b) => b.process === process);
-  if (query)
-    beans = beans.filter((b) =>
-      (b.name + b.origin + b.flavors.join()).toLowerCase().includes(query.toLowerCase()),
-    );
-  const trending = [...D.BEANS].sort((a, b) => b.avgRating - a.avgRating).slice(0, 3);
+  const { rows: beans, loadMore, hasMore, pending, reset } = useLoadMore(initialBeans, (c) =>
+    loadMoreBeans(c, process === "All" ? null : process, query || null),
+  );
+  // Server-side process/text filter: re-fetch page 1 when either changes
+  // (debounced for typing so a search doesn't fire per keystroke).
+  useEffect(() => {
+    let active = true;
+    const run = () => {
+      if (process === "All" && !query) {
+        if (active) reset(initialBeans);
+        return;
+      }
+      loadMoreBeans(null, process === "All" ? null : process, query || null)
+        .then((p) => { if (active) reset(p); })
+        .catch(() => { if (active) reset({ rows: [], nextCursor: null }); });
+    };
+    const t = setTimeout(run, query ? 250 : 0);
+    return () => { active = false; clearTimeout(t); };
+  }, [process, query, initialBeans, reset]);
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -559,7 +683,7 @@ export function DiscoverScreen({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search beans, origins, flavor notes…"
-          className="h-auto rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] py-3 pl-12 pr-11 text-[15px] text-[var(--espresso)] shadow-[var(--shadow-sm)]"
+          className="h-auto rounded-[var(--r-md)] border-[var(--line)] bg-[var(--surface)] py-3 pl-12 pr-11 text-[length:var(--text-md)] text-[var(--espresso)] shadow-[var(--shadow-sm)]"
         />
         {query && (
           <button
@@ -574,24 +698,8 @@ export function DiscoverScreen({
 
       <div role="group" aria-label="Discover view" style={{ display: "flex", gap: 8, marginBottom: 22 }}>
         {(["Beans", "Roasters"] as const).map((t) => {
-          const active = tab === t;
           return (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              aria-pressed={active}
-              style={{
-                padding: "8px 18px",
-                borderRadius: 99,
-                fontSize: 13.5,
-                fontWeight: 600,
-                background: active ? "var(--espresso)" : "var(--surface)",
-                color: active ? "var(--cream)" : "var(--coffee)",
-                border: "1px solid " + (active ? "var(--espresso)" : "var(--line)"),
-              }}
-            >
-              {t}
-            </button>
+            <PillButton key={t} active={tab === t} onClick={() => setTab(t)} padding="8px 18px">{t}</PillButton>
           );
         })}
       </div>
@@ -602,41 +710,30 @@ export function DiscoverScreen({
             <div style={{ marginBottom: 30 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                 <Icon name="trend" size={18} color="var(--caramel)" />
-                <h2 className="display" style={{ fontSize: 19, fontWeight: 600, whiteSpace: "nowrap" }}>
+                <h2 className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 600, whiteSpace: "nowrap" }}>
                   Trending this week
                 </h2>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                 {trending.map((b, i) => (
-                  <TrendingCard key={b.id} bean={b} rank={i + 1} onOpen={onOpenBean} />
+                  <TrendingCard key={b.id} bean={b} rank={i + 1} delay={i * 40} onOpen={onOpenBean} />
                 ))}
               </div>
             </div>
           )}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <div role="group" aria-label="Filter by process" style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
             {processes.map((p) => (
-              <button
-                key={p}
-                onClick={() => setProcess(p)}
-                style={{
-                  padding: "6px 13px",
-                  borderRadius: 99,
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  background: process === p ? "var(--caramel-soft)" : "transparent",
-                  color: process === p ? "var(--caramel-deep)" : "var(--mocha)",
-                  border: "1px solid " + (process === p ? "transparent" : "var(--line)"),
-                }}
-              >
-                {p}
-              </button>
+              <PillButton key={p} tone="soft" active={process === p} onClick={() => setProcess(p)}>{p}</PillButton>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
+          <div role="list" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
             {beans.map((b, i) => (
-              <BeanCard key={b.id} bean={b} onOpen={onOpenBean} delay={i * 40} />
+              <div role="listitem" key={b.id}>
+                <BeanCard bean={b} onOpen={onOpenBean} delay={i * 40} />
+              </div>
             ))}
           </div>
+          <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} marginTop={22} />
           {beans.length === 0 && <Empty query={query} />}
         </>
       ) : (
@@ -650,13 +747,24 @@ export function DiscoverScreen({
   );
 }
 
-function TrendingCard({ bean, rank, onOpen }: { bean: Bean; rank: number; onOpen: (id: string) => void }) {
+function TrendingCard({
+  bean,
+  rank,
+  delay = 0,
+  onOpen,
+}: {
+  bean: Bean;
+  rank: number;
+  delay?: number;
+  onOpen: (id: string) => void;
+}) {
   const D = useData();
   return (
     <button
       onClick={() => onOpen(bean.id)}
       className="fade-up"
       style={{
+        animationDelay: staggerMs(delay),
         display: "flex",
         alignItems: "center",
         gap: 13,
@@ -668,18 +776,23 @@ function TrendingCard({ bean, rank, onOpen }: { bean: Bean; rank: number; onOpen
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="display" style={{ fontSize: 26, fontWeight: 700, color: "var(--caramel)", width: 26, textAlign: "center" }}>
+      <div
+        className="display"
+        style={{ fontSize: "var(--text-3xl)", fontWeight: 700, color: "var(--caramel)", width: 26, textAlign: "center" }}
+      >
         {rank}
       </div>
       <BeanBag color={bean.color} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="display" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.1 }}>
+        <div className="display" style={{ fontWeight: 600, fontSize: "var(--text-md)", lineHeight: 1.1 }}>
           {bean.name}
         </div>
-        <div style={{ fontSize: 12, color: "var(--mocha)", marginTop: 2 }}>{D.roaster(bean.roasterId)?.name}</div>
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 2 }}>
+          {D.roaster(bean.roasterId)?.name}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
           <BeanGlyph size={13} filled />
-          <span style={{ fontWeight: 700, fontSize: 12.5 }}>{bean.avgRating}</span>
+          <span style={{ fontWeight: 700, fontSize: "var(--text-xs)" }}>{bean.avgRating}</span>
         </div>
       </div>
     </button>
@@ -698,27 +811,28 @@ function RoasterCard({ roaster, onOpen, delay }: { roaster: Roaster; onOpen: (id
         borderRadius: "var(--r-lg)",
         overflow: "hidden",
         boxShadow: "var(--shadow-sm)",
-        animationDelay: delay + "ms",
+        animationDelay: staggerMs(delay),
       }}
     >
       <Placeholder label="roaster photo" h={96} color="var(--caramel)" />
       <div style={{ padding: "14px 16px 16px" }}>
-        <div className="display" style={{ fontSize: 18, fontWeight: 600 }}>
+        <div className="display" style={{ fontSize: "var(--text-xl)", fontWeight: 600 }}>
           {roaster.name}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "var(--mocha)", marginTop: 3 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "var(--text-xs)", color: "var(--mocha)", marginTop: 3 }}>
           <Icon name="pin" size={13} color="var(--mocha)" />
           {roaster.city} · est. {roaster.founded}
         </div>
-        <p style={{ fontSize: 13.5, color: "var(--coffee)", marginTop: 10, lineHeight: 1.5, textWrap: "pretty" }}>
+        <p style={{ fontSize: "var(--text-sm)", color: "var(--coffee)", marginTop: 10, lineHeight: 1.5, textWrap: "pretty" }}>
           {roaster.blurb}
         </p>
-        <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: 12.5, color: "var(--mocha)" }}>
+        <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
           <span>
-            <b style={{ color: "var(--espresso)" }}>{roaster.beans}</b> beans
+            <b style={{ color: "var(--espresso)" }}>{roaster.beans}</b> {roaster.beans === 1 ? "bean" : "beans"}
           </span>
           <span>
-            <b style={{ color: "var(--espresso)" }}>{roaster.followers.toLocaleString()}</b> followers
+            <b style={{ color: "var(--espresso)" }}>{roaster.followers.toLocaleString()}</b>{" "}
+            {roaster.followers === 1 ? "follower" : "followers"}
           </span>
         </div>
       </div>
@@ -727,12 +841,5 @@ function RoasterCard({ roaster, onOpen, delay }: { roaster: Roaster; onOpen: (id
 }
 
 function Empty({ query }: { query: string }) {
-  return (
-    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-        <Icon name="search" size={40} />
-      </div>
-      <p style={{ fontSize: 15 }}>No beans match “{query}”. Try another origin or flavor.</p>
-    </div>
-  );
+  return <EmptyState icon="search" hint={`No beans match “${query}”. Try another origin or flavor.`} />;
 }

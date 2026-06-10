@@ -1,0 +1,986 @@
+{
+  "/home/sbrn/Projects/Coffee-Tracker/next-env.d.ts": {
+    "mtime": 1780597654.1390948,
+    "hash": "ba64ff7d54714a8f64db89b1003207d8"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/next.config.ts": {
+    "mtime": 1780635369.9790988,
+    "hash": "3d8656480e9b60b09510e3d0d1898248"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/postcss.config.mjs": {
+    "mtime": 1780635369.9790988,
+    "hash": "239f3ebf717465dc636818a1a619398d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/instrumentation.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "d2f0c2756e788caec2c2d432f102b93f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/drizzle.config.ts": {
+    "mtime": 1780749417.4517057,
+    "hash": "5a9a6a825a6f2fd7514cb8289a14caad"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/vitest.config.ts": {
+    "mtime": 1780777468.580558,
+    "hash": "140d56d85cb3e57d10fdeffab5855351"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/eslint.config.mjs": {
+    "mtime": 1780928265.7547784,
+    "hash": "ad9d859d96f0c6564aa9f0a8ed1390b5"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/middleware.ts": {
+    "mtime": 1780933811.0960271,
+    "hash": "ca009ab6a7c1d95dde8199bf54792ace"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/auth.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "626e20b3404cb1a9c43e567cdb3c57ac"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/scripts/db-setup.ts": {
+    "mtime": 1780749417.4527056,
+    "hash": "2002ca94499cec9dc1a21be038a5d6f2"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/scripts/contrast-check.mjs": {
+    "mtime": 1780928265.7557786,
+    "hash": "1c4c747c1dbf7a5b1c0e01ec76233315"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/scripts/gen-icons.mjs": {
+    "mtime": 1780933811.0971417,
+    "hash": "135cebf737aa1102771366c8b92a7b8a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/error.tsx": {
+    "mtime": 1780734162.07372,
+    "hash": "8759897f09d912f1c1ef3fca7677185a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/not-found.tsx": {
+    "mtime": 1780734162.07372,
+    "hash": "2acbe3b49d944d65531da3839180d2ce"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/auth-actions.ts": {
+    "mtime": 1780823236.519928,
+    "hash": "8d63f5e2bef74cfdbe60eacb383e230f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/verify-actions.ts": {
+    "mtime": 1780823236.519928,
+    "hash": "1a0fb41ca5403f4edeb8fe14a813c27f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/global-error.tsx": {
+    "mtime": 1780831730.3822074,
+    "hash": "a324094add1de4e2f9ccb34922b364a4"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/robots.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "00a7210c243cfc474cf9a782159997d1"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/twitter-image.tsx": {
+    "mtime": 1780923193.877836,
+    "hash": "b2b0e9d977f0f2ea464d38823e52d794"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/apple-icon.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "eb5c292f636bd9c4bc07d2df2df792f2"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/layout.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "71aa8aabe8a370b4e0f2dc656d5d10d1"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/manifest.ts": {
+    "mtime": 1780933811.095027,
+    "hash": "44a9001ac6a316e634095ddd2bcab736"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/opengraph-image.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "9cd9f04691c7c88b5a62157c38c7afab"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/actions.ts": {
+    "mtime": 1780940775.4088025,
+    "hash": "88500c79f230d6c50aac0ad1bcce397d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/profile-actions.ts": {
+    "mtime": 1780940775.4088025,
+    "hash": "504f88f5d647980b6d957e039d259403"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/sitemap.ts": {
+    "mtime": 1780940775.4088025,
+    "hash": "b39873118a3a56b51327ca5d70a0dfab"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/account-link-actions.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "c309031a5210708138b09c45b8805f54"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/account-actions.ts": {
+    "mtime": 1780961431.0784402,
+    "hash": "1ce1bd0cf391be8a62965ef13509a1b6"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/api/auth/[...nextauth]/route.ts": {
+    "mtime": 1780679404.3753815,
+    "hash": "358c0a73d3be75bd695c996c4d988498"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/api/health/route.ts": {
+    "mtime": 1780734162.07372,
+    "hash": "4a2dbc969778a99e0f11871232035482"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/api/csp-report/route.ts": {
+    "mtime": 1780815135.9665751,
+    "hash": "34652c7b753dd1d69cb43ed642685881"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/api/verify/route.ts": {
+    "mtime": 1780823236.519928,
+    "hash": "eae0ca07cb59661f813716d3ca92c130"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/api/export/route.ts": {
+    "mtime": 1780961431.0784402,
+    "hash": "28747f581267bc65a87a4d2fb1149378"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/layout.tsx": {
+    "mtime": 1780831730.3817604,
+    "hash": "c6d9ae924caf046fd4ed78f396e4eb56"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/page.tsx": {
+    "mtime": 1780831730.3817604,
+    "hash": "5caac27ac80750157dd8584179b72988"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/loading.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "d6cfa6add1762d8b02fdf75f2468960f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/bean/[id]/bean-client.tsx": {
+    "mtime": 1780831730.381627,
+    "hash": "7890903152c8273b217ef5b6f75543dc"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/bean/[id]/page.tsx": {
+    "mtime": 1780923193.876836,
+    "hash": "9a2e90a66b3feed9e37e340e7f336a61"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/bean/[id]/twitter-image.tsx": {
+    "mtime": 1780923193.876836,
+    "hash": "b2b0e9d977f0f2ea464d38823e52d794"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/bean/[id]/loading.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "c7856b261f9304002cabe3bba0b6204f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/bean/[id]/opengraph-image.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "8293399525c9b08d5c92511d55f4da50"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/discover/discover-client.tsx": {
+    "mtime": 1780831730.3816948,
+    "hash": "0174458db3e64b3a7e785590b1cf4abd"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/discover/page.tsx": {
+    "mtime": 1780923193.876836,
+    "hash": "3c2332e884f4cceae2f0249b6b75c57e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/discover/loading.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "9d96092cc9eb8d3f21e4d04429d725a9"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/journal/journal-client.tsx": {
+    "mtime": 1780928265.7537785,
+    "hash": "42524e06cd8936f3dbe9fdd353787b56"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/journal/page.tsx": {
+    "mtime": 1780928265.7537785,
+    "hash": "533477e939fedaf3ccf48b6021aa4a29"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/profile/profile-client.tsx": {
+    "mtime": 1780928265.7537785,
+    "hash": "2aad1b3dd361e5cfb8fe81a94f438049"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/profile/page.tsx": {
+    "mtime": 1780940775.407337,
+    "hash": "c95b30e047854b5e7f25de8e00406a95"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/roaster/[id]/roaster-client.tsx": {
+    "mtime": 1780831730.382038,
+    "hash": "1d70dc0626e9595a0da384b12a53cf06"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/roaster/[id]/page.tsx": {
+    "mtime": 1780923193.876836,
+    "hash": "7d3a4543695997e7410f46e36dfbe581"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/roaster/[id]/twitter-image.tsx": {
+    "mtime": 1780923193.876836,
+    "hash": "b2b0e9d977f0f2ea464d38823e52d794"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/roaster/[id]/loading.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "9f96a28ebf7350fcd84b7b912b49eaa5"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/roaster/[id]/opengraph-image.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "8f763d3802301fb508009287e9a322bb"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/settings/page.tsx": {
+    "mtime": 1780945845.2503233,
+    "hash": "37e4e21c59e4b6edf944b890ec2b53a3"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/settings/settings-client.tsx": {
+    "mtime": 1780945845.2503233,
+    "hash": "e0fd7138865dac603c1724047037cfae"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/u/[handle]/opengraph-image.tsx": {
+    "mtime": 1780940775.408756,
+    "hash": "35664ebc86f8c65ceb00e4a4a6a01356"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/u/[handle]/page.tsx": {
+    "mtime": 1780940775.4088025,
+    "hash": "4c21f11c0d33ad5bb5f7635c3e542f12"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(app)/u/[handle]/user-profile-client.tsx": {
+    "mtime": 1780940775.4088025,
+    "hash": "1e90206106e32c00c1e30d40d647299f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(legal)/layout.tsx": {
+    "mtime": 1780928265.7547784,
+    "hash": "df93c3dfc7e0d61a140e1cf4f574f827"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(legal)/cookies/page.tsx": {
+    "mtime": 1780831730.3822074,
+    "hash": "657ad0d11b80d45655c890f423d0bc43"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(legal)/privacy/page.tsx": {
+    "mtime": 1780964276.721028,
+    "hash": "3e3f05facc03d891c5a1e4d16b7fb64c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(legal)/terms/page.tsx": {
+    "mtime": 1780964276.721028,
+    "hash": "4ca17a700e1facd7a50dc69c005659dc"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(auth)/layout.tsx": {
+    "mtime": 1780959564.9939482,
+    "hash": "f7813358c83e562339da33613f2c67a0"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(auth)/login/page.tsx": {
+    "mtime": 1780959564.994054,
+    "hash": "c421850c436cdfe0ce4aee6021910d85"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(auth)/signup/page.tsx": {
+    "mtime": 1780959564.994054,
+    "hash": "4f472a74fb1fd1d941dfdb637d0cba03"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/(auth)/signup/signup-form.tsx": {
+    "mtime": 1780959564.9941368,
+    "hash": "dc8de61fecbc19231faf00dad190ba78"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/sheet-chrome.tsx": {
+    "mtime": 1780635369.9783738,
+    "hash": "b4806e46d662087a309f19766a931c6a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/theme-provider.tsx": {
+    "mtime": 1780635369.9783738,
+    "hash": "7c418d84389519ae6393456012dd7831"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/use-load-more.ts": {
+    "mtime": 1780759184.0028286,
+    "hash": "d6fbccdcb88d6ca0ad70a24424649044"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/data-context.tsx": {
+    "mtime": 1780777468.579558,
+    "hash": "768d657e306b5e078a93ea6163930ed5"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/bag-form.tsx": {
+    "mtime": 1780928265.7547784,
+    "hash": "f541bb1ec4ae86c8d86d16b72a516976"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/flavor-wheel.tsx": {
+    "mtime": 1780928265.7547784,
+    "hash": "31068e88466b00a535b44e5fa3951441"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui.tsx": {
+    "mtime": 1780928265.7547784,
+    "hash": "1622272975d4566b532630a47cfc679c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/skeleton.tsx": {
+    "mtime": 1780933811.095027,
+    "hash": "f4c9f7cc4821085499785c6d41ba1f7d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/app-provider.tsx": {
+    "mtime": 1780940775.4088025,
+    "hash": "86c0ab0cdb27f8f20776044b152dae9e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/cards.tsx": {
+    "mtime": 1780940775.4088025,
+    "hash": "17a76bcfc5cc495f194a8fd221775909"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/comment-thread.tsx": {
+    "mtime": 1780940775.4088025,
+    "hash": "3eeda0ec0a2acf62cea6eb37d8c93674"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/detail.tsx": {
+    "mtime": 1780961431.0784402,
+    "hash": "cfca82eb0ba63e40854944596efcea69"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/log-sheet.tsx": {
+    "mtime": 1780961431.07944,
+    "hash": "3a25737742e0249aff9cd017fb7f5b37"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/screens.tsx": {
+    "mtime": 1780961431.07944,
+    "hash": "694866b147569e1f44c45194be14391c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/settings.tsx": {
+    "mtime": 1780961431.07944,
+    "hash": "b0cfe6264d33b00850680b56b14127a8"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/accordion.tsx": {
+    "mtime": 1780635369.9783738,
+    "hash": "ca7c6d2563cb840754f6af0ac52a62b8"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/avatar.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "c0136d9a1c07129863348811dcc037e0"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/badge.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "8510911fff59be294d64dbfc67f5c710"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/button.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "5eb5c23dfc552fe75b9beeffacede350"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/dialog.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "884f2b136235dacdeb3772de182e8b50"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/input.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "186052fef4d6a678824a3ac70ec3bdec"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/label.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "e7e0c4ad98f3485ecd3c0ca516d0a8bf"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/separator.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "31309c8fad1e9a91db2a4bdfb4988b45"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/slider.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "f046de97c529f0b343bd52511376ea73"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/sonner.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "5dde0d04f3ecf6b5e812104aca12c546"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/tabs.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "3db2474e4c66b1e544bb514bf1024612"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/textarea.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "b068d08e701aefd6216234a763e3a2ef"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/toggle-group.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "bc36423177245af73467d7842a49a29f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/components/ui/toggle.tsx": {
+    "mtime": 1780635369.9787538,
+    "hash": "d21c665171abb398d823dc77bb10642d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/db/schema.sql": {
+    "mtime": 1780777468.579558,
+    "hash": "a2a2504b62ffcc60407e93218034c855"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/flavor-wheel.ts": {
+    "mtime": 1780635369.9790988,
+    "hash": "6e1b571f6f8607a3ecca58f28885f0cd"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/utils.ts": {
+    "mtime": 1780635369.9790988,
+    "hash": "d9837f38cc05303254571985e3164050"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/avatar.ts": {
+    "mtime": 1780679404.376316,
+    "hash": "1a158803019555549f62e197af408129"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/register-errors.ts": {
+    "mtime": 1780679404.376316,
+    "hash": "34f57da8e9de0c54e478c957f1ab5f8f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/seed-data.ts": {
+    "mtime": 1780679404.376316,
+    "hash": "7f0a7c2c504f07a51a79032ef66549d3"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/brew-validation.ts": {
+    "mtime": 1780692362.7835324,
+    "hash": "22a73054100e5cb6cd534e7dcb440820"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/relative-time.ts": {
+    "mtime": 1780692362.7835324,
+    "hash": "26ed6892accf6fba63fd11ae60a88c95"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/comment-validation.ts": {
+    "mtime": 1780724617.1777432,
+    "hash": "b40f97a423b62f4d2dcf201a6f15dd66"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/db-ssl.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "cf5c29ccbbb95fc1d8969c107da7c0a4"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/db.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "ced0c07c3f958f3db92df9172be72f4e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/logger.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "61f726ffcf63dc50e2c9532795330b4f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/pagination.ts": {
+    "mtime": 1780759184.0028286,
+    "hash": "275b0abe679515470326c0429dcf3178"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/rate-limit.ts": {
+    "mtime": 1780815135.9665751,
+    "hash": "c7451ca66e8b1f34e2eb944ed41a5d52"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/request-ip.ts": {
+    "mtime": 1780815135.9665751,
+    "hash": "aa2357ef8adb226fd752915930a3c954"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/auth-guard.ts": {
+    "mtime": 1780823236.519928,
+    "hash": "da92a5dd0f9f296feac0bcbccb080796"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/auth.ts": {
+    "mtime": 1780823236.519928,
+    "hash": "f68447e69cf0ffbfea4b09ea3844f603"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/email.ts": {
+    "mtime": 1780823236.519928,
+    "hash": "cbde0f7abaf20b57fbc51e224e492c8d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/oauth-email.ts": {
+    "mtime": 1780823236.520928,
+    "hash": "76aa6790c7e0efef208caffbc44612a0"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/public-url.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "84769e2499ba9d8e6f74a74ad86798ae"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/verify-email.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "e001d4b246368735a76c1b7c419e1bbb"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/security-headers.ts": {
+    "mtime": 1780933811.0960271,
+    "hash": "0b4136283de3cfd431918559b6705fe9"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/theme-colors.ts": {
+    "mtime": 1780933811.0960271,
+    "hash": "811f7737d9b65d73df4fcf27d030e26a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/json-ld.ts": {
+    "mtime": 1780940775.4088025,
+    "hash": "ed2f13a995a2ba3f117e76e9dd4bcab8"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/profile-flavors.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "9cf012cd94dd562ed53b5dd01c116860"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/seo.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "1e878411e6dbe7fa9e035f4d9375baac"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/types.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "4a7bb425de55f61acfdcc8d42beec190"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/account-link-repo.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "cf03534f63e8fa17f02cd146854792d8"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/signup-validation.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "f65b77e24f4da9c2057f31e86f16f2c0"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/generate-handle.ts": {
+    "mtime": 1780959564.9941368,
+    "hash": "764380c5b9ad02f54d717e935179fc1c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/handles.ts": {
+    "mtime": 1780959564.9941368,
+    "hash": "c7f9f64a7818928a46b3d2b432aa5015"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/data-export.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "269ea0accb22f2ed725819b6a096e5a6"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/queries.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "d3350111424ce507ded447f365b133d6"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/users-repo.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "287c010f17e586744ce4c3d820eed378"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/env.ts": {
+    "mtime": 1780964276.721028,
+    "hash": "e4fbd6225fbfd3a8199c55513d1f4dc4"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/legal.ts": {
+    "mtime": 1780964276.721028,
+    "hash": "b97290579f1118e3706fbf098ea6a65e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/lib/db/schema.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "6b97409fdea322ca5101a848a6fed7a6"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/db.test.ts": {
+    "mtime": 1780679404.3771746,
+    "hash": "5a2664a5c097f81bb2bb9216c850341d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/signup-validation.test.ts": {
+    "mtime": 1780679404.3771746,
+    "hash": "d6797eede31cc3f18236f45e7ca689ca"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/smoke.test.ts": {
+    "mtime": 1780679404.3771746,
+    "hash": "b9880da3ce510cf6190f74a78b2c3a29"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/brew-validation.test.ts": {
+    "mtime": 1780692362.7835324,
+    "hash": "94be1571deb9cf615375c262a92b1e4e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/relative-time.test.ts": {
+    "mtime": 1780692362.7835324,
+    "hash": "b6a76dad3a731d26cb10e7491f7b754f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/comment-validation.test.ts": {
+    "mtime": 1780724617.1777432,
+    "hash": "7f58d1f924c1732e64efa432fa719402"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/db-ssl.test.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "18e1ec2b4d63fcd11aa0b8eee3abec26"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/health.test.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "f88e4e204dbb4859797473237f1f952c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/logger.test.ts": {
+    "mtime": 1780734162.07472,
+    "hash": "489c84c98ce6fe4eed2b1d725b888028"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/pagination.test.ts": {
+    "mtime": 1780759184.0028286,
+    "hash": "32b970344e52f46a72f5e16fea339506"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/actions-pagination.test.ts": {
+    "mtime": 1780777468.580558,
+    "hash": "30eed20bccb7481b8a49f0a83c755b0d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/bean-projection-guard.test.ts": {
+    "mtime": 1780777468.580558,
+    "hash": "d1686a82042803c8c274249781cfc1fe"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/compute-on-read.test.ts": {
+    "mtime": 1780777468.580558,
+    "hash": "171f61c81782282f1a6f595531661e5c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/projection-guard.test.ts": {
+    "mtime": 1780777468.580558,
+    "hash": "f4c6fd7e1459db1ce91f3e3b8270cd01"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/get-current-user-id.test.ts": {
+    "mtime": 1780799571.5095122,
+    "hash": "fc4a69110c3d3054867645278c3396ff"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/csp-report.test.ts": {
+    "mtime": 1780815135.9665751,
+    "hash": "eb5a56a3ed13baeb92a0f8ca02a683a0"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/middleware.test.ts": {
+    "mtime": 1780815135.967575,
+    "hash": "5df8b3a348250008190953876c7c763b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/rate-limit.test.ts": {
+    "mtime": 1780815135.967575,
+    "hash": "03c45f7774d2b78e7e46bfe5b392c05a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/request-ip.test.ts": {
+    "mtime": 1780815135.967575,
+    "hash": "b3004c7409b3f4e76084714112c034da"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/security-headers.test.ts": {
+    "mtime": 1780815135.967575,
+    "hash": "a4618d89247a0d33115cb825a5f2bd05"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/actions-edit-delete.test.ts": {
+    "mtime": 1780823236.520928,
+    "hash": "447f31d97a327924e85fb049803c1f7c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/actions-social.test.ts": {
+    "mtime": 1780823236.520928,
+    "hash": "4ce7a0165a942ad17b1b2d9356405ed7"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/auth-guard.test.ts": {
+    "mtime": 1780823236.520928,
+    "hash": "2f61ed6474f3fa76a2d135c79545df41"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/email.test.ts": {
+    "mtime": 1780823236.520928,
+    "hash": "8aa696d1b6bb29b2dce1561f8ea4324b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/log-brew.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "ec378b174d593f65e5af3c5e165ab482"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/oauth-email.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "a8d11330e1eebe03df5db2a5d7dca7bd"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/require-verified.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "a2fd1fed4fa7c3e7df498e8026c4ba22"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/users-repo.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "50e410323f989f4ea2589b8fa7575e9b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/verify-actions.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "4007c0692553654e9d1d226533253735"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/verify-email.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "7b1543e6ea0b3514a1dbace6ad6ef51f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/verify-route.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "6cb06b3bebc82715b062fe5067de3220"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/write-gate-coverage.test.ts": {
+    "mtime": 1780823236.5219278,
+    "hash": "b33562bb8e5a4869a7eb103c778502fa"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/legal-pages.test.ts": {
+    "mtime": 1780831730.3822074,
+    "hash": "b3d2e24d2d7f6578e68ba1a02607e4bd"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/json-ld.test.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "e740e7db15c7d2db4162f63be3c777eb"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/og-routes.test.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "7d0a1065d58735ce465b48d6354e82ce"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/public-url.test.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "f9041fae145c440afbdfdb4b877e786e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/queries-seo.test.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "0ff94f76afd48affb0d980abea71414c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/robots.test.ts": {
+    "mtime": 1780923193.877836,
+    "hash": "67dc63cbae7be70ffd56ef538181a1aa"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/pwa.test.ts": {
+    "mtime": 1780933811.0971417,
+    "hash": "6de551757fdba376ab7957155b81e04d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/public-profiles.test.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "3350fc5b9136f7e76100515e7f7a578c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/register-errors.test.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "16603dbd4178ebec8a7ffa68a91cc9ad"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/sitemap.test.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "e026ccc8e42dbf40e1b64e9785d29564"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/account-linking.test.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "4e7e248507ba511d09685f290c98fd56"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/handles.test.ts": {
+    "mtime": 1780959564.9941368,
+    "hash": "6bde9d269e0371476666edd3fd5bb95e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/legal-links.test.ts": {
+    "mtime": 1780959564.9941368,
+    "hash": "46361b87bfcea319eed6c7ce38def19f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/route-structure.test.ts": {
+    "mtime": 1780959564.9941368,
+    "hash": "2441e2d1fd2eb4e5d539e0905c78c52d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/seo-metadata.test.ts": {
+    "mtime": 1780959564.9941368,
+    "hash": "d43752bb81f1b7df45c4365155e06786"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/a11y-structure.test.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "526f86c74a29df63dd4df4306eb9ea8a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/account-actions.test.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "b78c61b4f0a71d855afb6c47f27c4e2d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/data-export.test.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "91c719c6ea38642a16b09bf6ddc7dbcf"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/env.test.ts": {
+    "mtime": 1780964276.721028,
+    "hash": "8b20242302e5402396164d4e788de96c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/legal-env.test.ts": {
+    "mtime": 1780964276.721028,
+    "hash": "83005336db023257aaedab8e8c5568dd"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/stubs/server-only.ts": {
+    "mtime": 1780679404.3771746,
+    "hash": "309ace4cfcbd248990d727a93f489006"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/constraints.test.ts": {
+    "mtime": 1780749417.4534025,
+    "hash": "410739cc370806295796f20e4e2c32e1"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/setup.ts": {
+    "mtime": 1780749417.4534025,
+    "hash": "4b6fa6210aa458b41a25c77247897f14"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/smoke.test.ts": {
+    "mtime": 1780749417.4534025,
+    "hash": "1e05bd90843e8d7dfa9ac75800937946"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/pagination.test.ts": {
+    "mtime": 1780759184.0028286,
+    "hash": "86232a2dd4352969b47c8efd33a71574"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/scoped-queries.test.ts": {
+    "mtime": 1780777468.580558,
+    "hash": "a25302e661cdfb91bd4e64b04bbea45d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/_db.ts": {
+    "mtime": 1780815135.9665751,
+    "hash": "045931ee3f9e325fcb8b6c881235b0d2"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/account-deletion.test.ts": {
+    "mtime": 1780815135.9665751,
+    "hash": "0551c0fc2231f042ca1cf039728440da"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/rate-limit.test.ts": {
+    "mtime": 1780815135.967575,
+    "hash": "696be4deb5853586d923eb9d6cf81173"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/public-profiles.test.ts": {
+    "mtime": 1780940775.409337,
+    "hash": "632031d538956dc71ba71473387536e5"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/account-linking.test.ts": {
+    "mtime": 1780945845.2503233,
+    "hash": "f576a5fdb3bec935e92198805742a627"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/data-export.test.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "42c6feff6e1128117e824b6caf4c10a9"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/test/integration/delete-pii.test.ts": {
+    "mtime": 1780961431.07944,
+    "hash": "da0a29def774b73a1cb592ea70b85de4"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/drizzle/0000_init.sql": {
+    "mtime": 1780749417.4517057,
+    "hash": "632070f7d4b278b4d2b2b2d9dc0e7f77"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/drizzle/0001_pagination_indexes.sql": {
+    "mtime": 1780759184.0028286,
+    "hash": "3fa79a1308f37d5d8ab4705a465852d7"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/drizzle/0002_account_deletion_cascade.sql": {
+    "mtime": 1780799571.5095122,
+    "hash": "41a4f59ed56a3ba57bf248473225aeb0"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/drizzle/0003_rate_limits.sql": {
+    "mtime": 1780815135.9665751,
+    "hash": "31f5f876f6d10e2c56ba9ce7f2e0568f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/drizzle/0005_public_profiles.sql": {
+    "mtime": 1780940775.4088025,
+    "hash": "b53f351539ed8fd339db94ae26015c47"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/README.md": {
+    "mtime": 1780679404.3750849,
+    "hash": "71bf53f444039e23b1cf751780e94c2d"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/SETUP.md": {
+    "mtime": 1780749417.4517057,
+    "hash": "45cd5fe334eea6b127c49f42772fa6f7"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/2026-06-05-production-readiness-report.md": {
+    "mtime": 1780692362.7825325,
+    "hash": "c6053370a766ebf8bf66e04fea7c6967"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/DEPLOY.md": {
+    "mtime": 1780734162.07372,
+    "hash": "aca305c99650a4fb44fc025dbad0dd4b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-05-authjs-authentication.md": {
+    "mtime": 1780679404.3759887,
+    "hash": "a2efb7667902d5eadcd2ca734a4d9e3c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-05-per-user-bag-ownership.md": {
+    "mtime": 1780679404.3761601,
+    "hash": "8643b3bd244646f05b7747c859abe8c7"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-05-m1-data-integrity-write-path.md": {
+    "mtime": 1780692362.7835324,
+    "hash": "3890806e2f593410fd898062a3080092"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m2-social-layer.md": {
+    "mtime": 1780724617.1777432,
+    "hash": "c63607acdc321df759067c340eabae1b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m3-ci-quality-gates.md": {
+    "mtime": 1780726745.8896194,
+    "hash": "8adb2780bda9313bc4ec66c67e51f158"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m3b-ops-hardening.md": {
+    "mtime": 1780734162.07372,
+    "hash": "6ff131b91e570a8e8017626b69100bbc"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m3c-drizzle-migrations.md": {
+    "mtime": 1780749417.4517057,
+    "hash": "d5b1c3b5e7a6283a8072328d72fa0bb1"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m3d-pagination.md": {
+    "mtime": 1780759184.0028286,
+    "hash": "54a312f58d476200615d42ced827315c"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m3d2-scope-getappdata.md": {
+    "mtime": 1780777468.579558,
+    "hash": "549c4a115e5805d5aced9482f20de65f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-06-m4a-account-lifecycle.md": {
+    "mtime": 1780799571.5095122,
+    "hash": "5b84baec9a635fffd9b5b9f997c2509f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-07-m4b-security-hardening.md": {
+    "mtime": 1780815135.9665751,
+    "hash": "2af5088583533f7db327eb6f9d95a40f"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-07-m4c-email-verification.md": {
+    "mtime": 1780823236.519928,
+    "hash": "3bfe5530430a9fd2aa6b9eb839579daa"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-07-m4d-legal-compliance.md": {
+    "mtime": 1780831730.3822074,
+    "hash": "90b9fafcb5bb87c6b843b7677f8f4931"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-07-m5a-catalog-seo.md": {
+    "mtime": 1780923193.877836,
+    "hash": "233d7c7f5f7fda80a986cedf58accd7a"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-08-m5b-accessibility.md": {
+    "mtime": 1780928265.7547784,
+    "hash": "2830bea21d0cef7808cb67cd1f6bd348"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-08-m5c-pwa-polish.md": {
+    "mtime": 1780933811.0960271,
+    "hash": "dafc3ea5fb5237aca112e6320ed46ce8"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-08-public-profiles.md": {
+    "mtime": 1780940775.4088025,
+    "hash": "e1271edc4270bc85cacdfe62cbbbbbfe"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/plans/2026-06-08-account-linking.md": {
+    "mtime": 1780945845.2503233,
+    "hash": "3e46a261b72c135bcc40a7bde5ce40d4"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-05-authjs-authentication-design.md": {
+    "mtime": 1780679404.3761601,
+    "hash": "0f7df055a4ddab7dab73021565c2f343"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-05-per-user-bag-ownership-design.md": {
+    "mtime": 1780679404.376316,
+    "hash": "f4b37d8c0f00bbae443d15ad179f9cf1"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-05-m1-data-integrity-write-path-design.md": {
+    "mtime": 1780692362.7835324,
+    "hash": "5b32bb5b70db3696bdc47952337aa422"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m2-social-layer-design.md": {
+    "mtime": 1780724617.1777432,
+    "hash": "b3c5abd9feb7bcf07f4a6b308a2f4a88"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m3-ci-quality-gates-design.md": {
+    "mtime": 1780726745.8896194,
+    "hash": "4a8191fcd05852fe6564736773a51e3e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m3b-ops-hardening-design.md": {
+    "mtime": 1780734162.07472,
+    "hash": "5dc226604f75eb2d735340e6acb62edb"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m3c-drizzle-migrations-design.md": {
+    "mtime": 1780749417.4517057,
+    "hash": "10094e66ab5271b1234e9d442d308b3e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m3d-pagination-design.md": {
+    "mtime": 1780759184.0028286,
+    "hash": "6a56fdc4f95e5dfdfbc8fcc86b07df0e"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m3d2-scope-getappdata-design.md": {
+    "mtime": 1780777468.579558,
+    "hash": "caecd5e18d1711dff64a973ceeb6838b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-06-m4a-account-lifecycle-design.md": {
+    "mtime": 1780799571.5095122,
+    "hash": "3203d61ce861ec898a411076a39ff4f3"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-07-m4b-security-headers-rate-limit-design.md": {
+    "mtime": 1780815135.9665751,
+    "hash": "06d17282bb4905453029843dbbcc6478"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-07-m4c-email-verification-design.md": {
+    "mtime": 1780823236.519928,
+    "hash": "cb51876e20a8bbdb36fd9a8e056a4396"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-07-m4d-legal-compliance-design.md": {
+    "mtime": 1780831730.3822074,
+    "hash": "5231229667830e869a2d7566e76368c5"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-07-m5a-catalog-seo-design.md": {
+    "mtime": 1780923193.877836,
+    "hash": "34c6bb6b7e175d1295fb586c5a03d33b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-08-m5b-accessibility-design.md": {
+    "mtime": 1780928265.7547784,
+    "hash": "2774101bfbc095edb60c541d8eb6660b"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-08-m5c-pwa-polish-design.md": {
+    "mtime": 1780933811.0960271,
+    "hash": "12d07ecad415aa054df3160e36cc2812"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-08-public-profiles-design.md": {
+    "mtime": 1780940775.4088025,
+    "hash": "804e2d80e4ad03e6810d1877553d7c06"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/docs/superpowers/specs/2026-06-08-account-linking-design.md": {
+    "mtime": 1780945845.2503233,
+    "hash": "080123501d3a33975ed3fe6ce2d32551"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/app/icon.svg": {
+    "mtime": 1780635369.9780004,
+    "hash": "dee5dc372782d987566d172ade023323"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/public/icons/icon-192.png": {
+    "mtime": 1780933811.0970957,
+    "hash": "c30a55b4575ff5ac5101ca498cabc112"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/public/icons/icon-512.png": {
+    "mtime": 1780933811.0971417,
+    "hash": "c0ffad2a0ba8d6abf2b68c2a8723b9de"
+  },
+  "/home/sbrn/Projects/Coffee-Tracker/public/icons/maskable-512.png": {
+    "mtime": 1780933811.0971417,
+    "hash": "b3c171ceb5c929259331f1496ede24da"
+  }
+}

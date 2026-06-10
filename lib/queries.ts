@@ -1,7 +1,12 @@
 import "server-only";
+import { cache } from "react";
 import { query } from "./db";
 import { getCurrentUserId } from "./auth";
-import type { AppData, Bean, Comment, Roaster, Tasting, User } from "./types";
+import { getSessionState } from "./users-repo";
+import { type Page, decodeCursor, clampLimit, toPage } from "./pagination";
+import { escapeLike } from "./like";
+import type { AppData, AssessmentAxis, Bean, BeanRadar, Comment, PublicProfile, Roaster, Tasting, User } from "./types";
+import { ASSESSMENT_AXES } from "./types";
 
 // camelCase aliases must be double-quoted (Postgres folds bare identifiers to
 // lowercase); numeric columns are cast to float8 so pg returns JS numbers.
@@ -12,127 +17,404 @@ export const BEAN_COLS = `
   price::float8 as price, avg_rating::float8 as "avgRating", ratings,
   color, flavors, description as "desc", farm, varieties,
   sca_score::float8 as "scaScore", owned, bag_weight as "bagWeight",
-  purchased, remaining::float8 as remaining, user_id as "ownerId"`;
+  purchased, remaining::float8 as remaining, user_id as "ownerId",
+  created_at as "createdAt"`;
 
-export const TASTING_COLS = `
-  id, user_id as "userId", bean_id as "beanId", rating, brew, dose, ratio,
-  temp, note, likes, time, created_at as "createdAt"`;
+// A denormalized tasting row: author + bean display fields joined in so cards
+// render standalone (M3·D). $1 is ALWAYS the viewer (currentUserId) for the
+// liked/saved flags; any row filter uses $2+.
+const TASTING_SELECT_COLS = `
+  t.id, t.user_id as "userId", t.bean_id as "beanId", t.rating, t.brew,
+  t.dose, t.ratio, t.temp, t.note,
+  coalesce(l.likes, 0)::int     as likes,
+  coalesce(cm.comments, 0)::int as "commentsCount",
+  t.time, t.created_at as "createdAt",
+  u.name as "authorName", u.handle as "authorHandle", u.avatar as "authorAvatar",
+  b.name as "beanName", b.color as "beanColor", b.origin as "beanOrigin",
+  b.flavors as "beanFlavors", coalesce(r.name, b.roaster_name) as "beanRoasterName",
+  ($1::text is not null and exists (select 1 from likes lm where lm.tasting_id=t.id and lm.user_id=$1)) as "likedByMe",
+  ($1::text is not null and exists (select 1 from tasting_saves ts where ts.tasting_id=t.id and ts.user_id=$1)) as "savedByMe"`;
+
+const TASTING_JOINS = `
+  join users u on u.id = t.user_id
+  join beans b on b.id = t.bean_id
+  left join roasters r on r.id = b.roaster_id
+  left join (select tasting_id, count(*) as likes    from likes    group by tasting_id) l  on l.tasting_id  = t.id
+  left join (select tasting_id, count(*) as comments from comments group by tasting_id) cm on cm.tasting_id = t.id`;
+
+export type FeedTab = "Recent" | "Following" | "Popular";
+const FEED_TABS: FeedTab[] = ["Recent", "Following", "Popular"];
+export function isFeedTab(s: string): s is FeedTab {
+  return (FEED_TABS as string[]).includes(s);
+}
+
+// Keyset cursor predicate (M3·D·2): the `(created_at, id) < (cursor)` half-open
+// bound, NULL-cursor meaning "first page". `col` qualifies the table (e.g. "t" or
+// "beans"); `tsIdx`/`idIdx` are the positional params for the cursor ts + id —
+// these differ per query, so the predicate must be built per call (not a shared
+// string). Param ARRAYS are unchanged; this only DRYs the WHERE text.
+function keysetWhere(col: string, tsIdx: number, idIdx: number): string {
+  return `($${tsIdx}::timestamptz is null or (${col}.created_at, ${col}.id) < ($${tsIdx}::timestamptz, $${idIdx}))`;
+}
+
+// Roaster projection + follower aggregate + viewer's followedByMe flag ($1 =
+// viewer), reused by the roaster list and single-roaster detail queries.
+const ROASTER_SELECT = `
+  select r.id, r.name, r.city, r.founded, r.beans,
+         coalesce(f.followers, 0)::int as followers, r.blurb,
+         ($1::text is not null and exists (
+           select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
+         )) as "followedByMe"
+  from roasters r
+  left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
+    on f.roaster_id = r.id`;
 
 export async function getRoasters(currentUserId: string | null): Promise<Roaster[]> {
   const { rows } = await query<Roaster>(
-    `select r.id, r.name, r.city, r.founded, r.beans,
-            coalesce(f.followers, 0)::int as followers, r.blurb,
-            ($1::text is not null and exists (
-              select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
-            )) as "followedByMe"
-     from roasters r
-     left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
-       on f.roaster_id = r.id
+    `${ROASTER_SELECT}
      order by r.id`,
     [currentUserId],
   );
   return rows;
 }
 
-export async function getUsers(currentUserId: string | null): Promise<User[]> {
-  const { rows } = await query<User>(
-    `select u.id, u.name, u.handle, u.avatar,
-            coalesce(t.tastings, 0)::int   as tastings,
-            coalesce(fr.followers, 0)::int as followers,
-            coalesce(fg.following, 0)::int as following,
-            u.bio,
-            ($1::text is not null and exists (
-              select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
-            )) as "followedByMe"
-     from users u
-     left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
-     left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
-     left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id
-     order by u.id`,
-    [currentUserId],
-  );
-  return rows;
-}
-
-export async function getBeans(currentUserId: string | null): Promise<Bean[]> {
-  const { rows } = await query<Bean>(
-    `select
-       id, name, roaster_id as "roasterId", roaster_name as "roasterName",
-       origin, process, roast, altitude, varietal,
-       price::float8 as price,
-       coalesce(r.avg_rating, 0)::float8 as "avgRating",
-       coalesce(r.ratings, 0)::int       as ratings,
-       color, flavors, description as "desc", farm, varieties,
-       sca_score::float8 as "scaScore", user_id as "ownerId",
-       coalesce(owned and user_id = $1, false)        as "owned",
-       case when user_id = $1 then bag_weight end     as "bagWeight",
-       case when user_id = $1 then purchased  end     as "purchased",
-       case when user_id = $1 then remaining::float8 end as "remaining"
-       ,($1::text is not null and exists (
-         select 1 from bean_wishlist w where w.bean_id = beans.id and w.user_id = $1)) as "wishlistedByMe"
-     from beans
-     left join (
-       select bean_id, round(avg(rating), 1) as avg_rating, count(*) as ratings
-       from tastings group by bean_id
-     ) r on r.bean_id = beans.id
-     order by beans.created_at desc, beans.id`,
-    [currentUserId],
-  );
-  return rows;
-}
-
-export async function getTastings(currentUserId: string | null): Promise<Tasting[]> {
+/** A single denormalized tasting (for write actions to return their new row). */
+export async function getTastingById(currentUserId: string | null, id: string): Promise<Tasting | null> {
   const { rows } = await query<Tasting>(
-    `select
-       t.id, t.user_id as "userId", t.bean_id as "beanId", t.rating, t.brew,
-       t.dose, t.ratio, t.temp, t.note,
-       coalesce(l.likes, 0)::int    as likes,
-       coalesce(c.comments, 0)::int as "commentsCount",
-       t.time, t.created_at as "createdAt",
-       ($1::text is not null and exists (
-         select 1 from likes lm where lm.tasting_id = t.id and lm.user_id = $1)) as "likedByMe",
-       ($1::text is not null and exists (
-         select 1 from tasting_saves ts where ts.tasting_id = t.id and ts.user_id = $1)) as "savedByMe"
-     from tastings t
-     left join (select tasting_id, count(*) as likes    from likes    group by tasting_id) l on l.tasting_id = t.id
-     left join (select tasting_id, count(*) as comments from comments group by tasting_id) c on c.tasting_id = t.id
-     order by t.created_at desc, t.id`,
-    [currentUserId],
+    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS} where t.id = $2 limit 1`,
+    [currentUserId, id],
   );
-  return rows;
+  return rows[0] ?? null;
 }
 
-/** Tastings authored by users the current viewer follows. Empty for anon. */
-export async function getFollowingTastings(currentUserId: string | null): Promise<Tasting[]> {
-  if (!currentUserId) return [];
+/** A keyset-paginated feed page. Recent/Following use (created_at,id) cursors;
+ *  Popular is a non-paginated top-N by live like count (mutating sort key). */
+export async function getFeedPage(
+  currentUserId: string | null,
+  opts: { tab: FeedTab; cursor?: string | null; limit?: number },
+): Promise<Page<Tasting>> {
+  const limit = clampLimit(opts.limit);
+  if (opts.tab === "Following") {
+    if (!currentUserId) return { rows: [], nextCursor: null };
+    const cur = decodeCursor(opts.cursor);
+    const { rows } = await query<Tasting>(
+      `select ${TASTING_SELECT_COLS} from tastings t
+         join user_follows uf on uf.followee_id = t.user_id and uf.follower_id = $1
+         ${TASTING_JOINS}
+       where ${keysetWhere("t", 2, 3)}
+       order by t.created_at desc, t.id desc limit $4`,
+      [currentUserId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
+    );
+    return toPage(rows, limit);
+  }
+  if (opts.tab === "Popular") {
+    const { rows } = await query<Tasting>(
+      `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
+       order by coalesce(l.likes, 0) desc, t.created_at desc, t.id desc limit 50`,
+      [currentUserId],
+    );
+    return { rows, nextCursor: null };
+  }
+  const cur = decodeCursor(opts.cursor); // Recent
   const { rows } = await query<Tasting>(
-    `select
-       t.id, t.user_id as "userId", t.bean_id as "beanId", t.rating, t.brew,
-       t.dose, t.ratio, t.temp, t.note,
-       coalesce(l.likes, 0)::int    as likes,
-       coalesce(c.comments, 0)::int as "commentsCount",
-       t.time, t.created_at as "createdAt",
-       exists (select 1 from likes lm where lm.tasting_id = t.id and lm.user_id = $1) as "likedByMe",
-       exists (select 1 from tasting_saves ts where ts.tasting_id = t.id and ts.user_id = $1) as "savedByMe"
-     from tastings t
-     join user_follows uf on uf.followee_id = t.user_id and uf.follower_id = $1
-     left join (select tasting_id, count(*) as likes    from likes    group by tasting_id) l on l.tasting_id = t.id
-     left join (select tasting_id, count(*) as comments from comments group by tasting_id) c on c.tasting_id = t.id
-     order by t.created_at desc, t.id`,
-    [currentUserId],
+    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
+     where ${keysetWhere("t", 2, 3)}
+     order by t.created_at desc, t.id desc limit $4`,
+    [currentUserId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
   );
-  return rows;
+  return toPage(rows, limit);
 }
 
 /** A tasting's comment thread (lazy — fetched on expand, not in getAppData). */
+const COMMENT_COLS = `
+  c.id, c.tasting_id as "tastingId", c.user_id as "userId", c.body,
+  c.created_at as "createdAt", c.updated_at as "updatedAt",
+  u.name as "authorName", u.handle as "authorHandle", u.avatar as "authorAvatar"`;
+
 export async function getComments(tastingId: string): Promise<Comment[]> {
   const { rows } = await query<Comment>(
-    `select id, tasting_id as "tastingId", user_id as "userId", body,
-            created_at as "createdAt", updated_at as "updatedAt"
-     from comments where tasting_id = $1 order by created_at`,
+    `select ${COMMENT_COLS} from comments c join users u on u.id = c.user_id
+     where c.tasting_id = $1 order by c.created_at`,
     [tastingId],
   );
   return rows;
+}
+
+/** A single denormalized comment (for write actions to return their new row). */
+export async function getCommentById(id: string): Promise<Comment | null> {
+  const { rows } = await query<Comment>(
+    `select ${COMMENT_COLS} from comments c join users u on u.id = c.user_id where c.id = $1 limit 1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+// ---- M3·D·2: scoped + paginated bean/user queries ----
+
+// Computed bean projection ($1 = viewer for redaction/wishlist), reused by every
+// scoped catalog/shelf/detail query.
+const BEAN_SELECT_COLS = `
+  beans.id, beans.name, beans.roaster_id as "roasterId", beans.roaster_name as "roasterName",
+  beans.origin, beans.process, beans.roast, beans.altitude, beans.varietal,
+  beans.price::float8 as price,
+  coalesce(r.avg_rating, 0)::float8 as "avgRating",
+  coalesce(r.ratings, 0)::int       as ratings,
+  beans.color, beans.flavors, beans.description as "desc", beans.farm, beans.varieties,
+  beans.sca_score::float8 as "scaScore", beans.user_id as "ownerId",
+  beans.created_at as "createdAt",
+  coalesce(beans.owned and beans.user_id = $1, false)          as "owned",
+  case when beans.user_id = $1 then beans.bag_weight end       as "bagWeight",
+  case when beans.user_id = $1 then beans.purchased  end       as "purchased",
+  case when beans.user_id = $1 then beans.remaining::float8 end as "remaining",
+  ($1::text is not null and exists (
+    select 1 from bean_wishlist w where w.bean_id = beans.id and w.user_id = $1)) as "wishlistedByMe"`;
+
+const BEAN_JOINS = `
+  left join (select bean_id, round(avg(rating), 1) as avg_rating, count(*) as ratings
+             from tastings group by bean_id) r on r.bean_id = beans.id`;
+
+/** The current viewer's own brews (bounded by their activity). */
+export async function getMyTastings(userId: string, limit = 200): Promise<Tasting[]> {
+  const { rows } = await query<Tasting>(
+    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
+     where t.user_id = $1 order by t.created_at desc, t.id desc limit $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
+/** Tastings the viewer has saved/bookmarked. `limit` defaults to the UI cap; the
+ *  data export passes a high bound for completeness. */
+export async function getSavedTastings(userId: string, limit = 200): Promise<Tasting[]> {
+  const { rows } = await query<Tasting>(
+    `select ${TASTING_SELECT_COLS} from tastings t
+       join tasting_saves sv on sv.tasting_id = t.id and sv.user_id = $1
+       ${TASTING_JOINS}
+     order by sv.created_at desc limit $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
+/** The viewer's owned bags (their shelf). `limit` defaults to the UI cap. */
+export async function getMyShelf(userId: string, limit = 200): Promise<Bean[]> {
+  const { rows } = await query<Bean>(
+    `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
+     where beans.user_id = $1 and beans.owned = true
+     order by beans.created_at desc, beans.id desc limit $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
+/** Beans the viewer has wishlisted. `limit` defaults to the UI cap. */
+export async function getWishlistBeans(userId: string, limit = 200): Promise<Bean[]> {
+  const { rows } = await query<Bean>(
+    `select ${BEAN_SELECT_COLS} from beans
+       join bean_wishlist w2 on w2.bean_id = beans.id and w2.user_id = $1
+       ${BEAN_JOINS}
+     order by w2.created_at desc limit $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
+// Shared user projection + aggregate LEFT JOINs ($1 = viewer for followedByMe),
+// reused by getUserById and getUserProfileByHandle. The trailing `followedByMe`
+// is appended after each query's own extra columns (profile adds discoverable).
+const USER_SELECT_COLS = `
+  u.id, u.name, u.handle, u.avatar,
+  coalesce(t.tastings, 0)::int   as tastings,
+  coalesce(fr.followers, 0)::int as followers,
+  coalesce(fg.following, 0)::int as following,
+  u.bio`;
+
+const USER_FOLLOWED_BY_ME = `
+  ($1::text is not null and exists (
+    select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
+  )) as "followedByMe"`;
+
+const USER_JOINS = `
+  left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
+  left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
+  left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id`;
+
+/** A single user with derived aggregates (profile / shell `me`). */
+export async function getUserById(currentUserId: string | null, id: string): Promise<User | null> {
+  const { rows } = await query<User>(
+    `select ${USER_SELECT_COLS},
+            ${USER_FOLLOWED_BY_ME}
+     from users u
+     ${USER_JOINS}
+     where u.id = $2 limit 1`,
+    [currentUserId, id],
+  );
+  return rows[0] ?? null;
+}
+
+/** A user's PUBLIC profile by handle (case-insensitive). $1 = viewer (for
+ *  followedByMe), $2 = the handle. Mirrors getUserById's aggregates + adds
+ *  discoverable. Missing handle → null (the page calls notFound). */
+export async function getUserProfileByHandle(currentUserId: string | null, handle: string): Promise<PublicProfile | null> {
+  const { rows } = await query<PublicProfile>(
+    `select ${USER_SELECT_COLS}, u.discoverable,
+            ${USER_FOLLOWED_BY_ME}
+     from users u
+     ${USER_JOINS}
+     where lower(u.handle) = lower($2) limit 1`,
+    [currentUserId, handle],
+  );
+  return rows[0] ?? null;
+}
+/** React.cache so generateMetadata + page body + the OG route share one DB hit. */
+export const getUserProfileByHandleCached = cache(getUserProfileByHandle);
+
+/** Keyset page of a user's tastings. $1 = viewer (liked/saved flags), $2 = target. */
+export async function getUserTastingsPage(
+  currentUserId: string | null,
+  userId: string,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<Page<Tasting>> {
+  const limit = clampLimit(opts.limit);
+  const cur = decodeCursor(opts.cursor);
+  const { rows } = await query<Tasting>(
+    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
+     where t.user_id = $2
+       and ${keysetWhere("t", 3, 4)}
+     order by t.created_at desc, t.id desc limit $5`,
+    [currentUserId, userId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
+  );
+  return toPage(rows, limit);
+}
+
+/** A user's most-used flavor notes (one query, no N+1). Ordered count desc, then
+ *  flavor name asc — mirror computeTopFlavors so /profile and /u/[me] match. */
+export async function getTopFlavors(userId: string, limit = 6): Promise<{ flavor: string; n: number }[]> {
+  const { rows } = await query<{ flavor: string; n: number }>(
+    `select f as flavor, count(*)::int as n
+     from tastings t join beans b on b.id = t.bean_id, unnest(b.flavors) f
+     where t.user_id = $1 group by f order by count(*) desc, lower(f), f limit $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
+/** Whether a user's public profile is search-indexable (Settings toggle state). */
+export async function getDiscoverable(userId: string): Promise<boolean> {
+  const { rows } = await query<{ discoverable: boolean }>(`select discoverable from users where id = $1`, [userId]);
+  return rows[0]?.discoverable ?? false;
+}
+
+/** Discoverable users' handles for the sitemap (PII-free, bounded). */
+export async function getUserHandlesForSitemap(): Promise<{ handle: string }[]> {
+  const { rows } = await query<{ handle: string }>(
+    `select handle from users where discoverable = true order by created_at limit 50000`,
+  );
+  return rows;
+}
+
+/** A single bean (catalog/detail), redaction-aware via $1 = viewer. */
+export async function getBean(currentUserId: string | null, id: string): Promise<Bean | null> {
+  const { rows } = await query<Bean>(
+    `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS} where beans.id = $2 limit 1`,
+    [currentUserId, id],
+  );
+  return rows[0] ?? null;
+}
+
+/** The current user's own-tasting radar for a bean (null when they have none).
+ *  Avg + per-axis sample count of their 0–15 intensities; column order derives
+ *  from ASSESSMENT_AXES so it can't drift from the write path. */
+export async function getBeanRadarForUser(userId: string, beanId: string): Promise<BeanRadar | null> {
+  const cols = ASSESSMENT_AXES.map(
+    (a) => `avg(ta.${a}_intensity)::float8 as ${a}, count(ta.${a}_intensity)::int as ${a}_n`,
+  ).join(",\n       ");
+  type RadarRow = Record<string, number | null> & { n: number };
+  const { rows } = await query<RadarRow>(
+    `select
+       ${cols},
+       count(*)::int as n
+     from tasting_assessments ta
+     join tastings t on t.id = ta.tasting_id
+     where t.bean_id = $1 and t.user_id = $2`,
+    [beanId, userId],
+  );
+  const r = rows[0];
+  if (!r || r.n === 0) return null;
+  const values = {} as Record<AssessmentAxis, number | null>;
+  const counts = {} as Record<AssessmentAxis, number>;
+  for (const a of ASSESSMENT_AXES) {
+    values[a] = (r[a] ?? null) as number | null;
+    counts[a] = (r[`${a}_n`] ?? 0) as number;
+  }
+  return { values, counts, n: r.n };
+}
+
+/** Top beans by rating for the Discover "trending" rail (bounded top-N). */
+export async function getTrendingBeans(currentUserId: string | null): Promise<Bean[]> {
+  const { rows } = await query<Bean>(
+    `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
+     order by coalesce(r.avg_rating, 0) desc, coalesce(r.ratings, 0) desc, beans.id desc limit 12`,
+    [currentUserId],
+  );
+  return rows;
+}
+
+/** Keyset page of the Discover catalog, with optional process + text filters. */
+export async function getDiscoverBeansPage(
+  currentUserId: string | null,
+  opts: { cursor?: string | null; limit?: number; process?: string | null; q?: string | null } = {},
+): Promise<Page<Bean>> {
+  const limit = clampLimit(opts.limit);
+  const cur = decodeCursor(opts.cursor);
+  const process = opts.process && opts.process !== "All" ? opts.process : null;
+  // Escape LIKE metacharacters so a user's % / _ can't act as wildcards (I2).
+  const q = opts.q?.trim() ? `%${escapeLike(opts.q.trim())}%` : null;
+  const { rows } = await query<Bean>(
+    `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
+     where ${keysetWhere("beans", 2, 3)}
+       and ($4::text is null or beans.process = $4)
+       and ($5::text is null or beans.name ilike $5 or beans.origin ilike $5)
+     order by beans.created_at desc, beans.id desc limit $6`,
+    [currentUserId, cur?.ts ?? null, cur?.id ?? null, process, q, limit + 1],
+  );
+  return toPage(rows, limit);
+}
+
+/** Keyset page of a bean's reviews (its tastings). */
+export async function getBeanReviewsPage(
+  currentUserId: string | null,
+  beanId: string,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<Page<Tasting>> {
+  const limit = clampLimit(opts.limit);
+  const cur = decodeCursor(opts.cursor);
+  const { rows } = await query<Tasting>(
+    `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
+     where t.bean_id = $2
+       and ${keysetWhere("t", 3, 4)}
+     order by t.created_at desc, t.id desc limit $5`,
+    [currentUserId, beanId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
+  );
+  return toPage(rows, limit);
+}
+
+/** Keyset page of a roaster's beans. */
+export async function getRoasterBeansPage(
+  currentUserId: string | null,
+  roasterId: string,
+  opts: { cursor?: string | null; limit?: number } = {},
+): Promise<Page<Bean>> {
+  const limit = clampLimit(opts.limit);
+  const cur = decodeCursor(opts.cursor);
+  const { rows } = await query<Bean>(
+    `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
+     where beans.roaster_id = $2
+       and ${keysetWhere("beans", 3, 4)}
+     order by beans.created_at desc, beans.id desc limit $5`,
+    [currentUserId, roasterId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
+  );
+  return toPage(rows, limit);
 }
 
 async function followedIds(table: string, selfCol: string, idCol: string, userId: string): Promise<string[]> {
@@ -146,12 +428,14 @@ async function followedIds(table: string, selfCol: string, idCol: string, userId
 /** Everything the client shell needs, fetched once on the server. */
 export async function getAppData(): Promise<AppData> {
   const currentUserId = await getCurrentUserId();
-  const [roasters, users, beans, tastings, followingTastings] = await Promise.all([
+  // D·1 is ADDITIVE: the global users/beans/tastings/followingTastings arrays are
+  // still loaded so un-migrated screens (journal/discover/detail) keep working.
+  // The feed now reads `feed` (keyset page 1); `followingTastings` already has no
+  // live consumer (the Following tab fetches via loadMoreFeed). D·2 slims this to
+  // shell + per-user data and drops the global arrays.
+  const [roasters, feed] = await Promise.all([
     getRoasters(currentUserId),
-    getUsers(currentUserId),
-    getBeans(currentUserId),
-    getTastings(currentUserId),
-    getFollowingTastings(currentUserId),
+    getFeedPage(currentUserId, { tab: "Recent" }),
   ]);
   const [followedUserIds, followedRoasterIds, savedTastingIds, wishedBeanIds] = currentUserId
     ? await Promise.all([
@@ -161,8 +445,56 @@ export async function getAppData(): Promise<AppData> {
         followedIds("bean_wishlist", "user_id", "bean_id", currentUserId),
       ])
     : [[], [], [], []];
+  // Bounded per-user data for the now-scoped journal/profile + shell `me`.
+  const [me, myTastings, myShelf, savedTastings, wishlistBeans] = currentUserId
+    ? await Promise.all([
+        getUserById(currentUserId, currentUserId),
+        getMyTastings(currentUserId),
+        getMyShelf(currentUserId),
+        getSavedTastings(currentUserId),
+        getWishlistBeans(currentUserId),
+      ])
+    : [null, [], [], [], []];
+  // Write-gate flag for the CURRENT user only (computed here, not in getUserById —
+  // which must stay projection-clean; the projection-guard test enforces that).
+  const sessionState = currentUserId
+    ? await getSessionState({ query: (t, p) => query(t, p) }, currentUserId)
+    : null;
+  const needsEmailVerification = !!sessionState && sessionState.hasPassword && !sessionState.emailVerified;
   return {
-    roasters, users, beans, tastings, followingTastings,
+    roasters, feed,
+    me, myTastings, myShelf, savedTastings, wishlistBeans,
     followedUserIds, followedRoasterIds, savedTastingIds, wishedBeanIds, currentUserId,
+    needsEmailVerification,
   };
 }
+
+// ---- M5·A catalog SEO ----
+
+/** Single roaster by id (mirrors getRoasters' projection). $1 = viewer (for
+ *  followedByMe), $2 = roaster id. Used by generateMetadata / JSON-LD / OG. */
+export async function getRoasterById(currentUserId: string | null, id: string): Promise<Roaster | null> {
+  const { rows } = await query<Roaster>(
+    `${ROASTER_SELECT}
+     where r.id = $2`,
+    [currentUserId, id],
+  );
+  return rows[0] ?? null;
+}
+
+/** Bounded public-id enumeration for sitemap.ts. No viewer, no PII columns. */
+export async function getBeanIdsForSitemap(): Promise<{ id: string; createdAt: string }[]> {
+  const { rows } = await query<{ id: string; createdAt: string }>(
+    `select id, created_at as "createdAt" from beans order by created_at desc limit 50000`,
+  );
+  return rows;
+}
+export async function getRoasterIdsForSitemap(): Promise<{ id: string }[]> {
+  const { rows } = await query<{ id: string }>(`select id from roasters order by id limit 50000`);
+  return rows;
+}
+
+/** Request-memoized reads so generateMetadata + the page body share ONE query
+ *  (raw pg has no fetch-dedup). Call THESE from both metadata and the page. */
+export const getBeanCached = cache(getBean);
+export const getRoasterByIdCached = cache(getRoasterById);

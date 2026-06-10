@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Icon } from "./ui";
 import { FLAVOR_WHEEL, WHEEL_FLAT } from "@/lib/flavor-wheel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Accordion,
   AccordionItem,
@@ -21,6 +23,13 @@ export function FlavorWheelPicker({
 }) {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const atMax = value.length >= max;
+  const [draft, setDraft] = useState("");
+  const addCustom = () => {
+    const v = draft.trim().slice(0, 40);
+    if (!v || value.includes(v) || value.length >= max) { setDraft(""); return; }
+    onChange([...value, v]);
+    setDraft("");
+  };
   const toggle = (n: string) => {
     if (value.includes(n)) onChange(value.filter((x) => x !== n));
     else if (value.length < max) onChange([...value, n]);
@@ -42,14 +51,22 @@ export function FlavorWheelPicker({
                 borderRadius: 99,
                 background: "var(--surface-2)",
                 border: "1px solid var(--line-soft)",
-                fontSize: 12.5,
+                fontSize: "var(--text-xs)",
                 fontWeight: 600,
                 color: "var(--coffee)",
               }}
             >
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: WHEEL_FLAT[n] || "var(--mocha)" }} />
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background: WHEEL_FLAT[n] || "var(--mocha)",
+                  boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 22%, transparent)",
+                }}
+              />
               {n}
-              <button onClick={() => toggle(n)} style={{ display: "inline-flex", color: "var(--mocha)" }}>
+              <button onClick={() => toggle(n)} aria-label={`Remove ${n}`} style={{ display: "inline-flex", color: "var(--mocha)" }}>
                 <Icon name="close" size={13} color="var(--mocha)" />
               </button>
             </span>
@@ -62,11 +79,12 @@ export function FlavorWheelPicker({
         type="single"
         collapsible
         value={openCat ?? ""}
-        onValueChange={(v) => setOpenCat(v || null)}
+        onValueChange={(v) => { setOpenCat(v || null); setDraft(""); }}
         style={{ display: "flex", flexDirection: "column", gap: 7 }}
       >
         {FLAVOR_WHEEL.map((cat) => {
           const open = openCat === cat.name;
+          // Counts wheel leaves only; free-text custom notes aren't tagged to a category (flat string[] model), so they show in the selected-chips row above, not in this per-category badge.
           const countSel = value.filter((v) => cat.groups.some((g) => g.notes.includes(v))).length;
           return (
             <AccordionItem
@@ -85,21 +103,31 @@ export function FlavorWheelPicker({
                 style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "11px 13px", textAlign: "left" }}
               >
                 <span
+                  aria-hidden="true"
                   style={{
                     width: 16,
                     height: 16,
                     borderRadius: 5,
                     background: cat.color,
                     flexShrink: 0,
-                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)",
+                    boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 18%, transparent)",
                   }}
                 />
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--espresso)" }}>{cat.name}</span>
+                <span style={{ fontSize: "var(--text-base)", fontWeight: 600, color: "var(--espresso)" }}>{cat.name}</span>
                 {countSel > 0 && (
                   <span
-                    style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: cat.color, borderRadius: 99, padding: "1px 7px" }}
+                    style={{
+                      fontSize: "var(--text-2xs)",
+                      fontWeight: 700,
+                      color: "#fff",
+                      background: cat.color,
+                      borderRadius: 99,
+                      padding: "1px 7px",
+                      boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 18%, transparent)",
+                    }}
                   >
                     {countSel}
+                    <span className="sr-only"> selected</span>
                   </span>
                 )}
                 {/* spacer: pushes the built-in chevron to the far right, keeps the label left-aligned */}
@@ -111,7 +139,7 @@ export function FlavorWheelPicker({
                     {g.notes.length > 1 && (
                       <div
                         className="mono"
-                        style={{ fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 8 }}
+                        style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 8 }}
                       >
                         {g.name}
                       </div>
@@ -124,7 +152,8 @@ export function FlavorWheelPicker({
                           <button
                             key={n}
                             onClick={() => toggle(n)}
-                            aria-disabled={disabled || undefined}
+                            aria-pressed={on}
+                            disabled={disabled || undefined}
                             title={disabled ? `Max ${max} notes selected` : undefined}
                             style={{
                               display: "inline-flex",
@@ -132,17 +161,29 @@ export function FlavorWheelPicker({
                               gap: 6,
                               padding: "6px 11px",
                               borderRadius: 99,
-                              fontSize: 12.5,
+                              fontSize: "var(--text-xs)",
                               fontWeight: 500,
                               background: on ? cat.color : "var(--surface-2)",
                               color: on ? "#fff" : "var(--coffee)",
                               border: "1px solid " + (on ? cat.color : "var(--line-soft)"),
+                              boxShadow: on ? "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 18%, transparent)" : undefined,
                               opacity: disabled ? 0.4 : 1,
                               cursor: disabled ? "not-allowed" : "pointer",
                               transition: "all 0.12s",
                             }}
                           >
-                            {!on && <span style={{ width: 8, height: 8, borderRadius: "50%", background: cat.color }} />}
+                            {!on && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: "50%",
+                                  background: cat.color,
+                                  boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--espresso) 22%, transparent)",
+                                }}
+                              />
+                            )}
                             {n}
                           </button>
                         );
@@ -150,6 +191,29 @@ export function FlavorWheelPicker({
                     </div>
                   </div>
                 ))}
+                <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                  <Input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+                    maxLength={40}
+                    placeholder="Add your own…"
+                    aria-label={`Add a custom ${cat.name} note`}
+                    disabled={atMax}
+                    className="h-10 flex-1 rounded-full border-[var(--line)] bg-[var(--surface)] text-[length:var(--text-xs)] text-[var(--coffee)]"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addCustom}
+                    disabled={!draft.trim() || atMax}
+                    aria-label={`Add custom ${cat.name} note`}
+                    className="h-10 rounded-full border-[length:1px] text-[length:var(--text-xs)] font-semibold"
+                    style={{ borderColor: cat.color, color: cat.color }}
+                  >
+                    Add
+                  </Button>
+                </div>
               </AccordionContent>
             </AccordionItem>
           );

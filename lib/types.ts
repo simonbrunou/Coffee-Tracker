@@ -1,4 +1,5 @@
 /* ============ Cortado — Domain Types ============ */
+export type { Page } from "@/lib/pagination";
 
 export interface Roaster {
   id: string;
@@ -22,6 +23,12 @@ export interface User {
   following: number;
   followedByMe: boolean;
   bio: string;
+}
+
+/** A user's PUBLIC profile (the /u/[handle] page). Adds the search-indexing
+ *  opt-in flag to the all-public User shape; carries NO private fields. */
+export interface PublicProfile extends User {
+  discoverable: boolean;
 }
 
 /**
@@ -62,6 +69,8 @@ export interface Bean {
   /** Owner (creator) of this bag; null only for a future shared catalog. */
   ownerId?: string | null;
   wishlistedByMe: boolean;
+  /** ISO creation timestamp — the keyset for catalog pagination (M3·D·2). */
+  createdAt: string;
 }
 
 /** A brew/tasting entry — the fast, everyday action logged against a bag. */
@@ -85,6 +94,17 @@ export interface Tasting {
   createdAt: string;
   /** Relative age label, e.g. "2h" or "now". */
   time: string;
+  // ---- Denormalized for standalone rendering (M3·D): a tasting row carries
+  // its author + bean display fields so cards need no global lookup. ----
+  authorName: string;
+  authorHandle: string;
+  authorAvatar: string;
+  beanName: string;
+  beanColor: string;
+  beanOrigin: string;
+  /** coalesce(roaster.name, bean.roaster_name); null falls back to "My roaster" in the UI. */
+  beanRoasterName: string | null;
+  beanFlavors: string[];
 }
 
 /** A flat comment on a tasting. */
@@ -96,10 +116,14 @@ export interface Comment {
   createdAt: string;
   /** ISO timestamp of the last edit; null if never edited. */
   updatedAt: string | null;
+  // Denormalized author (M3·D) so the comment thread needs no global user lookup.
+  authorName: string;
+  authorHandle: string;
+  authorAvatar: string;
 }
 
 // ---- SCA Coffee Taster's Flavor Wheel ----
-export interface WheelGroup {
+interface WheelGroup {
   name: string;
   notes: string[];
 }
@@ -111,18 +135,39 @@ export interface WheelCategory {
 
 export interface AppData {
   roasters: Roaster[];
-  users: User[];
-  beans: Bean[];
-  tastings: Tasting[];
-  /** Tastings authored by users the current viewer follows (server-filtered). */
-  followingTastings: Tasting[];
+  /** First page of the Recent feed (keyset-paginated; M3·D). */
+  feed: import("@/lib/pagination").Page<Tasting>;
+  /** Bounded per-user data + shell `me` (M3·D·2). */
+  me: User | null;
+  myTastings: Tasting[];
+  myShelf: Bean[];
+  savedTastings: Tasting[];
+  wishlistBeans: Bean[];
   /** Current viewer's membership id-lists, to seed the optimistic client Sets. */
   followedUserIds: string[];
   followedRoasterIds: string[];
   savedTastingIds: string[];
   wishedBeanIds: string[];
   currentUserId: string | null;
+  /** Current credential user has an unverified email (write-gated). */
+  needsEmailVerification: boolean;
 }
+
+/** The six CVA intensity axes — single source of truth (runtime + type) shared
+ *  by validation, SQL generation, and the UI so column/param order can't drift. */
+export const ASSESSMENT_AXES = ["body", "acidity", "sweetness", "fruit", "floral", "finish"] as const;
+export type AssessmentAxis = (typeof ASSESSMENT_AXES)[number];
+
+/** Own-tasting radar: avg of the current user's 0–15 intensities for a bean,
+ *  with per-axis sample counts. null when the user has no assessments. */
+export interface BeanRadar {
+  values: Record<AssessmentAxis, number | null>;
+  counts: Record<AssessmentAxis, number>;
+  n: number;
+}
+
+/** Lean per-tasting CVA assessment — six 0–15 intensities, each optional. */
+export type TastingAssessment = Record<AssessmentAxis, number | null>;
 
 // ---- Server action payloads ----
 export interface LogBrewInput {
@@ -133,6 +178,7 @@ export interface LogBrewInput {
   dose: string;
   ratio: string;
   temp: string;
+  assessment?: TastingAssessment | null;
 }
 
 export interface AddBagInput {
@@ -156,6 +202,7 @@ export interface UpdateBrewInput {
   dose: string;
   ratio: string;
   temp: string;
+  assessment?: TastingAssessment | null;
 }
 
 export interface UpdateBagInput extends AddBagInput {

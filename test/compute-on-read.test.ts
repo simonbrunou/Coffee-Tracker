@@ -9,69 +9,82 @@ function body(name: string) {
   const next = src.indexOf("\nexport", start + 1);
   return src.slice(start, next === -1 ? undefined : next);
 }
+// SELECT/JOINS are shared fragments now (M3·D): the per-row compute-on-read +
+// denormalized columns live here, reused by the feed/scoped queries.
+const tastingSql = src.slice(src.indexOf("const TASTING_SELECT_COLS"), src.indexOf("export type FeedTab"));
+const beanSql = src.slice(src.indexOf("const BEAN_SELECT_COLS"), src.indexOf("export async function getMyTastings"));
+// R7: the roaster aggregate/projection is now a shared fragment, reused by
+// getRoasters + getRoasterById. R6: the user aggregate projection + joins are
+// shared fragments, reused by getUserById + getUserProfileByHandle.
+const roasterSql = src.slice(src.indexOf("const ROASTER_SELECT"), src.indexOf("export async function getRoasters"));
+const userSql = src.slice(src.indexOf("const USER_SELECT_COLS"), src.indexOf("export async function getUserById"));
 
 describe("compute-on-read counts", () => {
-  it("getBeans derives avgRating/ratings from tastings, not stored columns", () => {
-    const b = body("getBeans");
-    expect(b).toMatch(/avg\(rating\)/i);
-    expect(b).toMatch(/count\(\*\)/i);
-    expect(b).toMatch(/coalesce/i);
-    expect(b).not.toMatch(/b\.avg_rating/i);
-    expect(b).not.toMatch(/b\.ratings/i);
+  it("the bean fragment derives avgRating/ratings from tastings, not stored columns", () => {
+    expect(beanSql).toMatch(/avg\(rating\)/i);
+    expect(beanSql).toMatch(/count\(\*\)/i);
+    expect(beanSql).toMatch(/coalesce\(r\.avg_rating/i);
+    expect(beanSql).toMatch(/coalesce\(r\.ratings/i);
+    expect(beanSql).not.toMatch(/beans\.avg_rating/i);
+    expect(beanSql).not.toMatch(/beans\.ratings\b/i);
   });
-  it("getUsers derives the tastings count", () => {
-    const b = body("getUsers");
-    expect(b).toMatch(/count\(\*\)/i);
-    expect(b).not.toMatch(/u\.tastings/i);
+  it("the user fragment derives the tastings count", () => {
+    expect(userSql).toMatch(/count\(\*\)/i);
+    expect(userSql).not.toMatch(/u\.tastings/i);
   });
-  it("getTastings derives likes + likedByMe and exposes createdAt", () => {
-    const b = body("getTastings");
-    expect(b).toMatch(/count\(\*\)/i);
-    expect(b).toMatch(/"likedByMe"/);
-    expect(b).toMatch(/"createdAt"/);
+  it("the tasting fragment derives likes + likedByMe and exposes createdAt", () => {
+    expect(tastingSql).toMatch(/count\(\*\)/i);
+    expect(tastingSql).toMatch(/"likedByMe"/);
+    expect(tastingSql).toMatch(/"createdAt"/);
+  });
+  it("the feed/scoped tasting queries use the shared denormalized fragment", () => {
+    expect(body("getFeedPage")).toMatch(/TASTING_SELECT_COLS/);
+    expect(body("getTastingById")).toMatch(/TASTING_SELECT_COLS/);
+    expect(body("getMyTastings")).toMatch(/TASTING_SELECT_COLS/);
+  });
+  it("tasting rows carry denormalized author + bean display fields", () => {
+    expect(tastingSql).toMatch(/"authorName"/);
+    expect(tastingSql).toMatch(/"beanName"/);
+    expect(tastingSql).toMatch(/"beanRoasterName"/);
+    expect(tastingSql).toMatch(/"beanFlavors"/);
   });
   it("getLikedTastingIds is removed", () => {
     expect(src).not.toContain("getLikedTastingIds");
   });
   // Regressions caught by the live-DB spike: pg returns bigint count(*) as a
-  // STRING, so counts must be cast to int (else `likes + 1` string-concats to "01");
-  // and a bare `$1 is not null` has no inferable type, so the param needs ::text.
+  // STRING, so counts must be cast to int; a bare `$1 is not null` needs ::text.
   it("casts count aggregates to int (pg returns bigint as string)", () => {
-    expect(body("getBeans")).toMatch(/coalesce\(r\.ratings, 0\)::int/);
-    expect(body("getUsers")).toMatch(/coalesce\(t\.tastings, 0\)::int/);
-    expect(body("getTastings")).toMatch(/coalesce\(l\.likes, 0\)::int/);
+    expect(beanSql).toMatch(/coalesce\(r\.ratings, 0\)::int/);
+    expect(userSql).toMatch(/coalesce\(t\.tastings, 0\)::int/);
+    expect(tastingSql).toMatch(/coalesce\(l\.likes, 0\)::int/);
   });
   it("casts the current-user param to text for null-safety", () => {
-    expect(body("getTastings")).toMatch(/\$1::text is not null/);
+    expect(tastingSql).toMatch(/\$1::text is not null/);
   });
-  it("getRoasters takes currentUserId, derives followers ::int, exposes followedByMe", () => {
-    const b = body("getRoasters");
-    expect(b).toMatch(/getRoasters\(\s*currentUserId/);
-    expect(b).toMatch(/count\(\*\)[\s\S]*::int/i);
-    expect(b).toMatch(/"followedByMe"/);
-    expect(b).toMatch(/\$1::text is not null/);
+  it("getRoasters takes currentUserId; the roaster fragment derives followers ::int, exposes followedByMe", () => {
+    expect(body("getRoasters")).toMatch(/getRoasters\(\s*currentUserId/);
+    expect(roasterSql).toMatch(/count\(\*\)[\s\S]*::int/i);
+    expect(roasterSql).toMatch(/"followedByMe"/);
+    expect(roasterSql).toMatch(/\$1::text is not null/);
   });
-  it("getUsers derives followers/following ::int (not stored columns) + followedByMe", () => {
-    const b = body("getUsers");
-    expect(b).toMatch(/coalesce\([^)]*followers[^)]*\)::int/i);
-    expect(b).toMatch(/coalesce\([^)]*following[^)]*\)::int/i);
-    expect(b).not.toMatch(/u\.followers/);
-    expect(b).not.toMatch(/u\.following/);
-    expect(b).toMatch(/"followedByMe"/);
+  it("the user fragment derives followers/following ::int (not stored columns) + followedByMe", () => {
+    expect(userSql).toMatch(/coalesce\([^)]*followers[^)]*\)::int/i);
+    expect(userSql).toMatch(/coalesce\([^)]*following[^)]*\)::int/i);
+    expect(userSql).not.toMatch(/u\.followers/);
+    expect(userSql).not.toMatch(/u\.following/);
+    expect(userSql).toMatch(/"followedByMe"/);
   });
-  it("getTastings replaces stale comments with commentsCount ::int + savedByMe", () => {
-    const b = body("getTastings");
-    expect(b).toMatch(/"commentsCount"/);
-    expect(b).toMatch(/coalesce\([^)]*\)::int as "commentsCount"/i);
-    expect(b).toMatch(/"savedByMe"/);
-    expect(b).not.toMatch(/t\.comments/);
+  it("the tasting fragment derives commentsCount ::int + savedByMe (no stale column)", () => {
+    expect(tastingSql).toMatch(/"commentsCount"/);
+    expect(tastingSql).toMatch(/coalesce\([^)]*\)::int as "commentsCount"/i);
+    expect(tastingSql).toMatch(/"savedByMe"/);
+    expect(tastingSql).not.toMatch(/t\.comments/);
   });
-  it("getBeans exposes wishlistedByMe (anon-safe)", () => {
-    const b = body("getBeans");
-    expect(b).toMatch(/"wishlistedByMe"/);
+  it("the bean fragment exposes wishlistedByMe (anon-safe)", () => {
+    expect(beanSql).toMatch(/"wishlistedByMe"/);
   });
-  it("getFollowingTastings joins the follow graph", () => {
-    const b = body("getFollowingTastings");
+  it("getFeedPage's Following branch joins the follow graph", () => {
+    const b = body("getFeedPage");
     expect(b).toMatch(/join user_follows/i);
     expect(b).toMatch(/followee_id = t\.user_id/);
   });

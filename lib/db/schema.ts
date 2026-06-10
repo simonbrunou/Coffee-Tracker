@@ -26,6 +26,7 @@ export const users = pgTable(
     avatar: text("avatar").notNull(),
     tastings: integer("tastings").notNull().default(0),
     bio: text("bio").notNull().default(""),
+    discoverable: boolean("discoverable").notNull().default(false),
     email: text("email"),
     emailVerified: timestamp("email_verified", { withTimezone: true }),
     image: text("image"),
@@ -34,9 +35,10 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // Name is auto-generated and not app-referenced (handle clashes fall through
-    // to the generic register message) -> the gate compares UNIQUE by def, not name.
-    unique().on(t.handle),
+    // Case-insensitive handle uniqueness (so @Sam and @sam can't coexist) — the
+    // public /u/[handle] lookup is lower(handle)=lower($). A 23505 here still
+    // falls through mapRegisterError to the generic username message.
+    uniqueIndex("users_handle_lower_uq").on(lower(t.handle)),
     // App-load-bearing NAME (register-errors.ts branches on err.constraint).
     uniqueIndex("users_email_lower_uq").on(lower(t.email)).where(sql`${t.passwordHash} is not null`),
   ],
@@ -90,8 +92,8 @@ export const beans = pgTable(
     check("beans_owned_has_owner", sql`not ${t.owned} or ${t.userId} is not null`),
     index("beans_user_owned_idx").on(t.userId, t.owned),
     index("beans_roaster_idx").on(t.roasterId),
-    // .nullsFirst() so Postgres omits the clause (DESC default), matching db/schema.sql's bare `desc`.
-    index("beans_created_idx").on(t.createdAt.desc().nullsFirst()),
+    // Composite keyset index for (created_at, id) cursor pagination (M3·D).
+    index("beans_created_id_idx").on(t.createdAt.desc().nullsFirst(), t.id.desc()),
   ],
 );
 
@@ -99,7 +101,7 @@ export const tastings = pgTable(
   "tastings",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id").notNull().references(() => users.id), // NO cascade
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     beanId: text("bean_id").notNull().references(() => beans.id, { onDelete: "cascade" }),
     rating: integer("rating").notNull(),
     brew: text("brew").notNull().default(""),
@@ -113,7 +115,8 @@ export const tastings = pgTable(
   },
   (t) => [
     check("tastings_rating_check", sql`${t.rating} between 1 and 5`),
-    index("tastings_created_idx").on(t.createdAt.desc().nullsFirst()),
+    // Composite keyset index for (created_at, id) cursor pagination (M3·D).
+    index("tastings_created_id_idx").on(t.createdAt.desc().nullsFirst(), t.id.desc()),
     index("tastings_bean_idx").on(t.beanId),
     index("tastings_user_idx").on(t.userId),
   ],
@@ -122,7 +125,7 @@ export const tastings = pgTable(
 export const likes = pgTable(
   "likes",
   {
-    userId: text("user_id").notNull().references(() => users.id), // NO cascade
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     tastingId: text("tasting_id").notNull().references(() => tastings.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -197,5 +200,81 @@ export const comments = pgTable(
   (t) => [
     check("comments_body_check", sql`char_length(${t.body}) between 1 and 500`),
     index("comments_tasting_idx").on(t.tastingId),
+  ],
+);
+
+export const tastingAssessments = pgTable(
+  "tasting_assessments",
+  {
+    tastingId: text("tasting_id")
+      .primaryKey()
+      .references(() => tastings.id, { onDelete: "cascade" }),
+    bodyIntensity: numeric("body_intensity"),
+    acidityIntensity: numeric("acidity_intensity"),
+    sweetnessIntensity: numeric("sweetness_intensity"),
+    fruitIntensity: numeric("fruit_intensity"),
+    floralIntensity: numeric("floral_intensity"),
+    finishIntensity: numeric("finish_intensity"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("ta_body_range",   sql`${t.bodyIntensity}      is null or ${t.bodyIntensity}      between 0 and 15`),
+    check("ta_acid_range",   sql`${t.acidityIntensity}   is null or ${t.acidityIntensity}   between 0 and 15`),
+    check("ta_sweet_range",  sql`${t.sweetnessIntensity} is null or ${t.sweetnessIntensity} between 0 and 15`),
+    check("ta_fruit_range",  sql`${t.fruitIntensity}     is null or ${t.fruitIntensity}     between 0 and 15`),
+    check("ta_floral_range", sql`${t.floralIntensity}    is null or ${t.floralIntensity}    between 0 and 15`),
+    check("ta_finish_range", sql`${t.finishIntensity}    is null or ${t.finishIntensity}    between 0 and 15`),
+  ],
+);
+
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("rate_limits_reset_at_idx").on(t.resetAt)],
+);
+
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("vt_token_hash_uq").on(t.tokenHash),
+    index("vt_user_id_idx").on(t.userId),
+    index("vt_expires_at_idx").on(t.expiresAt),
+  ],
+);
+
+// Single-use, HMAC-hashed nonce binding an OAuth-link attempt to the initiating
+// session (mirrors verification_tokens; `provider` replaces `email`).
+export const linkTokens = pgTable(
+  "link_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    // What the single-use OAuth step-up proves: "link" (connect a provider) or
+    // "reauth_delete" (re-authenticate to confirm irreversible account deletion).
+    // Keyed alongside (user_id, provider) so the two flows never consume each
+    // other's nonce.
+    purpose: text("purpose").notNull().default("link"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lt_token_hash_uq").on(t.tokenHash),
+    index("lt_user_id_idx").on(t.userId),
+    index("lt_expires_at_idx").on(t.expiresAt),
   ],
 );

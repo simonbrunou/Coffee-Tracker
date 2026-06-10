@@ -68,3 +68,21 @@ describe("validateAddBag", () => {
     if (r.ok) expect(r.value.flavors.length).toBe(10); else throw new Error("should cap");
   });
 });
+
+describe("validateAddBag flavor hardening", () => {
+  const base = { name: "X", roasterName: "R", origin: "O", color: "#c98a4a" };
+  it("trims and caps each flavor to 40 chars", () => {
+    const long = "a".repeat(50);
+    const r = validateAddBag({ ...base, flavors: ["  Blackberry  ", long] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.flavors[0]).toBe("Blackberry");
+    expect(r.value.flavors[1]).toBe("a".repeat(40));
+  });
+  it("caps the flavor count at 10", () => {
+    const r = validateAddBag({ ...base, flavors: Array.from({ length: 15 }, (_, i) => `f${i}`) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.flavors.length).toBe(10);
+  });
+});

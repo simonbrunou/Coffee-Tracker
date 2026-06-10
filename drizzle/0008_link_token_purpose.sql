@@ -1,0 +1,1 @@
+ALTER TABLE "link_tokens" ADD COLUMN "purpose" text DEFAULT 'link' NOT NULL;
