@@ -11,7 +11,7 @@ const { requireUserId, signOut, signIn, bumpSessionVersion, deleteUserWithPii, w
   bumpSessionVersion: vi.fn(async () => {}),
   deleteUserWithPii: vi.fn(async () => {}),
   withTransaction: vi.fn(),
-  poolQuery: vi.fn(async () => ({ rows: [] })),
+  poolQuery: vi.fn(async (): Promise<{ rows: unknown[] }> => ({ rows: [] })),
   confirmPasswordReauth: vi.fn(async () => true),
   userHasPassword: vi.fn(async () => true),
   createLinkToken: vi.fn(async () => "raw-nonce"),
@@ -101,7 +101,13 @@ describe("deleteAccount", () => {
 });
 
 describe("startDeleteReauth (OAuth re-auth before delete)", () => {
+  // OAuth-only user (no password) with the provider linked.
+  function oauthOnlyLinked() {
+    userHasPassword.mockResolvedValueOnce(false);
+    poolQuery.mockResolvedValueOnce({ rows: [{ "?column?": 1 }] }); // accounts row exists
+  }
   it("mints a reauth_delete nonce, sets the per-provider cookie, then starts OAuth", async () => {
+    oauthOnlyLinked();
     await startDeleteReauth("google");
     expect(createLinkToken).toHaveBeenCalledWith(expect.anything(), "u-me", "google", "reauth_delete");
     expect(cookieSet).toHaveBeenCalledWith("reauth_delete_google", "raw-nonce", expect.objectContaining({ httpOnly: true, sameSite: "lax", maxAge: 600 }));
@@ -111,6 +117,19 @@ describe("startDeleteReauth (OAuth re-auth before delete)", () => {
   });
   it("rejects an unsupported provider before minting anything", async () => {
     await expect(startDeleteReauth("myspace")).rejects.toThrow(/unsupported/i);
+    expect(createLinkToken).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+  it("rejects a credential user — they must delete via password, not the OAuth path", async () => {
+    userHasPassword.mockResolvedValueOnce(true);
+    await expect(startDeleteReauth("google")).rejects.toThrow(/password/i);
+    expect(createLinkToken).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+  it("rejects a provider the user hasn't actually linked", async () => {
+    userHasPassword.mockResolvedValueOnce(false);
+    poolQuery.mockResolvedValueOnce({ rows: [] }); // no linked accounts row
+    await expect(startDeleteReauth("google")).rejects.toThrow(/connected/i);
     expect(createLinkToken).not.toHaveBeenCalled();
     expect(signIn).not.toHaveBeenCalled();
   });

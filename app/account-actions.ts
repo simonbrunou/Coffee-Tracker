@@ -55,6 +55,14 @@ export async function deleteAccount(confirmPassword?: string): Promise<{ error: 
 export async function startDeleteReauth(provider: string): Promise<void> {
   const uid = await requireUserId();
   if (!LINKABLE.has(provider)) throw new Error("Unsupported provider");
+  // Enforce server-side what the settings UI implies: credential users must delete
+  // via their password (deleteAccount), not the OAuth path — so a linked-OAuth
+  // credential user can't bypass the password challenge.
+  if (await userHasPassword(uid)) throw new Error("Use password confirmation to delete.");
+  // Only re-authenticate through a provider the user has actually linked (fail fast;
+  // also avoids minting nonces / starting OAuth for unconnected providers).
+  const { rows } = await poolDb.query(`select 1 from accounts where user_id = $1 and provider = $2 limit 1`, [uid, provider]);
+  if (rows.length === 0) throw new Error("That account isn't connected.");
   const raw = await createLinkToken(poolDb, uid, provider, "reauth_delete");
   // Set-cookie MUST be the statement immediately before signIn (no try/catch) so
   // its Set-Cookie rides the one 302 to the provider; SameSite=Lax survives the
