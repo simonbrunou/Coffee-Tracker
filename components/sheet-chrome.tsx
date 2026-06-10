@@ -3,6 +3,16 @@
 import { Icon } from "./ui";
 import { Button } from "@/components/ui/button";
 
+/** Section label shared by the sheet forms (log a brew, add a bag). `id` lets it
+ *  caption a control group via aria-labelledby. */
+export function SheetLabel({ id, children }: { id?: string; children: React.ReactNode }) {
+  return (
+    <div id={id} style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>
+      {children}
+    </div>
+  );
+}
+
 export function SheetHeader({
   kicker,
   onClose,

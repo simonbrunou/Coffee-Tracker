@@ -1,4 +1,4 @@
-import { FLAVORS } from "@/lib/seed-data";
+import { FLAVORS } from "@/lib/constants";
 
 const TINTS = Object.values(FLAVORS);
 

@@ -1,7 +1,7 @@
 "use client";
 /* ============ Cortado — Shared UI primitives ============ */
 import { useEffect, useState } from "react";
-import { flavorColor } from "@/lib/seed-data";
+import { flavorColor } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Avatar as AvatarRoot, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";

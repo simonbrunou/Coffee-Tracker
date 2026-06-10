@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { Page } from "@/lib/pagination";
 
 /**
@@ -46,11 +46,13 @@ export function useLoadMore<T>(initial: Page<T>, fetcher: (cursor: string | null
       }
     });
 
-  const reset = (p: Page<T>) => {
+  // Stable across renders (only refs + state setters inside), so callers can list
+  // `reset` in their effect deps honestly instead of suppressing exhaustive-deps.
+  const reset = useCallback((p: Page<T>) => {
     gen.current++;
     setRows(p.rows);
     setCursor(p.nextCursor);
-  };
+  }, []);
 
   return { rows, loadMore, hasMore: cursor !== null, pending, reset };
 }

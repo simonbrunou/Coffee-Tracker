@@ -1,5 +1,13 @@
 "use server";
 
+// Error-handling convention (U10): CONTENT mutations here (log brew, add/edit/
+// delete bag & brew, comment, the social toggles) THROW `Error("Couldn't …")` on
+// failure — the calling sheet/toast layer catches and surfaces it. AUTH and
+// ACCOUNT form flows (auth-actions, account-actions, account-link-actions,
+// verify-actions) instead RETURN `{ error: string }` so the form can render the
+// message inline. Keep new actions on the side of this split that matches their
+// caller (toast vs inline form).
+
 import { randomUUID } from "node:crypto";
 import { query, withTransaction } from "@/lib/db";
 import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage, getBeanRadarForUser } from "@/lib/queries";

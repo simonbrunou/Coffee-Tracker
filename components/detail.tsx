@@ -9,7 +9,7 @@ import { loadMoreBeanReviews, loadMoreRoasterBeans, getMyBeanRadar } from "@/app
 import { BeanCard, TastingCard } from "./cards";
 import { Avatar, BeanRating, EmptyState, FlavorChip, Icon, LoadMoreButton, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
-import { flavorColor } from "@/lib/seed-data";
+import { flavorColor } from "@/lib/constants";
 import { computeTopFlavors } from "@/lib/profile-flavors";
 import type { AssessmentAxis, Bean, BeanRadar, Page, Tasting, User } from "@/lib/types";
 

@@ -108,8 +108,7 @@ export function FeedScreen({
       .catch(() => { if (active) reset({ rows: [], nextCursor: null }); })
       .finally(() => { if (active) setTabLoading(false); });
     return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, D.feed]);
+  }, [filter, D.feed, reset]);
   const sub =
     filter === "Following"
       ? "Fresh tastings from the people you follow."
@@ -627,8 +626,7 @@ export function DiscoverScreen({
     };
     const t = setTimeout(run, query ? 250 : 0);
     return () => { active = false; clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [process, query, initialBeans]);
+  }, [process, query, initialBeans, reset]);
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>

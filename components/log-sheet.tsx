@@ -5,7 +5,7 @@ import { useData } from "./data-context";
 import { BeanBag } from "./cards";
 import { BeanRating, Icon, PillButton } from "./ui";
 import { BagForm } from "./bag-form";
-import { SheetHeader, DonePanel } from "./sheet-chrome";
+import { SheetHeader, DonePanel, SheetLabel as SectionLabel } from "./sheet-chrome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,12 +18,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { AddBagInput, Bean, LogBrewInput, Tasting, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 import { TastingAssessmentFields, EMPTY_ASSESSMENT } from "./tasting-assessment-fields";
-
-// Section header inside the sheets (was the shared `Label`). Accepts an optional
-// `id` so a section prompt can label an associated control via aria-labelledby.
-function SectionLabel({ id, children }: { id?: string; children: React.ReactNode }) {
-  return <div id={id} style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
-}
 
 // A controlled ghost-Button expander used by both "Add brew details" and "Add
 // tasting notes". The open state stays owned by the caller (BrewFlow reads it in
