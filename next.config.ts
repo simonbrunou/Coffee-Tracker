@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   // `pg` is a native Node dependency used only in server code (queries + actions);
   // keep it external to the server bundle.
   serverExternalPackages: ["pg"],
+  // Lint runs as its own CI step (`npm run lint`, flat config via FlatCompat) and
+  // locally — so the redundant `next build` lint pass only slows the build and
+  // emits a spurious "Next.js plugin was not detected" warning (a flat-config
+  // detection quirk; the plugin IS active via next/core-web-vitals). Skip it here;
+  // `eslint .` remains the gate.
+  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;
