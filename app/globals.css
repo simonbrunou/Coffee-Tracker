@@ -171,7 +171,13 @@
   --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.50), 0 4px 8px oklch(0 0 0 / 0.34);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* In @layer base so Tailwind's `utilities` layer outranks it: an UNLAYERED
+   universal reset beats layered utilities regardless of specificity, which
+   silently killed every p-*/m-*/w-* utility app-wide and forced inline styles
+   everywhere. Layering restores Tailwind spacing while keeping the reset. */
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+}
 
 html, body { height: 100%; }
 
@@ -323,6 +329,9 @@ input, textarea { font-family: inherit; }
     background: color-mix(in oklch, var(--cream) 88%, transparent);
     backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-soft);
   }
+  /* Comfortable touch targets for the mobile header controls (icon buttons are
+     36px by default — below the 44px recommended minimum on touch). */
+  .mobile-top button { min-height: 44px; min-width: 44px; }
   .screen-pad { padding: 22px 18px 40px; }
 
   .bottom-nav {

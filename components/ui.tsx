@@ -8,6 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import type { User } from "@/lib/types";
 import { relativeTime } from "@/lib/relative-time";
 
+// Per-item entrance-stagger step, and the cap past which the delay stops growing.
+// Capping matters for appended "load more" pages: without it a later item's delay
+// (index * step) can leave it invisibly waiting for hundreds of ms after it mounts.
+export const STAGGER_MS = 40;
+export const STAGGER_CAP_MS = 400;
+/** CSS animation-delay (ms string) for a staggered list item, capped. */
+export function staggerMs(delay: number): string {
+  return `${Math.min(delay, STAGGER_CAP_MS)}ms`;
+}
+
 // Hydration-safe relative "time ago". SSR and the first client render compute the
 // wall clock at different instants, so render an empty placeholder on first paint
 // (identical server + client), then fill the live value in a mount effect.

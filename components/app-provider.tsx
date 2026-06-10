@@ -242,7 +242,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const handleLogBrew = async (input: LogBrewInput) => {
     const b = myShelf.find((x) => x.id === input.beanId);
     await logBrewAction(input);
-    toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
+    // Drop the article so a proper-noun bag name reads right ("Logged your Idido
+    // brew", not "Logged a Idido brew").
+    toast(b ? `Logged your ${b.name} brew ✓` : "Brew logged ✓");
   };
 
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
@@ -453,7 +455,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
               {needsEmailVerification && (
                 <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: "var(--text-base)" }}>
                   <span style={{ flex: 1 }}>Verify your email to log brews and bags. Check your inbox for the link.</span>
-                  <form action={resendVerification}><Button variant="outline" size="sm" type="submit">Resend</Button></form>
+                  <form action={resendVerification}><Button variant="outline" size="sm" type="submit" className="min-h-11">Resend</Button></form>
                 </div>
               )}
               {children}

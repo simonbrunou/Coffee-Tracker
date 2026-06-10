@@ -208,7 +208,7 @@ export function BeanDetail({
                 <span className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 700 }}>
                   {bean.avgRating}
                 </span>
-                <span style={{ fontSize: "var(--text-sm)", color: "var(--mocha)" }}>· {bean.ratings} ratings</span>
+                <span style={{ fontSize: "var(--text-sm)", color: "var(--mocha)" }}>· {bean.ratings} {bean.ratings === 1 ? "rating" : "ratings"}</span>
               </div>
             )}
             {bean.price ? (
@@ -261,20 +261,10 @@ export function BeanDetail({
       </div>
 
       {/* spec grid — fixed column count so no dead gap-colored cell trails the
-          last row; the final spec spans the remaining tracks to fill the row. */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 1,
-          background: "var(--line-soft)",
-          border: "1px solid var(--line-soft)",
-          borderRadius: "var(--r-md)",
-          overflow: "hidden",
-          marginBottom: 28,
-        }}
-      >
-        {[
+          last row; the final spec spans the columns left in its row to fill it. */}
+      {(() => {
+        const SPEC_COLS = 4;
+        const specs = [
           { label: "Origin", value: bean.origin },
           { label: "Farm / Producer", value: bean.farm || "—" },
           { label: "Variety", value: varieties.join(", ") },
@@ -282,10 +272,29 @@ export function BeanDetail({
           { label: "Roast", value: bean.roast },
           { label: "Altitude", value: bean.altitude },
           { label: "SCA Score", value: bean.scaScore ? String(bean.scaScore) : "—" },
-        ].map((s, i, arr) => (
-          <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1} />
-        ))}
-      </div>
+        ];
+        // Columns occupied by all-but-last in the final row; the last spec spans
+        // whatever remains so the row is always full (no empty gap-colored cell).
+        const lastSpan = SPEC_COLS - ((specs.length - 1) % SPEC_COLS);
+        return (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${SPEC_COLS}, minmax(0, 1fr))`,
+              gap: 1,
+              background: "var(--line-soft)",
+              border: "1px solid var(--line-soft)",
+              borderRadius: "var(--r-md)",
+              overflow: "hidden",
+              marginBottom: 28,
+            }}
+          >
+            {specs.map((s, i, arr) => (
+              <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1 ? lastSpan : 1} />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* flavor radar + chips — single wrapper; the radar column only appears once
           the (own-tasting) radar has loaded with data, so the card never flashes
@@ -352,9 +361,9 @@ export function BeanDetail({
   );
 }
 
-function Spec({ label, value, span }: { label: string; value: string; span?: boolean }) {
+function Spec({ label, value, span = 1 }: { label: string; value: string; span?: number }) {
   return (
-    <div style={{ padding: "14px 16px", background: "var(--surface)", gridColumn: span ? "auto / -1" : undefined }}>
+    <div style={{ padding: "14px 16px", background: "var(--surface)", gridColumn: span > 1 ? `span ${span}` : undefined }}>
       <div
         className="mono"
         style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 4 }}
@@ -510,13 +519,13 @@ export function RoasterDetail({
               <b className="display" style={{ fontSize: "var(--text-xl)", color: "var(--espresso)" }}>
                 {roaster.beans}
               </b>{" "}
-              beans
+              {roaster.beans === 1 ? "bean" : "beans"}
             </span>
             <span style={{ fontSize: "var(--text-base)", color: "var(--mocha)" }}>
               <b className="display" style={{ fontSize: "var(--text-xl)", color: "var(--espresso)" }}>
                 {roaster.followers.toLocaleString("en-US")}
               </b>{" "}
-              followers
+              {roaster.followers === 1 ? "follower" : "followers"}
             </span>
           </div>
         </div>

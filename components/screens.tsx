@@ -6,7 +6,7 @@ import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
-import { BeanGlyph, BeanRating, Icon, Placeholder, RelTime } from "./ui";
+import { BeanGlyph, BeanRating, Icon, Placeholder, RelTime, staggerMs } from "./ui";
 import type { IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -466,7 +466,7 @@ export function JournalScreen({
                   onClick={() => onOpenBean(t.beanId)}
                   className="fade-up"
                   style={{
-                    animationDelay: i * 40 + "ms",
+                    animationDelay: staggerMs(i * 40),
                     textAlign: "left",
                     padding: 14,
                     borderRadius: "var(--r-md)",
@@ -544,7 +544,7 @@ function ShelfCard({
     <div
       className="fade-up"
       style={{
-        animationDelay: delay + "ms",
+        animationDelay: staggerMs(delay),
         background: "var(--surface)",
         border: "1px solid var(--line-soft)",
         borderRadius: "var(--r-lg)",
@@ -813,7 +813,7 @@ function TrendingCard({
       onClick={() => onOpen(bean.id)}
       className="fade-up"
       style={{
-        animationDelay: delay + "ms",
+        animationDelay: staggerMs(delay),
         display: "flex",
         alignItems: "center",
         gap: 13,
@@ -860,7 +860,7 @@ function RoasterCard({ roaster, onOpen, delay }: { roaster: Roaster; onOpen: (id
         borderRadius: "var(--r-lg)",
         overflow: "hidden",
         boxShadow: "var(--shadow-sm)",
-        animationDelay: delay + "ms",
+        animationDelay: staggerMs(delay),
       }}
     >
       <Placeholder label="roaster photo" h={96} color="var(--caramel)" />
@@ -877,10 +877,11 @@ function RoasterCard({ roaster, onOpen, delay }: { roaster: Roaster; onOpen: (id
         </p>
         <div style={{ display: "flex", gap: 16, marginTop: 13, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
           <span>
-            <b style={{ color: "var(--espresso)" }}>{roaster.beans}</b> beans
+            <b style={{ color: "var(--espresso)" }}>{roaster.beans}</b> {roaster.beans === 1 ? "bean" : "beans"}
           </span>
           <span>
-            <b style={{ color: "var(--espresso)" }}>{roaster.followers.toLocaleString()}</b> followers
+            <b style={{ color: "var(--espresso)" }}>{roaster.followers.toLocaleString()}</b>{" "}
+            {roaster.followers === 1 ? "follower" : "followers"}
           </span>
         </div>
       </div>
