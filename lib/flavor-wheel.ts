@@ -68,7 +68,7 @@ export const FLAVOR_WHEEL: WheelCategory[] = [
     color: "#C2542F",
     groups: [
       { name: "Tobacco", notes: ["Pipe Tobacco", "Tobacco"] },
-      { name: "Burnt", notes: ["Acrid", "Ashy", "Smoky", "Brown Roast"] },
+      { name: "Burnt", notes: ["Acrid", "Ashy", "Smoky", "Brown", "Roast"] },
       { name: "Cereal", notes: ["Grain", "Malt"] },
     ],
   },
