@@ -52,7 +52,6 @@ export function BeanDetail({
 }) {
   const D = useData();
   const shell = useShell();
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const { rows: reviews, loadMore, hasMore, pending } = useLoadMore(initialReviews, (c) =>
     loadMoreBeanReviews(beanId, c),
   );
@@ -89,49 +88,7 @@ export function BeanDetail({
 
       {/* hero */}
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 28 }}>
-        <div
-          style={{
-            width: 150,
-            height: 178,
-            borderRadius: "var(--r-lg)",
-            flexShrink: 0,
-            background: `linear-gradient(160deg, ${bean.color}, color-mix(in oklch, ${bean.color} 65%, #000))`,
-            boxShadow: "var(--shadow-lg)",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "20%", background: "rgba(0,0,0,0.2)" }} />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              color: "rgba(255,255,255,0.92)",
-            }}
-          >
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: "50%",
-                border: "2.5px solid rgba(255,255,255,0.5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(255,255,255,0.5)" }} />
-            </div>
-            <div className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.1em", opacity: 0.8 }}>
-              {roasterName.toUpperCase()}
-            </div>
-          </div>
-        </div>
+        <BeanArt color={bean.color} roasterName={roasterName} />
         <div style={{ flex: 1, minWidth: 240 }}>
           <div style={{ display: "flex", gap: 7, marginBottom: 10, flexWrap: "wrap" }}>
             <Tag accent>{bean.process}</Tag>
@@ -206,86 +163,19 @@ export function BeanDetail({
               <span style={{ fontWeight: 700, fontSize: "var(--text-2xl)", color: "var(--caramel-deep)" }}>${bean.price}</span>
             ) : null}
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}>
-            {isOwner && (
-              <Button onClick={() => onAdd(bean.id)}>
-                <Icon name="drop" size={18} color="currentColor" /> Log a brew
-              </Button>
-            )}
-            {isOwner && onEditBag && (
-              <Button variant="outline" onClick={() => onEditBag(bean.id)}>
-                <Icon name="edit" size={17} /> Edit bag
-              </Button>
-            )}
-            {isOwner && onDeleteBag && (
-              confirmDelete ? (
-                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
-                    Delete this bag and its {bean.ratings} brew{bean.ratings === 1 ? "" : "s"}?
-                  </span>
-                  <Button
-                    variant="outline"
-                    onClick={() => { onDeleteBag(bean.id); setConfirmDelete(false); }}
-                    style={{ color: "var(--berry)", borderColor: "var(--berry)" }}
-                  >
-                    Delete
-                  </Button>
-                  <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                </span>
-              ) : (
-                <Button variant="ghost" onClick={() => setConfirmDelete(true)}>
-                  <Icon name="close" size={16} /> Delete
-                </Button>
-              )
-            )}
-            {!isOwner && (
-              <Button
-                variant="outline"
-                onClick={() => shell.toggleWishlistBean(bean.id)}
-                className={wished ? "bg-[var(--caramel-soft)]" : undefined}
-              >
-                <Icon name={wished ? "check" : "bookmark"} size={17} /> {wished ? "Saved" : "Want to try"}
-              </Button>
-            )}
-          </div>
+          <OwnerActions
+            bean={bean}
+            isOwner={isOwner}
+            wished={wished}
+            onAdd={onAdd}
+            onEditBag={onEditBag}
+            onDeleteBag={onDeleteBag}
+            onToggleWishlist={() => shell.toggleWishlistBean(bean.id)}
+          />
         </div>
       </div>
 
-      {/* spec grid — fixed column count so no dead gap-colored cell trails the
-          last row; the final spec spans the columns left in its row to fill it. */}
-      {(() => {
-        const SPEC_COLS = 4;
-        const specs = [
-          { label: "Origin", value: bean.origin },
-          { label: "Farm / Producer", value: bean.farm || "—" },
-          { label: "Variety", value: varieties.join(", ") },
-          { label: "Process", value: bean.process },
-          { label: "Roast", value: bean.roast },
-          { label: "Altitude", value: bean.altitude },
-          { label: "SCA Score", value: bean.scaScore ? String(bean.scaScore) : "—" },
-        ];
-        // Columns occupied by all-but-last in the final row; the last spec spans
-        // whatever remains so the row is always full (no empty gap-colored cell).
-        const lastSpan = SPEC_COLS - ((specs.length - 1) % SPEC_COLS);
-        return (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${SPEC_COLS}, minmax(0, 1fr))`,
-              gap: 1,
-              background: "var(--line-soft)",
-              border: "1px solid var(--line-soft)",
-              borderRadius: "var(--r-md)",
-              overflow: "hidden",
-              marginBottom: 28,
-            }}
-          >
-            {specs.map((s, i, arr) => (
-              <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1 ? lastSpan : 1} />
-            ))}
-          </div>
-        );
-      })()}
+      <SpecGrid bean={bean} varieties={varieties} />
 
       {/* flavor radar + chips — single wrapper; the radar column only appears once
           the (own-tasting) radar has loaded with data, so the card never flashes
@@ -342,6 +232,157 @@ export function BeanDetail({
           <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} marginTop={6} />
         </>
       )}
+    </div>
+  );
+}
+
+// The bag "art" tile in the hero: a tinted gradient block with the bean glyph and
+// the roaster name. Purely decorative (the real info is the heading beside it).
+function BeanArt({ color, roasterName }: { color: string; roasterName: string }) {
+  return (
+    <div
+      style={{
+        width: 150,
+        height: 178,
+        borderRadius: "var(--r-lg)",
+        flexShrink: 0,
+        background: `linear-gradient(160deg, ${color}, color-mix(in oklch, ${color} 65%, #000))`,
+        boxShadow: "var(--shadow-lg)",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "20%", background: "rgba(0,0,0,0.2)" }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          color: "rgba(255,255,255,0.92)",
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: "50%",
+            border: "2.5px solid rgba(255,255,255,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(255,255,255,0.5)" }} />
+        </div>
+        <div className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.1em", opacity: 0.8 }}>
+          {roasterName.toUpperCase()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Owner controls (log a brew / edit / delete-with-confirm) for a bag you own, or
+// the wishlist "Want to try" toggle for everyone else. Owns its own delete-confirm
+// state since nothing outside this row needs it.
+function OwnerActions({
+  bean,
+  isOwner,
+  wished,
+  onAdd,
+  onEditBag,
+  onDeleteBag,
+  onToggleWishlist,
+}: {
+  bean: Bean;
+  isOwner: boolean;
+  wished: boolean;
+  onAdd: (id: string) => void;
+  onEditBag?: (beanId: string) => void;
+  onDeleteBag?: (beanId: string) => void;
+  onToggleWishlist: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  return (
+    <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}>
+      {isOwner && (
+        <Button onClick={() => onAdd(bean.id)}>
+          <Icon name="drop" size={18} color="currentColor" /> Log a brew
+        </Button>
+      )}
+      {isOwner && onEditBag && (
+        <Button variant="outline" onClick={() => onEditBag(bean.id)}>
+          <Icon name="edit" size={17} /> Edit bag
+        </Button>
+      )}
+      {isOwner && onDeleteBag && (
+        confirmDelete ? (
+          <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
+              Delete this bag and its {bean.ratings} brew{bean.ratings === 1 ? "" : "s"}?
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => { onDeleteBag(bean.id); setConfirmDelete(false); }}
+              style={{ color: "var(--berry)", borderColor: "var(--berry)" }}
+            >
+              Delete
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+          </span>
+        ) : (
+          <Button variant="ghost" onClick={() => setConfirmDelete(true)}>
+            <Icon name="close" size={16} /> Delete
+          </Button>
+        )
+      )}
+      {!isOwner && (
+        <Button
+          variant="outline"
+          onClick={onToggleWishlist}
+          className={wished ? "bg-[var(--caramel-soft)]" : undefined}
+        >
+          <Icon name={wished ? "check" : "bookmark"} size={17} /> {wished ? "Saved" : "Want to try"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// Fixed-column spec grid; the final spec spans the columns left in its row so no
+// dead gap-colored cell trails the last row.
+function SpecGrid({ bean, varieties }: { bean: Bean; varieties: string[] }) {
+  const SPEC_COLS = 4;
+  const specs = [
+    { label: "Origin", value: bean.origin },
+    { label: "Farm / Producer", value: bean.farm || "—" },
+    { label: "Variety", value: varieties.join(", ") },
+    { label: "Process", value: bean.process },
+    { label: "Roast", value: bean.roast },
+    { label: "Altitude", value: bean.altitude },
+    { label: "SCA Score", value: bean.scaScore ? String(bean.scaScore) : "—" },
+  ];
+  const lastSpan = SPEC_COLS - ((specs.length - 1) % SPEC_COLS);
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${SPEC_COLS}, minmax(0, 1fr))`,
+        gap: 1,
+        background: "var(--line-soft)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: "var(--r-md)",
+        overflow: "hidden",
+        marginBottom: 28,
+      }}
+    >
+      {specs.map((s, i, arr) => (
+        <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1 ? lastSpan : 1} />
+      ))}
     </div>
   );
 }
