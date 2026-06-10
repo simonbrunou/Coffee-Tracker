@@ -4,7 +4,7 @@
    navigation. Unbounded lists (feed, discover, a bean's reviews, a roaster's
    beans) are server-fetched per screen (M3·D·2) — not held here. */
 import { createContext, useContext, useMemo } from "react";
-import { BREW_METHODS, FLAVOR_COLORS, PROCESSES, ROAST_LEVELS } from "@/lib/seed-data";
+import { BREW_METHODS, FLAVOR_COLORS, PROCESSES, ROAST_LEVELS } from "@/lib/constants";
 import type { Bean, Page, Roaster, Tasting, User } from "@/lib/types";
 
 export interface DataApi {

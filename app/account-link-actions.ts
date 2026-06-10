@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { signIn, unstable_update } from "@/auth";
 import { pool } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
+import { confirmPasswordReauth, REAUTH_ERROR } from "@/lib/reauth";
 import { hashPassword } from "@/lib/passwords";
 import { validatePassword } from "@/lib/signup-validation";
 import { bumpSessionVersion } from "@/lib/users-repo";
@@ -43,17 +44,22 @@ export async function linkOAuthStart(provider: string): Promise<void> {
   await signIn(provider, { redirectTo: "/settings" }); // redirect throws — last statement
 }
 
-/** Disconnect an OAuth provider (keeps ≥1 method; revokes other devices). */
-export async function unlinkOAuth(provider: string): Promise<{ error: string }> {
+/** Disconnect an OAuth provider (keeps ≥1 method; revokes other devices).
+ *  Credential users must re-confirm their password first (L3). */
+export async function unlinkOAuth(provider: string, confirmPassword?: string): Promise<{ error: string }> {
   const uid = await requireUserId();
+  if (!(await confirmPasswordReauth(uid, confirmPassword))) return { error: REAUTH_ERROR };
   if (!(await unlinkAccount(uid, provider))) return { error: LAST_METHOD };
   await bumpAndKeepCurrent(uid);
   return { error: "" };
 }
 
-/** Remove the password (keeps ≥1 method; revokes other devices). */
-export async function removePassword(): Promise<{ error: string }> {
+/** Remove the password (keeps ≥1 method; revokes other devices). The current
+ *  password must be re-confirmed (L3) — removing it is a sign-in-method change a
+ *  hijacked session must not make unchallenged. */
+export async function removePassword(confirmPassword?: string): Promise<{ error: string }> {
   const uid = await requireUserId();
+  if (!(await confirmPasswordReauth(uid, confirmPassword))) return { error: REAUTH_ERROR };
   if (!(await removeUserPassword(uid))) return { error: LAST_METHOD };
   await bumpAndKeepCurrent(uid);
   return { error: "" };

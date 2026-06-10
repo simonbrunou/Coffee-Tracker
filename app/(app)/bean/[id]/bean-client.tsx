@@ -1,7 +1,7 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { BeanDetail } from "@/components/detail";
 import { useShell } from "@/components/app-provider";
+import { useBackOr } from "@/components/use-back-or";
 import type { Bean, Page, Tasting } from "@/lib/types";
 
 export function BeanClient({
@@ -13,14 +13,14 @@ export function BeanClient({
   bean: Bean | null;
   initialReviews: Page<Tasting>;
 }) {
-  const router = useRouter();
   const s = useShell();
+  const onBack = useBackOr("/");
   return (
     <BeanDetail
       beanId={beanId}
       bean={bean}
       initialReviews={initialReviews}
-      onBack={() => (window.history.length > 1 ? router.back() : router.push("/"))}
+      onBack={onBack}
       onOpenRoaster={s.openRoaster}
       likes={s.likes}
       onLike={s.toggleLike}

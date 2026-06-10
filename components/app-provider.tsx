@@ -5,6 +5,7 @@
    render into {children} and read handlers/state via useShell(). */
 import { createContext, useContext, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 
 // useLayoutEffect on the client (runs before paint / before the browser's
 // scroll-clamp event), useEffect on the server to avoid the SSR warning.
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import { DataProvider } from "./data-context";
 import { LogSheet } from "./log-sheet";
 import { Avatar, Icon, type IconName } from "./ui";
+import { BrandMark as Logo } from "./brand-mark";
 import { Button } from "@/components/ui/button";
 import {
   logBrew as logBrewAction,
@@ -163,29 +165,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
 
   const me = initialData.me;
 
-  const toggleLike = (id: string) => {
-    if (!currentUserId) { router.push("/login"); return; }
-    const willLike = !likes.has(id);
-    setLikes((prev) => {
-      const n = new Set(prev);
-      if (willLike) n.add(id);
-      else n.delete(id);
-      return n;
-    });
-    // persist; on failure roll the optimistic update back and surface it
-    toggleLikeAction(id, willLike).catch(() => {
-      setLikes((prev) => {
-        const n = new Set(prev);
-        if (willLike) n.delete(id);
-        else n.add(id);
-        return n;
-      });
-      toast("Couldn't save that like — please try again");
-    });
-  };
-
   const optimisticToggle = (
-    set: Set<string>,
     setSet: (updater: (prev: Set<string>) => Set<string>) => void,
     id: string,
     action: (id: string, on: boolean) => Promise<void>,
@@ -202,10 +182,11 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     });
   };
 
-  const toggleFollowUser = (id: string) => optimisticToggle(followedUsers, setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
-  const toggleFollowRoaster = (id: string) => optimisticToggle(followedRoasters, setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
-  const toggleSaveTasting = (id: string) => optimisticToggle(savedTastings, setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
-  const toggleWishlistBean = (id: string) => optimisticToggle(wishedBeans, setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
+  const toggleLike = (id: string) => optimisticToggle(setLikes, id, toggleLikeAction, "Couldn't save that like — please try again");
+  const toggleFollowUser = (id: string) => optimisticToggle(setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
+  const toggleFollowRoaster = (id: string) => optimisticToggle(setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
+  const toggleSaveTasting = (id: string) => optimisticToggle(setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
+  const toggleWishlistBean = (id: string) => optimisticToggle(setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
 
   const openBrew = (beanId?: string) => {
     if (!currentUserId) return router.push("/login");
@@ -242,7 +223,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   const handleLogBrew = async (input: LogBrewInput) => {
     const b = myShelf.find((x) => x.id === input.beanId);
     await logBrewAction(input);
-    toast(`Logged a ${b ? b.name : "coffee"} brew ✓`);
+    // Drop the article so a proper-noun bag name reads right ("Logged your Idido
+    // brew", not "Logged a Idido brew").
+    toast(b ? `Logged your ${b.name} brew ✓` : "Brew logged ✓");
   };
 
   const handleAddBag = async (input: AddBagInput, backToBrew: boolean) => {
@@ -339,11 +322,11 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             </div>
             <nav aria-label="Primary" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {NAV.map((n) => (
-                <button key={n.id} onClick={() => router.push(n.href)} className="nav-item" data-active={activeId === n.id} aria-current={activeId === n.id ? "page" : undefined}>
+                <Link key={n.id} href={n.href} className="nav-item" data-active={activeId === n.id} aria-current={activeId === n.id ? "page" : undefined}>
                   <Icon name={n.icon} size={21} stroke={activeId === n.id ? 2 : 1.7} />
                   <span>{n.label}</span>
                   {n.id === "feed" && <span className="nav-dot" />}
-                </button>
+                </Link>
               ))}
             </nav>
             <div style={{ display: "flex", gap: 8, margin: "20px 0 0" }}>
@@ -359,7 +342,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                 <>
                   {/* Identity gets its OWN full-width row so a long name truncates
                       with an ellipsis instead of wrapping into the controls. */}
-                  <button onClick={() => router.push("/profile")} className="nav-user">
+                  <Link href="/profile" className="nav-user">
                     <Avatar user={me} size={36} />
                     <div style={{ textAlign: "left", minWidth: 0 }}>
                       <div
@@ -385,7 +368,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
                         @{me.handle}
                       </div>
                     </div>
-                  </button>
+                  </Link>
                   {/* Controls share a second full-width row, so nothing competes
                       with the identity for horizontal space. */}
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -453,7 +436,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
               {needsEmailVerification && (
                 <div role="status" style={{ background: "var(--cream, #f5ecd9)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 12, fontSize: "var(--text-base)" }}>
                   <span style={{ flex: 1 }}>Verify your email to log brews and bags. Check your inbox for the link.</span>
-                  <form action={resendVerification}><Button variant="outline" size="sm" type="submit">Resend</Button></form>
+                  <form action={resendVerification}><Button variant="outline" size="sm" type="submit" className="min-h-11">Resend</Button></form>
                 </div>
               )}
               {children}
@@ -464,13 +447,13 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
           {/* ---- Mobile bottom nav ---- */}
           <nav aria-label="Primary (mobile)" className="bottom-nav">
             {NAV.slice(0, 2).map((n) => (
-              <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
+              <BottomItem key={n.id} n={n} active={activeId === n.id} />
             ))}
             <button onClick={() => openBrew()} className="fab" aria-label="Log a brew">
               <Icon name="drop" size={24} color="var(--cream)" />
             </button>
             {NAV.slice(2).map((n) => (
-              <BottomItem key={n.id} n={n} active={activeId === n.id} onClick={() => router.push(n.href)} />
+              <BottomItem key={n.id} n={n} active={activeId === n.id} />
             ))}
           </nav>
 
@@ -508,39 +491,15 @@ function ThemeToggle({ mounted, isDark, onToggle }: { mounted: boolean; isDark: 
 function BottomItem({
   n,
   active,
-  onClick,
 }: {
-  n: { id: string; label: string; icon: IconName };
+  n: { id: string; label: string; icon: IconName; href: string };
   active: boolean;
-  onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="bottom-item" data-active={active} aria-current={active ? "page" : undefined}>
+    <Link href={n.href} className="bottom-item" data-active={active} aria-current={active ? "page" : undefined}>
       <Icon name={n.icon} size={23} stroke={active ? 2.1 : 1.7} />
       <span>{n.label}</span>
-    </button>
+    </Link>
   );
 }
 
-function Logo({ size = 38 }: { size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: "var(--espresso)",
-        flexShrink: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
-      <svg width={size * 0.56} height={size * 0.56} viewBox="0 0 24 24" fill="none">
-        <ellipse cx="12" cy="12" rx="7" ry="10" transform="rotate(35 12 12)" fill="var(--caramel)" />
-        <path d="M 7 6 Q 12 12 17 18" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}

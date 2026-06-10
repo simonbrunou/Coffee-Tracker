@@ -65,8 +65,13 @@ describe("a11y ARIA sweep (Cut 2)", () => {
   it("single-select toggle groups expose state", () => {
     const screens = read("components/screens.tsx");
     expect(screens).toMatch(/aria-label="Filter by process"/);
-    expect(screens).toMatch(/aria-pressed=\{process === p\}/);
+    // The process chips render through the shared PillButton, which is wired with
+    // the pressed state here and emits aria-pressed itself (asserted below).
+    expect(screens).toMatch(/<PillButton[^>]*active=\{process === p\}/);
     expect(screens).toMatch(/aria-label=\{v === "timeline"/);
+  });
+  it("the shared PillButton exposes pressed state for screen readers", () => {
+    expect(read("components/ui.tsx")).toMatch(/aria-pressed=\{active\}/);
   });
   it("legal footer links are a labelled nav list", () => {
     expect(read("app/(legal)/layout.tsx")).toMatch(/<nav aria-label="Legal">/);

@@ -4,17 +4,13 @@ import { useState } from "react";
 import { Icon } from "./ui";
 import { BeanBag } from "./cards";
 import { FlavorWheelPicker } from "./flavor-wheel";
-import { SheetHeader, DonePanel } from "./sheet-chrome";
-import { ROAST_LEVELS } from "@/lib/seed-data";
+import { SheetHeader, DonePanel, SheetLabel as Label } from "./sheet-chrome";
+import { ROAST_LEVELS } from "@/lib/constants";
 import type { AddBagInput, Bean, UpdateBagInput } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label as UiLabel } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-
-export function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--espresso)", marginBottom: 10 }}>{children}</div>;
-}
 
 function RequiredMark() {
   return (
@@ -278,7 +274,7 @@ export function BagForm({
   );
 }
 
-export function Field({
+function Field({
   label,
   value,
   onChange,
@@ -309,7 +305,7 @@ export function Field({
   );
 }
 
-export function TwoCol({ children }: { children: React.ReactNode }) {
+function TwoCol({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", gap: 12 }} className="two-col">
       {children}
@@ -317,7 +313,7 @@ export function TwoCol({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ChipRow({
+function ChipRow({
   options,
   value,
   onChange,

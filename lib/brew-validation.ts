@@ -1,6 +1,6 @@
 import type { AddBagInput, LogBrewInput, TastingAssessment, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
 import { ASSESSMENT_AXES } from "@/lib/types";
-import { BREW_METHODS } from "@/lib/seed-data";
+import { BREW_METHODS } from "@/lib/constants";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };

@@ -123,7 +123,7 @@ export interface Comment {
 }
 
 // ---- SCA Coffee Taster's Flavor Wheel ----
-export interface WheelGroup {
+interface WheelGroup {
   name: string;
   notes: string[];
 }

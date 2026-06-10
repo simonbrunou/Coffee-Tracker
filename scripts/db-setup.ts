@@ -14,7 +14,7 @@ import {
   ROASTERS,
   TASTINGS,
   USERS,
-} from "../lib/seed-data";
+} from "../lib/constants";
 
 config({ path: ".env.local" }); // load DATABASE_URL if a local env file exists
 

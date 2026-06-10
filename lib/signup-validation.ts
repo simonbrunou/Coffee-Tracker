@@ -1,7 +1,7 @@
 import { isValidHandle } from "@/lib/handles";
 
 export interface SignupInput { name: string; email: string; password: string; handle: string }
-export interface CleanSignup { name: string; email: string; password: string; handle: string | null }
+interface CleanSignup { name: string; email: string; password: string; handle: string | null }
 export type SignupResult = { ok: true; value: CleanSignup } | { ok: false; error: string };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

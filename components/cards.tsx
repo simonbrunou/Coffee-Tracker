@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useData } from "./data-context";
 import { useShell } from "./app-provider";
-import { Avatar, BeanRating, FlavorChip, Icon, RelTime, RoastPill, Tag } from "./ui";
+import { Avatar, BeanRating, FlavorChip, Icon, RelTime, RoastPill, ScaScore, Tag, staggerMs } from "./ui";
 import { CommentThread } from "./comment-thread";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +49,7 @@ export function TastingCard({
         borderRadius: "var(--r-lg)",
         boxShadow: "var(--shadow-sm)",
         overflow: "hidden",
-        animationDelay: Math.min(delay, 400) + "ms", // cap stagger so appended pages don't sit invisible
+        animationDelay: staggerMs(delay), // cap stagger so appended pages don't sit invisible
       }}
     >
       {/* header */}
@@ -239,7 +239,7 @@ function Param({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function BrewBadge({ brew }: { brew: string }) {
+function BrewBadge({ brew }: { brew: string }) {
   return (
     <Badge
       variant="outline"
@@ -357,7 +357,7 @@ export function BeanCard({
         boxShadow: hover ? "var(--shadow-md)" : "var(--shadow-sm)",
         transform: hover ? "translateY(-3px)" : "none",
         transition: "transform 0.2s, box-shadow 0.2s",
-        animationDelay: delay + "ms",
+        animationDelay: staggerMs(delay),
         display: "flex",
         flexDirection: "column",
       }}
@@ -406,12 +406,7 @@ export function BeanCard({
               <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>({bean.ratings})</span>
             </div>
           ) : bean.scaScore ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--text-xs)", color: "var(--mocha)" }}>
-              <span className="mono" style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.05em" }}>
-                SCA
-              </span>
-              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--caramel-deep)" }}>{bean.scaScore}</span>
-            </span>
+            <ScaScore value={bean.scaScore} />
           ) : (
             <span style={{ fontSize: "var(--text-xs)", color: "var(--mocha)" }}>New bag</span>
           )}

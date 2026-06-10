@@ -7,31 +7,22 @@ import { useShell } from "@/components/app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreBeanReviews, loadMoreRoasterBeans, getMyBeanRadar } from "@/app/actions";
 import { BeanCard, TastingCard } from "./cards";
-import { Avatar, BeanRating, FlavorChip, Icon, Placeholder, Tag } from "./ui";
+import { Avatar, BeanRating, EmptyState, FlavorChip, Icon, LoadMoreButton, Placeholder, Tag } from "./ui";
 import { Button } from "@/components/ui/button";
-import { flavorColor } from "@/lib/seed-data";
+import { flavorColor } from "@/lib/constants";
 import { computeTopFlavors } from "@/lib/profile-flavors";
 import type { AssessmentAxis, Bean, BeanRadar, Page, Tasting, User } from "@/lib/types";
 
 // Shown when a /bean/:id or /roaster/:id deep-link points at an id not in the catalog.
 function NotFoundPanel({ label, onBack }: { label: string; onBack: () => void }) {
   return (
-    <div style={{ maxWidth: 820, margin: "0 auto", textAlign: "center", padding: "80px 20px" }} className="fade-up">
-      <div style={{ display: "inline-flex", marginBottom: 16, opacity: 0.5 }}>
-        <Icon name="search" size={40} />
-      </div>
-      <h1 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700 }}>
-        {label} not found
-      </h1>
-      <p style={{ color: "var(--mocha)", marginTop: 8, fontSize: "var(--text-md)" }}>
-        It may have been removed, or the link is out of date.
-      </p>
-      <div style={{ marginTop: 22 }}>
-        <Button variant="outline" onClick={onBack}>
-          <Icon name="back" size={18} /> Go back
-        </Button>
-      </div>
-    </div>
+    <EmptyState
+      variant="page"
+      icon="search"
+      title={`${label} not found`}
+      hint="It may have been removed, or the link is out of date."
+      cta={{ label: "Go back", icon: "back", onClick: onBack, variant: "outline" }}
+    />
   );
 }
 
@@ -208,7 +199,7 @@ export function BeanDetail({
                 <span className="display" style={{ fontSize: "var(--text-2xl)", fontWeight: 700 }}>
                   {bean.avgRating}
                 </span>
-                <span style={{ fontSize: "var(--text-sm)", color: "var(--mocha)" }}>· {bean.ratings} ratings</span>
+                <span style={{ fontSize: "var(--text-sm)", color: "var(--mocha)" }}>· {bean.ratings} {bean.ratings === 1 ? "rating" : "ratings"}</span>
               </div>
             )}
             {bean.price ? (
@@ -261,20 +252,10 @@ export function BeanDetail({
       </div>
 
       {/* spec grid — fixed column count so no dead gap-colored cell trails the
-          last row; the final spec spans the remaining tracks to fill the row. */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 1,
-          background: "var(--line-soft)",
-          border: "1px solid var(--line-soft)",
-          borderRadius: "var(--r-md)",
-          overflow: "hidden",
-          marginBottom: 28,
-        }}
-      >
-        {[
+          last row; the final spec spans the columns left in its row to fill it. */}
+      {(() => {
+        const SPEC_COLS = 4;
+        const specs = [
           { label: "Origin", value: bean.origin },
           { label: "Farm / Producer", value: bean.farm || "—" },
           { label: "Variety", value: varieties.join(", ") },
@@ -282,10 +263,29 @@ export function BeanDetail({
           { label: "Roast", value: bean.roast },
           { label: "Altitude", value: bean.altitude },
           { label: "SCA Score", value: bean.scaScore ? String(bean.scaScore) : "—" },
-        ].map((s, i, arr) => (
-          <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1} />
-        ))}
-      </div>
+        ];
+        // Columns occupied by all-but-last in the final row; the last spec spans
+        // whatever remains so the row is always full (no empty gap-colored cell).
+        const lastSpan = SPEC_COLS - ((specs.length - 1) % SPEC_COLS);
+        return (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${SPEC_COLS}, minmax(0, 1fr))`,
+              gap: 1,
+              background: "var(--line-soft)",
+              border: "1px solid var(--line-soft)",
+              borderRadius: "var(--r-md)",
+              overflow: "hidden",
+              marginBottom: 28,
+            }}
+          >
+            {specs.map((s, i, arr) => (
+              <Spec key={s.label} label={s.label} value={s.value} span={i === arr.length - 1 ? lastSpan : 1} />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* flavor radar + chips — single wrapper; the radar column only appears once
           the (own-tasting) radar has loaded with data, so the card never flashes
@@ -339,22 +339,16 @@ export function BeanDetail({
               </div>
             ))}
           </div>
-          {hasMore && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
-              <Button variant="outline" onClick={loadMore} disabled={pending}>
-                {pending ? "Loading…" : "Load more"}
-              </Button>
-            </div>
-          )}
+          <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} marginTop={6} />
         </>
       )}
     </div>
   );
 }
 
-function Spec({ label, value, span }: { label: string; value: string; span?: boolean }) {
+function Spec({ label, value, span = 1 }: { label: string; value: string; span?: number }) {
   return (
-    <div style={{ padding: "14px 16px", background: "var(--surface)", gridColumn: span ? "auto / -1" : undefined }}>
+    <div style={{ padding: "14px 16px", background: "var(--surface)", gridColumn: span > 1 ? `span ${span}` : undefined }}>
       <div
         className="mono"
         style={{ fontSize: "var(--text-2xs)", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mocha)", marginBottom: 4 }}
@@ -510,13 +504,13 @@ export function RoasterDetail({
               <b className="display" style={{ fontSize: "var(--text-xl)", color: "var(--espresso)" }}>
                 {roaster.beans}
               </b>{" "}
-              beans
+              {roaster.beans === 1 ? "bean" : "beans"}
             </span>
             <span style={{ fontSize: "var(--text-base)", color: "var(--mocha)" }}>
               <b className="display" style={{ fontSize: "var(--text-xl)", color: "var(--espresso)" }}>
                 {roaster.followers.toLocaleString("en-US")}
               </b>{" "}
-              followers
+              {roaster.followers === 1 ? "follower" : "followers"}
             </span>
           </div>
         </div>
@@ -537,13 +531,8 @@ export function RoasterDetail({
           ))}
         </div>
       )}
-      {hasMore && (
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-          <Button variant="outline" onClick={loadMore} disabled={pending}>
-            {pending ? "Loading…" : "Load more"}
-          </Button>
-        </div>
-      )}
+      <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} />
+
     </div>
   );
 }
@@ -661,11 +650,7 @@ export function ProfileView({
           </div>
         ))}
       </div>
-      {loadMore && hasMore && (
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-          <Button variant="outline" onClick={more} disabled={pending}>{pending ? "Loading…" : "Load more"}</Button>
-        </div>
-      )}
+      {loadMore && <LoadMoreButton hasMore={hasMore} pending={pending} onClick={more} />}
     </div>
   );
 }

@@ -21,9 +21,10 @@ export async function sendVerificationEmail(userId: string): Promise<void> {
     const raw = await createVerificationToken(db, userId, row.email);
     const base = getPublicBaseUrl();
     const url = `${base}/api/verify?token=${raw}`;
-    // Log the RAW token URL ONLY on the dev-fallback path (no Resend key). In prod the
-    // single-use token must never hit the logs — log a tokenless event instead.
-    if (!process.env.RESEND_API_KEY) logger.info("verify_link", { userId, url });
+    // Log the RAW token URL ONLY outside production (local dev convenience). In prod
+    // the single-use token must never hit the logs regardless of whether Resend is
+    // configured (L1) — log a tokenless event instead.
+    if (process.env.NODE_ENV !== "production") logger.info("verify_link", { userId, url });
     else logger.info("verify_email_sent", { userId });
     await sendEmail(
       row.email,

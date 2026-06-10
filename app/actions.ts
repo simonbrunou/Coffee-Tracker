@@ -1,5 +1,13 @@
 "use server";
 
+// Error-handling convention (U10): CONTENT mutations here (log brew, add/edit/
+// delete bag & brew, comment, the social toggles) THROW `Error("Couldn't …")` on
+// failure — the calling sheet/toast layer catches and surfaces it. AUTH and
+// ACCOUNT form flows (auth-actions, account-actions, account-link-actions,
+// verify-actions) instead RETURN `{ error: string }` so the form can render the
+// message inline. Keep new actions on the side of this split that matches their
+// caller (toast vs inline form).
+
 import { randomUUID } from "node:crypto";
 import { query, withTransaction } from "@/lib/db";
 import { BEAN_COLS, getComments, getTastingById, getCommentById, getFeedPage, isFeedTab, getDiscoverBeansPage, getBeanReviewsPage, getRoasterBeansPage, getUserTastingsPage, getBeanRadarForUser } from "@/lib/queries";
@@ -164,30 +172,39 @@ export async function toggleLike(tastingId: string, liked: boolean): Promise<voi
 }
 
 // ---- Follows / saves / wishlist (idempotent toggles, mirroring toggleLike) ----
+// Idempotent insert-or-delete on a two-column (self, target) join table. The
+// table + column names always come from hardcoded literals at the call sites
+// below (never user input), so interpolating them into the SQL is injection-safe;
+// the values stay parameterized.
+async function toggleMembership(
+  userId: string,
+  table: string,
+  selfCol: string,
+  targetCol: string,
+  targetId: string,
+  on: boolean,
+): Promise<void> {
+  if (on) await query(`insert into ${table} (${selfCol}, ${targetCol}) values ($1, $2) on conflict do nothing`, [userId, targetId]);
+  else await query(`delete from ${table} where ${selfCol} = $1 and ${targetCol} = $2`, [userId, targetId]);
+  revalidatePath("/", "layout");
+}
+
 export async function toggleFollowUser(targetUserId: string, follow: boolean): Promise<void> {
   const userId = await requireVerifiedUserId();
   if (userId === targetUserId) throw new Error("You can't follow yourself.");
-  if (follow) await query(`insert into user_follows (follower_id, followee_id) values ($1, $2) on conflict do nothing`, [userId, targetUserId]);
-  else await query(`delete from user_follows where follower_id = $1 and followee_id = $2`, [userId, targetUserId]);
-  revalidatePath("/", "layout");
+  await toggleMembership(userId, "user_follows", "follower_id", "followee_id", targetUserId, follow);
 }
 export async function toggleFollowRoaster(roasterId: string, follow: boolean): Promise<void> {
   const userId = await requireVerifiedUserId();
-  if (follow) await query(`insert into roaster_follows (user_id, roaster_id) values ($1, $2) on conflict do nothing`, [userId, roasterId]);
-  else await query(`delete from roaster_follows where user_id = $1 and roaster_id = $2`, [userId, roasterId]);
-  revalidatePath("/", "layout");
+  await toggleMembership(userId, "roaster_follows", "user_id", "roaster_id", roasterId, follow);
 }
 export async function toggleSaveTasting(tastingId: string, save: boolean): Promise<void> {
   const userId = await requireVerifiedUserId();
-  if (save) await query(`insert into tasting_saves (user_id, tasting_id) values ($1, $2) on conflict do nothing`, [userId, tastingId]);
-  else await query(`delete from tasting_saves where user_id = $1 and tasting_id = $2`, [userId, tastingId]);
-  revalidatePath("/", "layout");
+  await toggleMembership(userId, "tasting_saves", "user_id", "tasting_id", tastingId, save);
 }
 export async function toggleWishlistBean(beanId: string, wish: boolean): Promise<void> {
   const userId = await requireVerifiedUserId();
-  if (wish) await query(`insert into bean_wishlist (user_id, bean_id) values ($1, $2) on conflict do nothing`, [userId, beanId]);
-  else await query(`delete from bean_wishlist where user_id = $1 and bean_id = $2`, [userId, beanId]);
-  revalidatePath("/", "layout");
+  await toggleMembership(userId, "bean_wishlist", "user_id", "bean_id", beanId, wish);
 }
 
 // ---- Feed pagination (M3·D) ----
