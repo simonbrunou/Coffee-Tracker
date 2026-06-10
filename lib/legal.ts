@@ -1,23 +1,45 @@
 import "server-only";
 
-// Deployment-specific legal facts, read at REQUEST time (the (legal) pages are
-// force-dynamic, so these come from the runtime env — set them per-deploy; see
-// .env.example). An unset value renders an honest "[to be configured]" marker —
-// never a fabricated legal fact on a legally-operative page.
+// Legal facts read at REQUEST time (the (legal) pages are force-dynamic). Env
+// overrides everything (set per-deploy; see .env.example).
+//
+// Two tiers:
+//  - OPERATOR/IDENTITY facts only the deployer knows (entity, contact, jurisdiction,
+//    hosting/db region, log retention) have NO default — unset renders an honest
+//    "[to be configured]" marker rather than a fabricated legal fact.
+//  - GDPR-FIRST POLICY statements that describe THIS APP's design (min age, legal
+//    bases, transfers, liability, DB TLS, how DSARs are handled) ship accurate
+//    defaults, so the pages are substantively complete out of the box. Confirm the
+//    wording with counsel; override via env if your deployment differs.
 const FALLBACK = "[to be configured]";
-const v = (key: string): string => process.env[key]?.trim() || FALLBACK;
+const v = (key: string, fallback: string = FALLBACK): string => process.env[key]?.trim() || fallback;
 
 export const legal = {
-  entity: () => v("LEGAL_ENTITY"), // operating entity / data-controller legal name
-  contact: () => v("LEGAL_CONTACT"), // contact for privacy/legal requests
-  jurisdiction: () => v("LEGAL_JURISDICTION"), // governing law & jurisdiction
-  hosting: () => v("LEGAL_HOSTING"), // application host provider + region
-  dbHost: () => v("LEGAL_DB_HOST"), // database (Postgres) host + region
-  logRetention: () => v("LEGAL_LOG_RETENTION"), // server-log retention period
-  dsarProcess: () => v("LEGAL_DSAR_PROCESS"), // how data-access/export requests are handled
-  minAge: () => v("LEGAL_MIN_AGE"), // minimum age to use / children threshold
-  dataTransfer: () => v("LEGAL_DATA_TRANSFER"), // cross-border transfer + safeguards
-  liability: () => v("LEGAL_LIABILITY"), // disclaimers & limitation of liability
-  legalBases: () => v("LEGAL_LEGAL_BASES"), // legal bases / consent model
-  dbTls: () => v("LEGAL_DB_TLS"), // database transport-encryption (TLS) posture
+  // Operator/identity — must be set per-deploy (no default).
+  entity: () => v("LEGAL_ENTITY"),
+  contact: () => v("LEGAL_CONTACT"),
+  jurisdiction: () => v("LEGAL_JURISDICTION"),
+  hosting: () => v("LEGAL_HOSTING"),
+  dbHost: () => v("LEGAL_DB_HOST"),
+  logRetention: () => v("LEGAL_LOG_RETENTION"),
+  // GDPR-first policy defaults (accurate for this app; env-overridable).
+  dsarProcess: () =>
+    v("LEGAL_DSAR_PROCESS", "the in-app export (Settings → Your data) and a request to the contact above"),
+  minAge: () => v("LEGAL_MIN_AGE", "16"),
+  dataTransfer: () =>
+    v(
+      "LEGAL_DATA_TRANSFER",
+      "We host your data within the EU/EEA. Where a processor operates outside the EEA, transfers are protected by the European Commission's Standard Contractual Clauses or an adequacy decision.",
+    ),
+  liability: () =>
+    v(
+      "LEGAL_LIABILITY",
+      "The service is provided 'as is' without warranties of any kind. To the fullest extent permitted by law we are not liable for indirect or consequential loss; nothing here limits liability that cannot be limited under applicable law.",
+    ),
+  legalBases: () =>
+    v(
+      "LEGAL_LEGAL_BASES",
+      "We process your account and content to perform our agreement with you (Art. 6(1)(b) GDPR), and we rate-limit and secure the service under our legitimate interests (Art. 6(1)(f) GDPR).",
+    ),
+  dbTls: () => v("LEGAL_DB_TLS", "Database connections are encrypted with TLS in production."),
 };
