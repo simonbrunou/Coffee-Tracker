@@ -1,5 +1,5 @@
 import { logger } from "@/lib/logger";
-import { throttle } from "@/lib/rate-limit";
+import { recordAndCheck } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +15,15 @@ const CSP_REPORT_LIMIT = 30; // per 15-min window per IP
  *  Gated by content-type + a per-IP rate limit so it can't be turned into an
  *  unauthenticated, unthrottled log-flooding vector (L4). */
 export async function POST(request: Request): Promise<Response> {
-  const contentType = request.headers.get("content-type") ?? "";
-  if (!REPORT_TYPES.some((t) => contentType.includes(t))) {
+  // Parse the media type (drop ;charset etc.) and match it EXACTLY, so a body
+  // whose header merely contains the token (e.g. "text/plain; x=application/
+  // csp-report") can't slip past into the log sink.
+  const mediaType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (!REPORT_TYPES.includes(mediaType)) {
     return new Response(null, { status: 415 });
   }
   const ip = clientIp(request.headers.get("x-forwarded-for"), TRUSTED_PROXY_HOPS);
-  if (ip !== "unknown" && !(await throttle(`csp:ip:${ip}`, CSP_REPORT_LIMIT))) {
+  if (ip !== "unknown" && !(await recordAndCheck(`csp:ip:${ip}`, CSP_REPORT_LIMIT))) {
     return new Response(null, { status: 429 });
   }
   try {

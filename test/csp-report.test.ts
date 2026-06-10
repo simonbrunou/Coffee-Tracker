@@ -5,7 +5,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { warn: (...a: unknown[]) => warnMock(...a), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 const throttleMock = vi.fn();
-vi.mock("@/lib/rate-limit", () => ({ throttle: (...a: unknown[]) => throttleMock(...a) }));
+vi.mock("@/lib/rate-limit", () => ({ recordAndCheck: (...a: unknown[]) => throttleMock(...a) }));
 vi.mock("@/lib/request-ip", () => ({ clientIp: () => "1.2.3.4", TRUSTED_PROXY_HOPS: 1 }));
 
 import { POST } from "@/app/api/csp-report/route";
@@ -40,6 +40,16 @@ describe("POST /api/csp-report", () => {
     const res = await POST(cspReq("not a report", "text/plain"));
     expect(res.status).toBe(415);
     expect(warnMock).not.toHaveBeenCalled();
+  });
+  it("L4: rejects a content-type that merely CONTAINS the token (exact media-type match)", async () => {
+    const res = await POST(cspReq("not a report", "text/plain; x=application/csp-report"));
+    expect(res.status).toBe(415);
+    expect(warnMock).not.toHaveBeenCalled();
+  });
+  it("accepts the report type with a trailing charset param", async () => {
+    const res = await POST(cspReq("{}", "application/csp-report; charset=utf-8"));
+    expect(res.status).toBe(204);
+    expect(warnMock).toHaveBeenCalled();
   });
   it("L4: rate-limits by IP — a throttled caller is dropped (429) without logging", async () => {
     throttleMock.mockResolvedValueOnce(false);

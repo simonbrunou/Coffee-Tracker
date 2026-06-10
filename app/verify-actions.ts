@@ -1,6 +1,6 @@
 "use server";
 import { requireUserId } from "@/lib/auth";
-import { throttle } from "@/lib/rate-limit";
+import { recordAndCheck } from "@/lib/rate-limit";
 import { sendVerificationEmail } from "@/lib/verify-email";
 
 const RESEND_LIMIT = 5; // per 15-min window per user
@@ -12,6 +12,6 @@ const RESEND_LIMIT = 5; // per 15-min window per user
  *  their OWN inbox + Resend quota — never a victim-targeted bomb. */
 export async function resendVerification(): Promise<void> {
   const userId = await requireUserId();
-  if (!(await throttle(`verify:user:${userId}`, RESEND_LIMIT))) return;
+  if (!(await recordAndCheck(`verify:user:${userId}`, RESEND_LIMIT))) return;
   await sendVerificationEmail(userId);
 }

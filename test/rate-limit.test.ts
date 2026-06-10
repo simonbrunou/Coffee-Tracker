@@ -10,8 +10,8 @@ vi.mock("@/lib/logger", () => ({
 import {
   isRateLimited,
   recordAttempt,
+  recordAndCheck,
   clearAttempts,
-  throttle,
   RL_IP_LIMIT,
   RL_EMAIL_LIMIT,
   RATE_LIMIT_SQL,
@@ -91,20 +91,27 @@ describe("recordAttempt (counts a failure only)", () => {
   });
 });
 
-describe("throttle (count-every-attempt: signup, resend)", () => {
-  it("allows and records when the window is below the limit", async () => {
-    queryMock.mockResolvedValue({ rows: [{ count: 2 }] });
-    expect(await throttle("signup:ip:1.2.3.4", RL_IP_LIMIT)).toBe(true);
-    // both a read (count) and a record (upsert) happened
-    const sqls = queryMock.mock.calls.map(([s]) => s as string);
-    expect(sqls.some((s) => /select count/i.test(s))).toBe(true);
-    expect(sqls.some((s) => /insert into rate_limits/i.test(s))).toBe(true);
+describe("recordAndCheck (atomic count-and-check: IP backstop, signup, resend)", () => {
+  it("runs the ATOMIC upsert (one statement, race-safe) and allows when count <= limit", async () => {
+    queryMock.mockResolvedValue({ rows: [{ count: 3 }] });
+    expect(await recordAndCheck("signup:ip:1.2.3.4", RL_IP_LIMIT)).toBe(true);
+    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toBe(RATE_LIMIT_SQL); // the atomic increment-and-return, not a separate read+write
+    expect(params).toEqual(["signup:ip:1.2.3.4", "15 minutes"]);
   });
-  it("blocks WITHOUT recording once the window is full", async () => {
+  it("blocks once the post-increment count exceeds the limit", async () => {
+    queryMock.mockResolvedValue({ rows: [{ count: RL_IP_LIMIT + 1 }] });
+    expect(await recordAndCheck("signup:ip:x", RL_IP_LIMIT)).toBe(false);
+  });
+  it("allows exactly at the limit boundary", async () => {
     queryMock.mockResolvedValue({ rows: [{ count: RL_IP_LIMIT }] });
-    expect(await throttle("signup:ip:x", RL_IP_LIMIT)).toBe(false);
-    const sqls = queryMock.mock.calls.map(([s]) => s as string);
-    expect(sqls.some((s) => /insert into rate_limits/i.test(s))).toBe(false); // no new attempt counted
+    expect(await recordAndCheck("signup:ip:x", RL_IP_LIMIT)).toBe(true);
+  });
+  it("fails OPEN and logs a redacted key on a store error", async () => {
+    queryMock.mockReset();
+    queryMock.mockRejectedValueOnce(new Error("db down"));
+    expect(await recordAndCheck("login:ip:1.2.3.4", RL_IP_LIMIT)).toBe(true);
+    expect(errorMock).toHaveBeenCalled();
   });
 });
 

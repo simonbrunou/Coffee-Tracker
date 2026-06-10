@@ -2,13 +2,11 @@
 import { signOut } from "@/auth";
 import { pool, withTransaction } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
-import { confirmPasswordReauth } from "@/lib/reauth";
+import { confirmPasswordReauth, REAUTH_ERROR } from "@/lib/reauth";
 import { bumpSessionVersion, deleteUserWithPii } from "@/lib/users-repo";
 
 // Match the repo's Queryable wrapper pattern (see app/auth-actions.ts).
 const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, params) };
-
-const REAUTH_ERROR = "Incorrect password. Please try again.";
 
 /** "Sign out everywhere": bump the session_version so EVERY device's frozen JWT
  *  is stale on its next request (reads via getCurrentUserId, writes via

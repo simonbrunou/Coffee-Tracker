@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { signIn, unstable_update } from "@/auth";
 import { pool } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
-import { confirmPasswordReauth } from "@/lib/reauth";
+import { confirmPasswordReauth, REAUTH_ERROR } from "@/lib/reauth";
 import { hashPassword } from "@/lib/passwords";
 import { validatePassword } from "@/lib/signup-validation";
 import { bumpSessionVersion } from "@/lib/users-repo";
@@ -14,7 +14,6 @@ const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, p
 const LINKABLE = new Set(["google", "github"]);
 
 const LAST_METHOD = "You must keep at least one sign-in method.";
-const REAUTH_ERROR = "Incorrect password. Please try again.";
 
 /** Revoke OTHER devices (bump session_version) but keep THIS session live:
  *  unstable_update re-issues the current JWT, and the jwt update-trigger

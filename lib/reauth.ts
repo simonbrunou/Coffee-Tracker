@@ -2,6 +2,9 @@ import "server-only";
 import { query } from "@/lib/db";
 import { verifyPassword } from "@/lib/passwords";
 
+/** Shared user-facing message when the re-auth password is missing/incorrect. */
+export const REAUTH_ERROR = "Incorrect password. Please try again.";
+
 /** Re-authentication guard for destructive account operations (L3): account
  *  deletion and sign-in-method changes. If the user has a password, the supplied
  *  password must match it — so a hijacked credential session can't silently destroy

@@ -11,7 +11,7 @@ import { consumeLinkToken } from "@/lib/link-tokens";
 import { linkAccount } from "@/lib/account-link-repo";
 import { githubEmailVerified } from "@/lib/oauth-email";
 import { verifyPassword, DUMMY_HASH } from "@/lib/passwords";
-import { isRateLimited, recordAttempt, clearAttempts, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
+import { isRateLimited, recordAttempt, recordAndCheck, clearAttempts, RL_IP_LIMIT, RL_EMAIL_LIMIT, warnIfUnknownIp } from "@/lib/rate-limit";
 import { clientIp, TRUSTED_PROXY_HOPS } from "@/lib/request-ip";
 
 declare module "next-auth" {
@@ -67,20 +67,23 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(asy
         const emailKey = `login:email:${email.toLowerCase().slice(0, 254)}`;
         const ipKey = `login:ip:${ip}`;
         const hasIp = ip !== "unknown"; // never block on a shared "unknown" bucket
+        // Per-IP is the PRIMARY, race-safe chokepoint: recordAndCheck atomically
+        // counts every attempt from this IP, so concurrency can't burst past the
+        // cap. The per-email key is a best-effort secondary that must NOT lock out
+        // the real owner (M1): read-only pre-check, count failures only, clear on
+        // success — so an attacker's failures can't permanently wedge the victim.
+        if (hasIp && !(await recordAndCheck(ipKey, RL_IP_LIMIT))) return null;
         if (await isRateLimited(emailKey, RL_EMAIL_LIMIT)) return null;
-        if (hasIp && (await isRateLimited(ipKey, RL_IP_LIMIT))) return null;
         const user = await findCredentialUserByEmail(poolDb, email);
         // Always run a bcrypt compare (dummy hash on the no-user path) so timing
         // is identical → no user-enumeration oracle.
         const ok = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
         if (!user || !ok) {
-          // Count the failure against both dimensions; legitimate users essentially
-          // never hit this, so it can't self-lock.
           await recordAttempt(emailKey);
-          if (hasIp) await recordAttempt(ipKey);
           return null;
         }
-        // Success: clear ONLY the email window (not the IP one — see clearAttempts).
+        // Success: clear the email window so the owner's own counted failures can
+        // never lock them out (the IP window is left to expire on its own).
         await clearAttempts(emailKey);
         return { id: user.id, sessionVersion: user.session_version } as unknown as { id: string };
       },

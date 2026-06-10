@@ -16,7 +16,7 @@ const { requireUserId, signOut, bumpSessionVersion, deleteUserWithPii, withTrans
 
 vi.mock("@/lib/auth", () => ({ requireUserId }));
 vi.mock("@/auth", () => ({ signOut }));
-vi.mock("@/lib/reauth", () => ({ confirmPasswordReauth }));
+vi.mock("@/lib/reauth", () => ({ confirmPasswordReauth, REAUTH_ERROR: "Incorrect password. Please try again." }));
 vi.mock("@/lib/users-repo", () => ({ bumpSessionVersion, deleteUserWithPii }));
 vi.mock("@/lib/db", () => ({ pool: { query: poolQuery }, withTransaction, query: vi.fn() }));
 

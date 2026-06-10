@@ -38,10 +38,31 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([p, timeout]).finally(() => clearTimeout(t));
 }
 
+/** Atomic record-AND-check: runs the fixed-window upsert and returns true if the
+ *  post-increment count is within `limit`. Because the increment and the decision
+ *  are one statement (serialized by the PK row lock), concurrent callers get
+ *  distinct sequential counts and the cap CANNOT be raced — unlike a separate
+ *  read-then-write. Use this wherever EVERY attempt should count (per-IP login
+ *  backstop, signup, verification resend, CSP reports). Fail-OPEN on store
+ *  error/timeout (auth still needs the DB, so this opens no usable window). */
+export async function recordAndCheck(key: string, limit: number): Promise<boolean> {
+  try {
+    const { rows } = await withTimeout(query<{ count: number }>(RATE_LIMIT_SQL, [key, WINDOW]), QUERY_TIMEOUT_MS);
+    if (Math.random() < 0.01) {
+      Promise.resolve(query(`delete from rate_limits where reset_at < now()`)).catch(() => {});
+    }
+    return rows[0].count <= limit;
+  } catch (err) {
+    logger.error("rate_limit_db_error", { err: String(err), key: redactKey(key) });
+    return true; // fail-open
+  }
+}
+
 /** Read-only check: is the live window already at/over `limit` recorded attempts?
- *  Does NOT record anything (callers record only on failure). Fail-OPEN (false) on
- *  any store error/timeout — the auth attempt still needs the DB to succeed, so an
- *  open window here grants no usable brute-force advantage. */
+ *  Does NOT record anything. Used only as the best-effort EMAIL pre-check on the
+ *  login path, where the authoritative race-safe cap is the atomic per-IP
+ *  recordAndCheck and the email key stays failures-only to avoid victim lockout
+ *  (M1). Fail-OPEN (false) on any store error/timeout. */
 export async function isRateLimited(key: string, limit: number): Promise<boolean> {
   try {
     const { rows } = await withTimeout(query<{ count: number }>(COUNT_SQL, [key]), QUERY_TIMEOUT_MS);
@@ -79,17 +100,6 @@ export async function clearAttempts(key: string): Promise<void> {
   } catch (err) {
     logger.error("rate_limit_db_error", { err: String(err), key: redactKey(key) });
   }
-}
-
-/** Check-and-record throttle for endpoints where EVERY attempt should count
- *  (signup, verification resend) — there's no third party whose success the
- *  counter could be weaponized against, so the lockout concern that drives the
- *  login flow's failures-only design doesn't apply. Returns true if allowed (and
- *  records the attempt); false if the window is already full (records nothing). */
-export async function throttle(key: string, limit: number): Promise<boolean> {
-  if (await isRateLimited(key, limit)) return false;
-  await recordAttempt(key);
-  return true;
 }
 
 let warnedUnknownIp = false;

@@ -10,8 +10,12 @@ export function redactEmail(value: string): string {
   return `${head}@${domain}`;
 }
 
-/** Redact the email embedded in a rate-limit key (`login:email:<addr>`); any other
- *  key shape (e.g. `login:ip:1.2.3.4`) is returned unchanged. */
+/** Redact the identifier embedded in a rate-limit key so a logged store error
+ *  can't leak PII: `:email:<addr>` is masked via redactEmail, and `:ip:<addr>`
+ *  / `:user:<id>` tails are dropped to `<redacted>`. The action prefix
+ *  (`login`, `signup`, `csp`, `verify`) is kept for debuggability. */
 export function redactKey(key: string): string {
-  return key.replace(/(:email:)(.+)$/, (_m, prefix: string, addr: string) => prefix + redactEmail(addr));
+  return key
+    .replace(/(:email:)(.+)$/, (_m, prefix: string, addr: string) => prefix + redactEmail(addr))
+    .replace(/(:(?:ip|user):).+$/, "$1<redacted>");
 }
