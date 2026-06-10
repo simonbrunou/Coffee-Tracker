@@ -171,13 +171,14 @@
   --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.50), 0 4px 8px oklch(0 0 0 / 0.34);
 }
 
-/* These element resets live in @layer base so Tailwind's `utilities` layer
-   outranks them: an UNLAYERED rule beats layered utilities regardless of
-   specificity. Unlayered, the `*` reset killed every p-*/m-*/w-* utility and the
-   `button { background: none }` reset killed `bg-primary` on every filled Button —
-   which is why the app leaned entirely on inline styles and every primary CTA
-   rendered as bare text. Layering keeps the resets as defaults while letting
-   utilities win. */
+/* These element resets live in @layer base so Tailwind's utilities layer outranks
+   them: an UNLAYERED rule beats layered utilities regardless of specificity.
+   Unlayered, the universal reset killed every padding, margin and width utility,
+   and the button background reset killed bg-primary on every filled Button — which
+   is why the app leaned on inline styles and every primary CTA rendered as bare
+   text. Layering keeps the resets as defaults while letting utilities win.
+   (Keep this comment free of the comment-close sequence and CSS braces — the CSS
+   optimizer parses comment text, and a stray close would leak the rest as CSS.) */
 @layer base {
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
