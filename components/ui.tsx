@@ -29,10 +29,11 @@ export function ScaScore({ value }: { value: number }) {
   );
 }
 
-/** A rounded toggle pill (aria-pressed), hand-rolled six times across the app.
+/** A rounded toggle pill (aria-pressed), hand-rolled seven times across the app.
  *  `tone="solid"` is the espresso/surface selector (feed + discover tabs, brew
- *  method); `tone="soft"` is the smaller caramel filter chip (Discover process).
- *  `padding`/`minHeight` cover the minor per-site size differences. */
+ *  method, bag-form roast); `tone="soft"` is the smaller caramel filter chip
+ *  (Discover process). `padding`/`minHeight`/`fontSize` cover the minor per-site
+ *  size differences. */
 export function PillButton({
   active,
   onClick,
@@ -40,6 +41,7 @@ export function PillButton({
   tone = "solid",
   padding,
   minHeight,
+  fontSize,
 }: {
   active: boolean;
   onClick: () => void;
@@ -47,6 +49,7 @@ export function PillButton({
   tone?: "solid" | "soft";
   padding?: string;
   minHeight?: number;
+  fontSize?: string;
 }) {
   const solid = tone === "solid";
   return (
@@ -60,7 +63,7 @@ export function PillButton({
         padding: padding ?? (solid ? "8px 16px" : "6px 13px"),
         minHeight,
         borderRadius: 99,
-        fontSize: solid ? "var(--text-sm)" : "var(--text-xs)",
+        fontSize: fontSize ?? (solid ? "var(--text-sm)" : "var(--text-xs)"),
         fontWeight: 600,
         background: active ? (solid ? "var(--espresso)" : "var(--caramel-soft)") : solid ? "var(--surface)" : "transparent",
         color: active ? (solid ? "var(--cream)" : "var(--caramel-deep)") : solid ? "var(--coffee)" : "var(--mocha)",

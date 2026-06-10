@@ -7,7 +7,6 @@ import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
 import { BeanGlyph, BeanRating, EmptyState, Icon, LoadMoreButton, PillButton, Placeholder, RelTime, ScaScore, staggerMs } from "./ui";
-import type { IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Bean, Page, Roaster, Tasting } from "@/lib/types";
@@ -130,17 +129,17 @@ export function FeedScreen({
           Loading…
         </div>
       ) : filter === "Following" && rows.length === 0 ? (
-        <FeedEmpty
+        <EmptyState
           icon="user"
           title="You're not following anyone yet"
           hint="Find people and roasters to follow over on Discover."
         />
       ) : rows.length === 0 ? (
-        <FeedEmpty
+        <EmptyState
           icon="drop"
           title="Your feed is brewing"
           hint="Log your first brew and it'll appear here — alongside tastings from people you follow."
-          cta={{ label: "Log your first brew", onClick: () => openBrew() }}
+          cta={{ label: "Log your first brew", icon: "drop", onClick: () => openBrew() }}
         />
       ) : (
         <>
@@ -164,27 +163,6 @@ export function FeedScreen({
   );
 }
 
-// Empty state for feed tabs (e.g. a brand-new Feed, or Following with no follows yet).
-function FeedEmpty({
-  title,
-  hint,
-  icon = "user",
-  cta,
-}: {
-  title: string;
-  hint: string;
-  icon?: IconName;
-  cta?: { label: string; onClick: () => void };
-}) {
-  return (
-    <EmptyState
-      icon={icon}
-      title={title}
-      hint={hint}
-      cta={cta ? { label: cta.label, onClick: cta.onClick, icon: "drop" } : undefined}
-    />
-  );
-}
 
 // ---------- JOURNAL ----------
 export function JournalScreen({
@@ -323,7 +301,7 @@ function ShelfSection({
 }) {
   if (shelf.length === 0) {
     return (
-      <JournalEmpty
+      <EmptyState
         icon="bookmark"
         title="Your shelf is empty"
         hint="Add the bags you're brewing with to track what's left and rate every pour."
@@ -376,7 +354,7 @@ function SavedSection({
 }) {
   if (savedTastings.length === 0 && wishlistedBeans.length === 0) {
     return (
-      <JournalEmpty
+      <EmptyState
         icon="bookmark"
         title="Nothing saved yet"
         hint="Save a brew you love, or mark a bean you want to try."
@@ -441,7 +419,7 @@ function BrewsSection({
 }) {
   if (mine.length === 0) {
     return (
-      <JournalEmpty
+      <EmptyState
         icon="drop"
         title="No brews logged yet"
         hint="Pull a shot, pour a cup, and log how it tasted. Your tasting history builds from here."
@@ -539,20 +517,6 @@ function BrewsSection({
   );
 }
 
-// Friendly empty state for the Journal sections (no brews / empty shelf / nothing saved).
-function JournalEmpty({
-  title,
-  hint,
-  icon,
-  cta,
-}: {
-  title: string;
-  hint: string;
-  icon: IconName;
-  cta?: { label: string; icon: IconName; onClick: () => void };
-}) {
-  return <EmptyState icon={icon} title={title} hint={hint} cta={cta} />;
-}
 
 // Shelf card — a bag you own, with remaining indicator + quick brew
 function ShelfCard({
