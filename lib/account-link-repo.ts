@@ -2,6 +2,18 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { query, withTransaction } from "@/lib/db";
 
+/** The userId that owns a given (provider, providerAccountId), or null. Used by
+ *  the reauth-delete flow to verify the OAuth identity completing the step-up is
+ *  the SAME account that requested deletion — so a different person's Google/GitHub
+ *  can't confirm someone else's delete. */
+export async function accountOwner(provider: string, providerAccountId: string): Promise<string | null> {
+  const { rows } = await query<{ user_id: string }>(
+    `select user_id from accounts where provider = $1 and provider_account_id = $2`,
+    [provider, providerAccountId],
+  );
+  return rows[0]?.user_id ?? null;
+}
+
 /** The user's live sign-in methods, for the Settings UI. */
 export async function getAuthMethods(userId: string): Promise<{ hasPassword: boolean; providers: string[] }> {
   const [u, a] = await Promise.all([

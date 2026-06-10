@@ -1,12 +1,16 @@
 "use server";
-import { signOut } from "@/auth";
+import { cookies } from "next/headers";
+import { signIn, signOut } from "@/auth";
 import { pool, withTransaction } from "@/lib/db";
 import { requireUserId } from "@/lib/auth";
-import { confirmPasswordReauth, REAUTH_ERROR } from "@/lib/reauth";
+import { confirmPasswordReauth, userHasPassword, REAUTH_ERROR } from "@/lib/reauth";
 import { bumpSessionVersion, deleteUserWithPii } from "@/lib/users-repo";
+import { createLinkToken } from "@/lib/link-tokens";
 
 // Match the repo's Queryable wrapper pattern (see app/auth-actions.ts).
 const poolDb = { query: (text: string, params?: unknown[]) => pool.query(text, params) };
+const LINKABLE = new Set(["google", "github"]);
+const OAUTH_DELETE_HINT = "Confirm deletion with your connected account.";
 
 /** "Sign out everywhere": bump the session_version so EVERY device's frozen JWT
  *  is stale on its next request (reads via getCurrentUserId, writes via
@@ -32,8 +36,44 @@ export async function signOutAllDevices(): Promise<void> {
  *  confirm and only throws the success redirect once the delete has run. */
 export async function deleteAccount(confirmPassword?: string): Promise<{ error: string }> {
   const userId = await requireUserId();
+  // Credential users confirm with their password. Password-less (OAuth-only) users
+  // have no second factor here (confirmPasswordReauth would no-op-pass them), so we
+  // REJECT them and route to the provider re-auth flow (startDeleteReauth) — closing
+  // the gap where a hijacked OAuth-only session could delete with no challenge.
+  if (!(await userHasPassword(userId))) return { error: OAUTH_DELETE_HINT };
   if (!(await confirmPasswordReauth(userId, confirmPassword))) return { error: REAUTH_ERROR };
   await withTransaction((c) => deleteUserWithPii({ query: (t, p) => c.query(t, p) }, userId));
   await signOut({ redirectTo: "/" }); // redirect throws — last statement
   return { error: "" }; // unreachable on success (redirect thrown)
+}
+
+/** Begin deleting an OAuth-only account: mint a single-use reauth_delete nonce +
+ *  per-provider cookie, then start the OAuth flow. The provider callback (auth.ts)
+ *  verifies the returning identity owns this account and performs the deletion —
+ *  so the user must prove control of the linked provider, not just hold the
+ *  session cookie. Mirrors linkOAuthStart. */
+export async function startDeleteReauth(provider: string): Promise<void> {
+  const uid = await requireUserId();
+  if (!LINKABLE.has(provider)) throw new Error("Unsupported provider");
+  // Enforce server-side what the settings UI implies: credential users must delete
+  // via their password (deleteAccount), not the OAuth path — so a linked-OAuth
+  // credential user can't bypass the password challenge.
+  if (await userHasPassword(uid)) throw new Error("Use password confirmation to delete.");
+  // Only re-authenticate through a provider the user has actually linked (fail fast;
+  // also avoids minting nonces / starting OAuth for unconnected providers).
+  const { rows } = await poolDb.query(`select 1 from accounts where user_id = $1 and provider = $2 limit 1`, [uid, provider]);
+  if (rows.length === 0) throw new Error("That account isn't connected.");
+  const raw = await createLinkToken(poolDb, uid, provider, "reauth_delete");
+  // Set-cookie MUST be the statement immediately before signIn (no try/catch) so
+  // its Set-Cookie rides the one 302 to the provider; SameSite=Lax survives the
+  // top-level OAuth redirect back. secure only in prod (a Secure cookie is dropped
+  // over http localhost).
+  (await cookies()).set(`reauth_delete_${provider}`, raw, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 600,
+  });
+  await signIn(provider, { redirectTo: "/settings" }); // redirect throws — last statement
 }

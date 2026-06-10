@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useData } from "./data-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { signOutAllDevices, deleteAccount } from "@/app/account-actions";
+import { signOutAllDevices, deleteAccount, startDeleteReauth } from "@/app/account-actions";
 import { setDiscoverable } from "@/app/profile-actions";
 import { linkOAuthStart, unlinkOAuth, setPassword, removePassword } from "@/app/account-link-actions";
 import { PASSWORD_MIN_LENGTH } from "@/lib/signup-validation";
@@ -18,12 +18,12 @@ const OAUTH = [
 export function SettingsScreen({ discoverable, authMethods }: { discoverable: boolean; authMethods: AuthMethods }) {
   const D = useData();
   const handle = D.me?.handle ?? "";
-  const [confirm, setConfirm] = useState("");
-  const [armed, setArmed] = useState(false);
-  const [deletePw, setDeletePw] = useState("");
-
   const router = useRouter();
   const params = useSearchParams();
+  const [confirm, setConfirm] = useState("");
+  // Re-open the delete UI when the OAuth re-auth round-trip bounced back with an error.
+  const [armed, setArmed] = useState(() => !!params.get("deleteError"));
+  const [deletePw, setDeletePw] = useState("");
   const linkNote =
     params.get("linked") ? "Account connected." :
     params.get("linkError") === "taken" ? "That account is already linked to another Cortado account." :
@@ -42,7 +42,12 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
   // Credential users must type their current password to confirm destructive changes.
   const needsReauth = authMethods.hasPassword;
   const reauthReady = !needsReauth || confirmPw.length > 0;
-  const canDelete = handle.length > 0 && confirm.trim() === handle && (!needsReauth || deletePw.length > 0);
+  const handleConfirmed = handle.length > 0 && confirm.trim() === handle;
+  const canDelete = handleConfirmed && (!needsReauth || deletePw.length > 0);
+  // Error coming back from the OAuth re-auth round-trip (auth.ts redirects here).
+  const deleteParamError =
+    params.get("deleteError") === "expired" ? "That confirmation expired — please try again." :
+    params.get("deleteError") === "mismatch" ? "That didn't match this account — sign in with the connected account you're deleting." : "";
   const [deleteErr, setDeleteErr] = useState("");
   const onDelete = async () => {
     // On success deleteAccount throws the Next redirect; only a failed re-auth returns.
@@ -155,12 +160,35 @@ export function SettingsScreen({ discoverable, authMethods }: { discoverable: bo
                 />
               </>
             )}
-            {deleteErr && (
-              <p role="alert" style={{ fontSize: "var(--text-sm)", color: "var(--destructive, #b24a44)" }}>{deleteErr}</p>
+            {(deleteErr || deleteParamError) && (
+              <p role="alert" style={{ fontSize: "var(--text-sm)", color: "var(--destructive, #b24a44)" }}>{deleteErr || deleteParamError}</p>
             )}
-            <Button variant="destructive" disabled={!canDelete} onClick={onDelete}>
-              Permanently delete account
-            </Button>
+            {needsReauth ? (
+              <Button variant="destructive" disabled={!canDelete} onClick={onDelete}>
+                Permanently delete account
+              </Button>
+            ) : (
+              // OAuth-only: no password to confirm with, so re-authenticate through a
+              // connected provider — startDeleteReauth redirects to OAuth and the
+              // callback performs the deletion only if the identity matches.
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ fontSize: "var(--text-sm)", color: "var(--mocha)" }}>
+                  Re-authenticate with a connected account to confirm:
+                </span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {OAUTH.filter((p) => authMethods.providers.includes(p.id)).map((p) => (
+                    <Button
+                      key={p.id}
+                      variant="destructive"
+                      disabled={!handleConfirmed}
+                      onClick={() => { startDeleteReauth(p.id).catch(() => setDeleteErr("Couldn't start confirmation. Please try again.")); }}
+                    >
+                      Confirm with {p.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>

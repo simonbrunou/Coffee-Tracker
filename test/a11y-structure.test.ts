@@ -57,10 +57,12 @@ describe("a11y ARIA sweep (Cut 2)", () => {
     expect(ui).toMatch(/AvatarRoot[^>]*aria-hidden/);
   });
   it("nav exposes the current page + the chrome controls are named", () => {
-    const shell = read("components/app-provider.tsx");
-    expect(shell).toMatch(/aria-current=\{activeId === n\.id \? "page" : undefined\}/);
-    expect(shell).toMatch(/aria-label="Add a bag to your shelf"/);
-    expect(shell).toMatch(/<nav aria-label="Primary"/);
+    // The shell chrome (sidebar/mobile nav) lives in shell-chrome.tsx since the
+    // AppProvider decomposition; app-provider keeps the state + main landmark.
+    const chrome = read("components/shell-chrome.tsx");
+    expect(chrome).toMatch(/aria-current=\{activeId === n\.id \? "page" : undefined\}/);
+    expect(chrome).toMatch(/aria-label="Add a bag to your shelf"/);
+    expect(chrome).toMatch(/<nav aria-label="Primary"/);
   });
   it("single-select toggle groups expose state", () => {
     const screens = read("components/screens.tsx");
