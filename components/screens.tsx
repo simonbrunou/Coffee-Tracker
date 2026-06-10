@@ -6,7 +6,7 @@ import { BeanCard, BeanBag, TastingCard } from "./cards";
 import { useShell } from "./app-provider";
 import { useLoadMore } from "./use-load-more";
 import { loadMoreFeed, loadMoreBeans } from "@/app/actions";
-import { BeanGlyph, BeanRating, Icon, Placeholder, RelTime, staggerMs } from "./ui";
+import { BeanGlyph, BeanRating, EmptyState, Icon, LoadMoreButton, PillButton, Placeholder, RelTime, staggerMs } from "./ui";
 import type { IconName } from "./ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,28 +120,9 @@ export function FeedScreen({
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <ScreenHead kicker="Your daily pour" title="The Feed" sub={sub} />
       <div role="group" aria-label="Filter feed" style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {tabs.map((t) => {
-          const active = filter === t;
-          return (
-            <button
-              key={t}
-              onClick={() => setFilter(t)}
-              aria-pressed={active}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 99,
-                fontSize: "var(--text-sm)",
-                fontWeight: 600,
-                background: active ? "var(--espresso)" : "var(--surface)",
-                color: active ? "var(--cream)" : "var(--coffee)",
-                border: "1px solid " + (active ? "var(--espresso)" : "var(--line)"),
-                transition: "all 0.15s",
-              }}
-            >
-              {t}
-            </button>
-          );
-        })}
+        {tabs.map((t) => (
+          <PillButton key={t} active={filter === t} onClick={() => setFilter(t)}>{t}</PillButton>
+        ))}
       </div>
       {tabLoading ? (
         <div
@@ -177,13 +158,7 @@ export function FeedScreen({
               </div>
             ))}
           </div>
-          {hasMore && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
-              <Button variant="outline" onClick={loadMore} disabled={pending}>
-                {pending ? "Loading…" : "Load more"}
-              </Button>
-            </div>
-          )}
+          <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} marginTop={22} />
         </>
       )}
     </div>
@@ -203,20 +178,12 @@ function FeedEmpty({
   cta?: { label: string; onClick: () => void };
 }) {
   return (
-    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-        <Icon name={icon} size={40} />
-      </div>
-      <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
-      <p style={{ fontSize: "var(--text-base)", marginTop: 6, maxWidth: 360, marginInline: "auto" }}>{hint}</p>
-      {cta && (
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-          <Button onClick={cta.onClick}>
-            <Icon name="drop" size={17} color="currentColor" /> {cta.label}
-          </Button>
-        </div>
-      )}
-    </div>
+    <EmptyState
+      icon={icon}
+      title={title}
+      hint={hint}
+      cta={cta ? { label: cta.label, onClick: cta.onClick, icon: "drop" } : undefined}
+    />
   );
 }
 
@@ -508,22 +475,7 @@ function JournalEmpty({
   icon: IconName;
   cta?: { label: string; icon: IconName; onClick: () => void };
 }) {
-  return (
-    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-        <Icon name={icon} size={40} />
-      </div>
-      <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
-      <p style={{ fontSize: "var(--text-base)", marginTop: 6, maxWidth: 360, marginInline: "auto" }}>{hint}</p>
-      {cta && (
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-          <Button onClick={cta.onClick}>
-            <Icon name={cta.icon} size={17} color="currentColor" /> {cta.label}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
+  return <EmptyState icon={icon} title={title} hint={hint} cta={cta} />;
 }
 
 // Shelf card — a bag you own, with remaining indicator + quick brew
@@ -710,24 +662,8 @@ export function DiscoverScreen({
 
       <div role="group" aria-label="Discover view" style={{ display: "flex", gap: 8, marginBottom: 22 }}>
         {(["Beans", "Roasters"] as const).map((t) => {
-          const active = tab === t;
           return (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              aria-pressed={active}
-              style={{
-                padding: "8px 18px",
-                borderRadius: 99,
-                fontSize: "var(--text-sm)",
-                fontWeight: 600,
-                background: active ? "var(--espresso)" : "var(--surface)",
-                color: active ? "var(--cream)" : "var(--coffee)",
-                border: "1px solid " + (active ? "var(--espresso)" : "var(--line)"),
-              }}
-            >
-              {t}
-            </button>
+            <PillButton key={t} active={tab === t} onClick={() => setTab(t)} padding="8px 18px">{t}</PillButton>
           );
         })}
       </div>
@@ -751,22 +687,7 @@ export function DiscoverScreen({
           )}
           <div role="group" aria-label="Filter by process" style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
             {processes.map((p) => (
-              <button
-                key={p}
-                onClick={() => setProcess(p)}
-                aria-pressed={process === p}
-                style={{
-                  padding: "6px 13px",
-                  borderRadius: 99,
-                  fontSize: "var(--text-xs)",
-                  fontWeight: 600,
-                  background: process === p ? "var(--caramel-soft)" : "transparent",
-                  color: process === p ? "var(--caramel-deep)" : "var(--mocha)",
-                  border: "1px solid " + (process === p ? "transparent" : "var(--line)"),
-                }}
-              >
-                {p}
-              </button>
+              <PillButton key={p} tone="soft" active={process === p} onClick={() => setProcess(p)}>{p}</PillButton>
             ))}
           </div>
           <div role="list" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
@@ -776,13 +697,7 @@ export function DiscoverScreen({
               </div>
             ))}
           </div>
-          {hasMore && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
-              <Button variant="outline" onClick={loadMore} disabled={pending}>
-                {pending ? "Loading…" : "Load more"}
-              </Button>
-            </div>
-          )}
+          <LoadMoreButton hasMore={hasMore} pending={pending} onClick={loadMore} marginTop={22} />
           {beans.length === 0 && <Empty query={query} />}
         </>
       ) : (
@@ -890,12 +805,5 @@ function RoasterCard({ roaster, onOpen, delay }: { roaster: Roaster; onOpen: (id
 }
 
 function Empty({ query }: { query: string }) {
-  return (
-    <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mocha)" }}>
-      <div style={{ display: "inline-flex", marginBottom: 14, opacity: 0.5 }}>
-        <Icon name="search" size={40} />
-      </div>
-      <p style={{ fontSize: "var(--text-md)" }}>No beans match “{query}”. Try another origin or flavor.</p>
-    </div>
-  );
+  return <EmptyState icon="search" hint={`No beans match “${query}”. Try another origin or flavor.`} />;
 }

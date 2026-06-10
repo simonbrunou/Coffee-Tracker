@@ -5,6 +5,7 @@ import { flavorColor } from "@/lib/seed-data";
 import { cn } from "@/lib/utils";
 import { Avatar as AvatarRoot, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { relativeTime } from "@/lib/relative-time";
 
@@ -15,6 +16,130 @@ const STAGGER_CAP_MS = 400;
 /** CSS animation-delay (ms string) for a staggered list item, capped. */
 export function staggerMs(delay: number): string {
   return `${Math.min(delay, STAGGER_CAP_MS)}ms`;
+}
+
+/** A rounded toggle pill (aria-pressed), hand-rolled six times across the app.
+ *  `tone="solid"` is the espresso/surface selector (feed + discover tabs, brew
+ *  method); `tone="soft"` is the smaller caramel filter chip (Discover process).
+ *  `padding`/`minHeight` cover the minor per-site size differences. */
+export function PillButton({
+  active,
+  onClick,
+  children,
+  tone = "solid",
+  padding,
+  minHeight,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  tone?: "solid" | "soft";
+  padding?: string;
+  minHeight?: number;
+}) {
+  const solid = tone === "solid";
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: padding ?? (solid ? "8px 16px" : "6px 13px"),
+        minHeight,
+        borderRadius: 99,
+        fontSize: solid ? "var(--text-sm)" : "var(--text-xs)",
+        fontWeight: 600,
+        background: active ? (solid ? "var(--espresso)" : "var(--caramel-soft)") : solid ? "var(--surface)" : "transparent",
+        color: active ? (solid ? "var(--cream)" : "var(--caramel-deep)") : solid ? "var(--coffee)" : "var(--mocha)",
+        border: "1px solid " + (active ? (solid ? "var(--espresso)" : "transparent") : "var(--line)"),
+        transition: "all 0.15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Centered "Load more" footer for keyset-paginated lists. Renders nothing when
+ *  there's no next page. Replaces six hand-rolled copies whose margins had drifted. */
+export function LoadMoreButton({
+  hasMore,
+  pending,
+  onClick,
+  marginTop = 18,
+}: {
+  hasMore: boolean;
+  pending: boolean;
+  onClick: () => void;
+  marginTop?: number;
+}) {
+  if (!hasMore) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "center", marginTop }}>
+      <Button variant="outline" onClick={onClick} disabled={pending}>
+        {pending ? "Loading…" : "Load more"}
+      </Button>
+    </div>
+  );
+}
+
+/** Shared empty / not-found state: a dimmed icon, optional title, a hint, and an
+ *  optional CTA. `variant="section"` is the in-page version (feed/journal/search
+ *  empties); `variant="page"` is the larger full-route version (bean/roaster not
+ *  found). Replaces four near-identical hand-rolled blocks. */
+export function EmptyState({
+  icon,
+  title,
+  hint,
+  cta,
+  variant = "section",
+}: {
+  icon: IconName;
+  title?: string;
+  hint: React.ReactNode;
+  cta?: { label: string; icon?: IconName; onClick: () => void; variant?: "default" | "outline" };
+  variant?: "section" | "page";
+}) {
+  const page = variant === "page";
+  return (
+    <div
+      className={page ? "fade-up" : undefined}
+      style={{
+        textAlign: "center",
+        color: "var(--mocha)",
+        padding: page ? "80px 20px" : "60px 20px",
+        ...(page ? { maxWidth: 820, margin: "0 auto" } : null),
+      }}
+    >
+      <div style={{ display: "inline-flex", marginBottom: page ? 16 : 14, opacity: 0.5 }}>
+        <Icon name={icon} size={40} />
+      </div>
+      {title &&
+        (page ? (
+          <h1 className="display" style={{ fontSize: "var(--text-3xl)", fontWeight: 700 }}>{title}</h1>
+        ) : (
+          <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--coffee)" }}>{title}</p>
+        ))}
+      <p
+        style={{
+          fontSize: page ? "var(--text-md)" : "var(--text-base)",
+          marginTop: page ? 8 : 6,
+          ...(page ? null : { maxWidth: 360, marginInline: "auto" }),
+        }}
+      >
+        {hint}
+      </p>
+      {cta && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: page ? 22 : 18 }}>
+          <Button variant={cta.variant ?? "default"} onClick={cta.onClick}>
+            {cta.icon && <Icon name={cta.icon} size={page ? 18 : 17} color="currentColor" />} {cta.label}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Hydration-safe relative "time ago". SSR and the first client render compute the

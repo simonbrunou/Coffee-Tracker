@@ -48,16 +48,30 @@ export function isFeedTab(s: string): s is FeedTab {
   return (FEED_TABS as string[]).includes(s);
 }
 
+// Keyset cursor predicate (M3·D·2): the `(created_at, id) < (cursor)` half-open
+// bound, NULL-cursor meaning "first page". `col` qualifies the table (e.g. "t" or
+// "beans"); `tsIdx`/`idIdx` are the positional params for the cursor ts + id —
+// these differ per query, so the predicate must be built per call (not a shared
+// string). Param ARRAYS are unchanged; this only DRYs the WHERE text.
+function keysetWhere(col: string, tsIdx: number, idIdx: number): string {
+  return `($${tsIdx}::timestamptz is null or (${col}.created_at, ${col}.id) < ($${tsIdx}::timestamptz, $${idIdx}))`;
+}
+
+// Roaster projection + follower aggregate + viewer's followedByMe flag ($1 =
+// viewer), reused by the roaster list and single-roaster detail queries.
+const ROASTER_SELECT = `
+  select r.id, r.name, r.city, r.founded, r.beans,
+         coalesce(f.followers, 0)::int as followers, r.blurb,
+         ($1::text is not null and exists (
+           select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
+         )) as "followedByMe"
+  from roasters r
+  left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
+    on f.roaster_id = r.id`;
+
 export async function getRoasters(currentUserId: string | null): Promise<Roaster[]> {
   const { rows } = await query<Roaster>(
-    `select r.id, r.name, r.city, r.founded, r.beans,
-            coalesce(f.followers, 0)::int as followers, r.blurb,
-            ($1::text is not null and exists (
-              select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
-            )) as "followedByMe"
-     from roasters r
-     left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
-       on f.roaster_id = r.id
+    `${ROASTER_SELECT}
      order by r.id`,
     [currentUserId],
   );
@@ -87,7 +101,7 @@ export async function getFeedPage(
       `select ${TASTING_SELECT_COLS} from tastings t
          join user_follows uf on uf.followee_id = t.user_id and uf.follower_id = $1
          ${TASTING_JOINS}
-       where ($2::timestamptz is null or (t.created_at, t.id) < ($2::timestamptz, $3))
+       where ${keysetWhere("t", 2, 3)}
        order by t.created_at desc, t.id desc limit $4`,
       [currentUserId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
     );
@@ -104,7 +118,7 @@ export async function getFeedPage(
   const cur = decodeCursor(opts.cursor); // Recent
   const { rows } = await query<Tasting>(
     `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
-     where ($2::timestamptz is null or (t.created_at, t.id) < ($2::timestamptz, $3))
+     where ${keysetWhere("t", 2, 3)}
      order by t.created_at desc, t.id desc limit $4`,
     [currentUserId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
   );
@@ -205,21 +219,33 @@ export async function getWishlistBeans(userId: string, limit = 200): Promise<Bea
   return rows;
 }
 
+// Shared user projection + aggregate LEFT JOINs ($1 = viewer for followedByMe),
+// reused by getUserById and getUserProfileByHandle. The trailing `followedByMe`
+// is appended after each query's own extra columns (profile adds discoverable).
+const USER_SELECT_COLS = `
+  u.id, u.name, u.handle, u.avatar,
+  coalesce(t.tastings, 0)::int   as tastings,
+  coalesce(fr.followers, 0)::int as followers,
+  coalesce(fg.following, 0)::int as following,
+  u.bio`;
+
+const USER_FOLLOWED_BY_ME = `
+  ($1::text is not null and exists (
+    select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
+  )) as "followedByMe"`;
+
+const USER_JOINS = `
+  left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
+  left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
+  left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id`;
+
 /** A single user with derived aggregates (profile / shell `me`). */
 export async function getUserById(currentUserId: string | null, id: string): Promise<User | null> {
   const { rows } = await query<User>(
-    `select u.id, u.name, u.handle, u.avatar,
-            coalesce(t.tastings, 0)::int   as tastings,
-            coalesce(fr.followers, 0)::int as followers,
-            coalesce(fg.following, 0)::int as following,
-            u.bio,
-            ($1::text is not null and exists (
-              select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
-            )) as "followedByMe"
+    `select ${USER_SELECT_COLS},
+            ${USER_FOLLOWED_BY_ME}
      from users u
-     left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
-     left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
-     left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id
+     ${USER_JOINS}
      where u.id = $2 limit 1`,
     [currentUserId, id],
   );
@@ -231,18 +257,10 @@ export async function getUserById(currentUserId: string | null, id: string): Pro
  *  discoverable. Missing handle → null (the page calls notFound). */
 export async function getUserProfileByHandle(currentUserId: string | null, handle: string): Promise<PublicProfile | null> {
   const { rows } = await query<PublicProfile>(
-    `select u.id, u.name, u.handle, u.avatar,
-            coalesce(t.tastings, 0)::int   as tastings,
-            coalesce(fr.followers, 0)::int as followers,
-            coalesce(fg.following, 0)::int as following,
-            u.bio, u.discoverable,
-            ($1::text is not null and exists (
-              select 1 from user_follows uf where uf.followee_id = u.id and uf.follower_id = $1
-            )) as "followedByMe"
+    `select ${USER_SELECT_COLS}, u.discoverable,
+            ${USER_FOLLOWED_BY_ME}
      from users u
-     left join (select user_id, count(*) as tastings from tastings group by user_id) t on t.user_id = u.id
-     left join (select followee_id, count(*) as followers from user_follows group by followee_id) fr on fr.followee_id = u.id
-     left join (select follower_id, count(*) as following from user_follows group by follower_id) fg on fg.follower_id = u.id
+     ${USER_JOINS}
      where lower(u.handle) = lower($2) limit 1`,
     [currentUserId, handle],
   );
@@ -262,7 +280,7 @@ export async function getUserTastingsPage(
   const { rows } = await query<Tasting>(
     `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
      where t.user_id = $2
-       and ($3::timestamptz is null or (t.created_at, t.id) < ($3::timestamptz, $4))
+       and ${keysetWhere("t", 3, 4)}
      order by t.created_at desc, t.id desc limit $5`,
     [currentUserId, userId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
   );
@@ -354,7 +372,7 @@ export async function getDiscoverBeansPage(
   const q = opts.q?.trim() ? `%${escapeLike(opts.q.trim())}%` : null;
   const { rows } = await query<Bean>(
     `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
-     where ($2::timestamptz is null or (beans.created_at, beans.id) < ($2::timestamptz, $3))
+     where ${keysetWhere("beans", 2, 3)}
        and ($4::text is null or beans.process = $4)
        and ($5::text is null or beans.name ilike $5 or beans.origin ilike $5)
      order by beans.created_at desc, beans.id desc limit $6`,
@@ -374,7 +392,7 @@ export async function getBeanReviewsPage(
   const { rows } = await query<Tasting>(
     `select ${TASTING_SELECT_COLS} from tastings t ${TASTING_JOINS}
      where t.bean_id = $2
-       and ($3::timestamptz is null or (t.created_at, t.id) < ($3::timestamptz, $4))
+       and ${keysetWhere("t", 3, 4)}
      order by t.created_at desc, t.id desc limit $5`,
     [currentUserId, beanId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
   );
@@ -392,7 +410,7 @@ export async function getRoasterBeansPage(
   const { rows } = await query<Bean>(
     `select ${BEAN_SELECT_COLS} from beans ${BEAN_JOINS}
      where beans.roaster_id = $2
-       and ($3::timestamptz is null or (beans.created_at, beans.id) < ($3::timestamptz, $4))
+       and ${keysetWhere("beans", 3, 4)}
      order by beans.created_at desc, beans.id desc limit $5`,
     [currentUserId, roasterId, cur?.ts ?? null, cur?.id ?? null, limit + 1],
   );
@@ -457,14 +475,7 @@ export async function getAppData(): Promise<AppData> {
  *  followedByMe), $2 = roaster id. Used by generateMetadata / JSON-LD / OG. */
 export async function getRoasterById(currentUserId: string | null, id: string): Promise<Roaster | null> {
   const { rows } = await query<Roaster>(
-    `select r.id, r.name, r.city, r.founded, r.beans,
-            coalesce(f.followers, 0)::int as followers, r.blurb,
-            ($1::text is not null and exists (
-              select 1 from roaster_follows rf where rf.roaster_id = r.id and rf.user_id = $1
-            )) as "followedByMe"
-     from roasters r
-     left join (select roaster_id, count(*)::int as followers from roaster_follows group by roaster_id) f
-       on f.roaster_id = r.id
+    `${ROASTER_SELECT}
      where r.id = $2`,
     [currentUserId, id],
   );

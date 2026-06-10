@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useData } from "./data-context";
 import { BeanBag } from "./cards";
-import { BeanRating, Icon } from "./ui";
+import { BeanRating, Icon, PillButton } from "./ui";
 import { BagForm } from "./bag-form";
 import { SheetHeader, DonePanel } from "./sheet-chrome";
 import { Button } from "@/components/ui/button";
@@ -314,25 +314,7 @@ function BrewFlow({
         <SectionLabel>Brew method</SectionLabel>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
           {D.BREW_METHODS.map((m) => (
-            <button
-              key={m}
-              onClick={() => setBrew(m)}
-              aria-pressed={brew === m}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                minHeight: 44,
-                padding: "8px 14px",
-                borderRadius: 99,
-                fontSize: "var(--text-sm)",
-                fontWeight: 600,
-                background: brew === m ? "var(--espresso)" : "var(--surface)",
-                color: brew === m ? "var(--cream)" : "var(--coffee)",
-                border: "1px solid " + (brew === m ? "var(--espresso)" : "var(--line)"),
-              }}
-            >
-              {m}
-            </button>
+            <PillButton key={m} active={brew === m} onClick={() => setBrew(m)} padding="8px 14px" minHeight={44}>{m}</PillButton>
           ))}
         </div>
 

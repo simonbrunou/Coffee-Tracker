@@ -165,29 +165,7 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
 
   const me = initialData.me;
 
-  const toggleLike = (id: string) => {
-    if (!currentUserId) { router.push("/login"); return; }
-    const willLike = !likes.has(id);
-    setLikes((prev) => {
-      const n = new Set(prev);
-      if (willLike) n.add(id);
-      else n.delete(id);
-      return n;
-    });
-    // persist; on failure roll the optimistic update back and surface it
-    toggleLikeAction(id, willLike).catch(() => {
-      setLikes((prev) => {
-        const n = new Set(prev);
-        if (willLike) n.delete(id);
-        else n.add(id);
-        return n;
-      });
-      toast("Couldn't save that like — please try again");
-    });
-  };
-
   const optimisticToggle = (
-    set: Set<string>,
     setSet: (updater: (prev: Set<string>) => Set<string>) => void,
     id: string,
     action: (id: string, on: boolean) => Promise<void>,
@@ -204,10 +182,11 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     });
   };
 
-  const toggleFollowUser = (id: string) => optimisticToggle(followedUsers, setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
-  const toggleFollowRoaster = (id: string) => optimisticToggle(followedRoasters, setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
-  const toggleSaveTasting = (id: string) => optimisticToggle(savedTastings, setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
-  const toggleWishlistBean = (id: string) => optimisticToggle(wishedBeans, setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
+  const toggleLike = (id: string) => optimisticToggle(setLikes, id, toggleLikeAction, "Couldn't save that like — please try again");
+  const toggleFollowUser = (id: string) => optimisticToggle(setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
+  const toggleFollowRoaster = (id: string) => optimisticToggle(setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
+  const toggleSaveTasting = (id: string) => optimisticToggle(setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
+  const toggleWishlistBean = (id: string) => optimisticToggle(setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
 
   const openBrew = (beanId?: string) => {
     if (!currentUserId) return router.push("/login");
