@@ -16,7 +16,9 @@ import {
   USERS,
 } from "../lib/constants";
 
-config({ path: ".env.local" }); // load DATABASE_URL if a local env file exists
+// quiet: dotenv v17 prints a promo tip to stdout on load otherwise (noise in
+// db:setup / deploy-migrate output).
+config({ path: ".env.local", quiet: true }); // load DATABASE_URL if a local env file exists
 
 const connectionString =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/coffee_tracker";
