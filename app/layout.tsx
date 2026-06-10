@@ -9,7 +9,7 @@ import "./globals.css";
 
 // force-dynamic stays at the ROOT so every route (including the (legal) group)
 // is dynamically rendered — required by the per-request nonce CSP (see
-// middleware.ts). The root no longer reads Postgres: the per-user data load
+// proxy.ts). The root no longer reads Postgres: the per-user data load
 // moved to app/(app)/layout.tsx, so legal pages render even when the DB is down.
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Per-request nonce set by middleware — forwarded to next-themes so its pre-paint
+  // Per-request nonce set by proxy.ts — forwarded to next-themes so its pre-paint
   // inline script is allowed under the strict-dynamic CSP.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (

@@ -5,7 +5,11 @@ import { generateNonce, buildCsp, staticSecurityHeaders } from "@/lib/security-h
 // root layout's force-dynamic cascades). If a route ever opts back into static
 // rendering (force-static / ISR), Next stops applying per-request nonces and the
 // enforced CSP will blank that route — move such a route to a hash-based CSP.
-export function middleware(request: NextRequest) {
+//
+// `proxy` is Next 16's rename of `middleware`; it runs on the nodejs runtime, a
+// natural fit for our Node standalone deployment. This function is pure compute
+// (nonce + CSP header building), so it has no edge-runtime dependency.
+export function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === "development";
   // Behind Traefik, x-forwarded-proto reflects the public scheme; default to https

@@ -28,10 +28,17 @@ describe("OG / twitter image routes", () => {
       expect(src).not.toMatch(EMOJI);
     }
   });
-  it("dynamic twitter-image routes re-export dynamic from opengraph-image", () => {
+  it("dynamic twitter-image routes reuse the OG renderer with in-file force-dynamic", () => {
+    // Next 16 / Turbopack can't statically parse route-segment config (`dynamic`)
+    // when it's re-exported, so each twitter route re-exports only the default
+    // renderer and declares its own config inline.
     for (const f of DYN_TW) {
       expect(existsSync(p(f)), `${f} exists`).toBe(true);
-      expect(read(f)).toMatch(/export\s*\{[^}]*\bdynamic\b[^}]*\}\s*from\s*["']\.\/opengraph-image["']/);
+      const src = read(f);
+      expect(src).toMatch(/export\s*\{\s*default\s*\}\s*from\s*["']\.\/opengraph-image["']/);
+      expect(src).toMatch(/export const dynamic = "force-dynamic"/);
+      // dynamic must NOT be re-exported (the Turbopack build error we are guarding against)
+      expect(src).not.toMatch(/export\s*\{[^}]*\bdynamic\b[^}]*\}\s*from/);
     }
   });
 });
