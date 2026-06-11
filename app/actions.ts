@@ -75,6 +75,25 @@ const assessParams = (tastingId: string, a: TastingAssessment) => [
 const UPDATE_TASTING = `update tastings set rating = $3, brew = $4, dose = $5, ratio = $6, temp = $7, note = $8
      where id = $1 and user_id = $2`;
 
+// Reduces remaining by (dose_grams / bag_weight_grams), clamped to 0.
+// $1 = dose in grams (numeric), $2 = bean id, $3 = user id.
+// No-op when bag_weight is missing or unrecognised.
+const REMAINING_DECREMENT = `
+  update beans
+  set remaining = greatest(0, remaining::numeric -
+    case
+      when bag_weight ~ '^\\d+(\\.\\d+)?g$'
+      then $1::numeric / (regexp_match(bag_weight, '(\\d+(?:\\.\\d+)?)'))[1]::numeric
+      else 0
+    end
+  )
+  where id = $2 and user_id = $3 and owned = true and remaining is not null`;
+
+const parseDoseGrams = (dose: string): number => {
+  const m = dose.match(/^(\d+(?:\.\d+)?)g$/i);
+  return m ? Number(m[1]) : 0;
+};
+
 /** Log a brew against a bag — the fast, everyday action. Persists and returns
  *  the new tasting so the client can prepend it to the journal/feed. */
 export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
@@ -94,22 +113,26 @@ export async function logBrew(rawInput: LogBrewInput): Promise<Tasting> {
     input.temp,
     input.note,
   ];
+  const doseGrams = parseDoseGrams(input.dose);
 
-  if (input.assessment) {
-    const assessment = input.assessment;
-    await withTransaction(async (client) => {
-      const { rows } = await client.query<{ id: string }>(
-        TASTING_INSERT,
-        tastingParams,
-      );
-      if (rows.length === 0)
-        throw new Error("Couldn't log a brew for that bag.");
-      await client.query(ASSESSMENT_UPSERT, assessParams(id, assessment));
-    });
-  } else {
-    const { rows } = await query<{ id: string }>(TASTING_INSERT, tastingParams);
+  await withTransaction(async (client) => {
+    const { rows } = await client.query<{ id: string }>(
+      TASTING_INSERT,
+      tastingParams,
+    );
     if (rows.length === 0) throw new Error("Couldn't log a brew for that bag.");
-  }
+    if (doseGrams > 0) {
+      await client.query(REMAINING_DECREMENT, [
+        doseGrams,
+        input.beanId,
+        userId,
+      ]);
+    }
+    if (input.assessment) {
+      await client.query(ASSESSMENT_UPSERT, assessParams(id, input.assessment));
+    }
+  });
+
   revalidatePath("/", "layout");
   const tasting = await getTastingById(userId, id);
   if (!tasting) throw new Error("Couldn't log a brew for that bag.");

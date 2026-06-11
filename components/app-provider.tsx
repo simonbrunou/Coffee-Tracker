@@ -3,17 +3,33 @@
    Mounted once in the root layout so the shared client state (beans, brews,
    likes, the log sheet) survives client-side route navigation. Route pages
    render into {children} and read handlers/state via useShell(). */
-import { createContext, useContext, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 // useLayoutEffect on the client (runs before paint / before the browser's
 // scroll-clamp event), useEffect on the server to avoid the SSR warning.
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { DataProvider } from "./data-context";
 import { LogSheet } from "./log-sheet";
-import { Sidebar, MobileTopBar, MobileBottomNav, VerifyBanner, NAV } from "./shell-chrome";
+import {
+  Sidebar,
+  MobileTopBar,
+  MobileBottomNav,
+  VerifyBanner,
+  NAV,
+} from "./shell-chrome";
 import {
   logBrew as logBrewAction,
   addBag as addBagAction,
@@ -27,7 +43,15 @@ import {
   toggleSaveTasting as saveTastingAction,
   toggleWishlistBean as wishlistBeanAction,
 } from "@/app/actions";
-import type { AddBagInput, AppData, Bean, LogBrewInput, Tasting, UpdateBagInput, UpdateBrewInput } from "@/lib/types";
+import type {
+  AddBagInput,
+  AppData,
+  Bean,
+  LogBrewInput,
+  Tasting,
+  UpdateBagInput,
+  UpdateBrewInput,
+} from "@/lib/types";
 import { THEME_LIGHT, THEME_DARK } from "@/lib/theme-colors";
 
 interface ShellApi {
@@ -60,33 +84,61 @@ export function useShell(): ShellApi {
   return ctx;
 }
 
-export function AppProvider({ initialData, children }: { initialData: AppData; children: React.ReactNode }) {
+export function AppProvider({
+  initialData,
+  children,
+}: {
+  initialData: AppData;
+  children: React.ReactNode;
+}) {
   const { roasters, currentUserId, needsEmailVerification } = initialData;
 
   // Server truth is the canonical base: useOptimistic re-bases on `initialData`
   // whenever a Server Action's revalidatePath re-runs the force-dynamic layout.
   // Optimistic updates (in a transition) cover the in-flight latency window, then
   // reconcile to the re-based server value automatically.
-  const [myShelf, setMyShelfOptimistic] = useOptimistic(initialData.myShelf, (_state: Bean[], next: Bean[]) => next);
+  const [myShelf, setMyShelfOptimistic] = useOptimistic(
+    initialData.myShelf,
+    (_state: Bean[], next: Bean[]) => next,
+  );
   const [myTastings, setMyTastingsOptimistic] = useOptimistic(
     initialData.myTastings,
     (_state: Tasting[], next: Tasting[]) => next,
   );
   const [likes, setLikes] = useState<Set<string>>(
-    () => new Set([...initialData.feed.rows, ...initialData.myTastings].filter((t) => t.likedByMe).map((t) => t.id)),
+    () =>
+      new Set(
+        [...initialData.feed.rows, ...initialData.myTastings]
+          .filter((t) => t.likedByMe)
+          .map((t) => t.id),
+      ),
   );
-  const [followedUsers, setFollowedUsers] = useState<Set<string>>(() => new Set(initialData.followedUserIds));
-  const [followedRoasters, setFollowedRoasters] = useState<Set<string>>(() => new Set(initialData.followedRoasterIds));
-  const [savedTastings, setSavedTastings] = useState<Set<string>>(() => new Set(initialData.savedTastingIds));
-  const [wishedBeans, setWishedBeans] = useState<Set<string>>(() => new Set(initialData.wishedBeanIds));
+  const [followedUsers, setFollowedUsers] = useState<Set<string>>(
+    () => new Set(initialData.followedUserIds),
+  );
+  const [followedRoasters, setFollowedRoasters] = useState<Set<string>>(
+    () => new Set(initialData.followedRoasterIds),
+  );
+  const [savedTastings, setSavedTastings] = useState<Set<string>>(
+    () => new Set(initialData.savedTastingIds),
+  );
+  const [wishedBeans, setWishedBeans] = useState<Set<string>>(
+    () => new Set(initialData.wishedBeanIds),
+  );
   const [, startTransition] = useTransition();
-  const [log, setLog] = useState<{ open: boolean; mode: "brew" | "bag"; preset: string | null }>({
+  const [log, setLog] = useState<{
+    open: boolean;
+    mode: "brew" | "bag";
+    preset: string | null;
+  }>({
     open: false,
     mode: "brew",
     preset: null,
   });
   // When set, the sheet opens in edit mode pre-populated from this row.
-  const [edit, setEdit] = useState<{ kind: "brew"; tasting: Tasting } | { kind: "bag"; bean: Bean } | null>(null);
+  const [edit, setEdit] = useState<
+    { kind: "brew"; tasting: Tasting } | { kind: "bag"; bean: Bean } | null
+  >(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -110,7 +162,8 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const onScroll = () => scrollPositions.current.set(currentRouteKey.current, el.scrollTop);
+    const onScroll = () =>
+      scrollPositions.current.set(currentRouteKey.current, el.scrollTop);
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
@@ -142,7 +195,9 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   // would disagree when the user toggles against their OS preference).
   useEffect(() => {
     if (!mounted) return;
-    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    let meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
     if (!meta) {
       meta = document.createElement("meta");
       meta.name = "theme-color";
@@ -159,22 +214,66 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     action: (id: string, on: boolean) => Promise<void>,
     failMsg: string,
   ) => {
-    if (!currentUserId) { router.push("/login"); return; }
+    if (!currentUserId) {
+      router.push("/login");
+      return;
+    }
     // Derive willOn from the freshest state inside the updater (a rapid double-tap
     // must not capture a stale closure value for the action arg / rollback).
     let willOn = false;
-    setSet((prev) => { willOn = !prev.has(id); const n = new Set(prev); if (willOn) n.add(id); else n.delete(id); return n; });
+    setSet((prev) => {
+      willOn = !prev.has(id);
+      const n = new Set(prev);
+      if (willOn) n.add(id);
+      else n.delete(id);
+      return n;
+    });
     action(id, willOn).catch(() => {
-      setSet((prev) => { const n = new Set(prev); if (willOn) n.delete(id); else n.add(id); return n; });
+      setSet((prev) => {
+        const n = new Set(prev);
+        if (willOn) n.delete(id);
+        else n.add(id);
+        return n;
+      });
       toast(failMsg);
     });
   };
 
-  const toggleLike = (id: string) => optimisticToggle(setLikes, id, toggleLikeAction, "Couldn't save that like — please try again");
-  const toggleFollowUser = (id: string) => optimisticToggle(setFollowedUsers, id, followUserAction, "Couldn't update follow — try again");
-  const toggleFollowRoaster = (id: string) => optimisticToggle(setFollowedRoasters, id, followRoasterAction, "Couldn't update follow — try again");
-  const toggleSaveTasting = (id: string) => optimisticToggle(setSavedTastings, id, saveTastingAction, "Couldn't save — try again");
-  const toggleWishlistBean = (id: string) => optimisticToggle(setWishedBeans, id, wishlistBeanAction, "Couldn't update wishlist — try again");
+  const toggleLike = (id: string) =>
+    optimisticToggle(
+      setLikes,
+      id,
+      toggleLikeAction,
+      "Couldn't save that like — please try again",
+    );
+  const toggleFollowUser = (id: string) =>
+    optimisticToggle(
+      setFollowedUsers,
+      id,
+      followUserAction,
+      "Couldn't update follow — try again",
+    );
+  const toggleFollowRoaster = (id: string) =>
+    optimisticToggle(
+      setFollowedRoasters,
+      id,
+      followRoasterAction,
+      "Couldn't update follow — try again",
+    );
+  const toggleSaveTasting = (id: string) =>
+    optimisticToggle(
+      setSavedTastings,
+      id,
+      saveTastingAction,
+      "Couldn't save — try again",
+    );
+  const toggleWishlistBean = (id: string) =>
+    optimisticToggle(
+      setWishedBeans,
+      id,
+      wishlistBeanAction,
+      "Couldn't update wishlist — try again",
+    );
 
   const openBrew = (beanId?: string) => {
     if (!currentUserId) return router.push("/login");
@@ -210,9 +309,27 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   // fast on the spike); the success panel masks the round-trip.
   const handleLogBrew = async (input: LogBrewInput) => {
     const b = myShelf.find((x) => x.id === input.beanId);
+    // Optimistically reduce remaining so the ring updates instantly.
+    if (b?.remaining != null && b.bagWeight) {
+      const dm = input.dose.match(/^(\d+(?:\.\d+)?)g$/i);
+      const bm = b.bagWeight.match(/^(\d+(?:\.\d+)?)g$/i);
+      if (dm && bm) {
+        const fraction = Number(dm[1]) / Number(bm[1]);
+        startTransition(() =>
+          setMyShelfOptimistic(
+            myShelf.map((s) =>
+              s.id === input.beanId
+                ? {
+                    ...s,
+                    remaining: Math.max(0, (s.remaining ?? 1) - fraction),
+                  }
+                : s,
+            ),
+          ),
+        );
+      }
+    }
     await logBrewAction(input);
-    // Drop the article so a proper-noun bag name reads right ("Logged your Idido
-    // brew", not "Logged a Idido brew").
     toast(b ? `Logged your ${b.name} brew ✓` : "Brew logged ✓");
   };
 
@@ -262,7 +379,8 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
     });
   };
 
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
   const activeId = NAV.find((n) => isActive(n.href))?.id ?? null;
 
   const shell: ShellApi = {
@@ -288,10 +406,24 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
   };
 
   return (
-    <DataProvider roasters={roasters} feed={initialData.feed} me={me} myTastings={myTastings} myShelf={myShelf} savedTastings={initialData.savedTastings} wishlistBeans={initialData.wishlistBeans} currentUserId={currentUserId}>
+    <DataProvider
+      roasters={roasters}
+      feed={initialData.feed}
+      me={me}
+      myTastings={myTastings}
+      myShelf={myShelf}
+      savedTastings={initialData.savedTastings}
+      wishlistBeans={initialData.wishlistBeans}
+      currentUserId={currentUserId}
+    >
       <ShellContext.Provider value={shell}>
-        <div id="app-root" style={{ display: "flex", height: "100%", overflow: "hidden" }}>
-          <a href="#main-content" className="skip-link">Skip to content</a>
+        <div
+          id="app-root"
+          style={{ display: "flex", height: "100%", overflow: "hidden" }}
+        >
+          <a href="#main-content" className="skip-link">
+            Skip to content
+          </a>
           <Sidebar
             me={me}
             activeId={activeId}
@@ -304,7 +436,12 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
 
           {/* ---- Main scroll area ---- */}
           <div ref={scrollRef} className="main-scroll">
-            <MobileTopBar currentUserId={currentUserId} mounted={mounted} isDark={isDark} onToggleTheme={toggleTheme} />
+            <MobileTopBar
+              currentUserId={currentUserId}
+              mounted={mounted}
+              isDark={isDark}
+              onToggleTheme={toggleTheme}
+            />
             <main id="main-content" tabIndex={-1} className="screen-pad">
               {needsEmailVerification && <VerifyBanner />}
               {children}
@@ -322,13 +459,16 @@ export function AppProvider({ initialData, children }: { initialData: AppData; c
             onLogBrew={handleLogBrew}
             onAddBag={handleAddBag}
             editBrew={edit?.kind === "brew" ? edit.tasting : null}
-            onUpdateBrew={async (i) => { await handleUpdateBrew(i); }}
+            onUpdateBrew={async (i) => {
+              await handleUpdateBrew(i);
+            }}
             editBag={edit?.kind === "bag" ? edit.bean : null}
-            onUpdateBag={async (i) => { await handleUpdateBag(i); }}
+            onUpdateBag={async (i) => {
+              await handleUpdateBag(i);
+            }}
           />
         </div>
       </ShellContext.Provider>
     </DataProvider>
   );
 }
-
