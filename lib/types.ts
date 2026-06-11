@@ -46,6 +46,7 @@ export interface Bean {
   process: string;
   roast: string;
   altitude: string;
+  region: string;
   /** Primary variety, kept for back-compat with the seed catalog. */
   varietal: string;
   price: number | null;
@@ -155,7 +156,14 @@ export interface AppData {
 
 /** The six CVA intensity axes — single source of truth (runtime + type) shared
  *  by validation, SQL generation, and the UI so column/param order can't drift. */
-export const ASSESSMENT_AXES = ["body", "acidity", "sweetness", "fruit", "floral", "finish"] as const;
+export const ASSESSMENT_AXES = [
+  "body",
+  "acidity",
+  "sweetness",
+  "fruit",
+  "floral",
+  "finish",
+] as const;
 export type AssessmentAxis = (typeof ASSESSMENT_AXES)[number];
 
 /** Own-tasting radar: avg of the current user's 0–15 intensities for a bean,
@@ -185,6 +193,8 @@ export interface AddBagInput {
   name: string;
   roasterName: string;
   origin: string;
+  region: string;
+  altitude: string;
   farm: string;
   varieties: string[];
   process: string;
@@ -209,5 +219,11 @@ export interface UpdateBagInput extends AddBagInput {
   id: string;
 }
 
-export interface AddCommentInput { tastingId: string; body: string }
-export interface UpdateCommentInput { id: string; body: string }
+export interface AddCommentInput {
+  tastingId: string;
+  body: string;
+}
+export interface UpdateCommentInput {
+  id: string;
+  body: string;
+}
