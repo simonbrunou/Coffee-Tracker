@@ -11,8 +11,30 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { updateBrew, deleteBrew, updateBag, deleteBag } from "@/app/actions";
 
-const brew = { id: "t-1", rating: 5, brew: "V60", note: "n", dose: "15g", ratio: "1:16", temp: "94°C" };
-const bag = { id: "b-1", name: "Idido", roasterName: "Ember", origin: "Gedeb", farm: "", varieties: [], process: "Washed", roast: "Light", scaScore: 88, flavors: [], color: "#b07a3c" };
+const brew = {
+  id: "t-1",
+  rating: 5,
+  brew: "V60",
+  note: "n",
+  dose: "15g",
+  ratio: "1:16",
+  temp: "94°C",
+};
+const bag = {
+  id: "b-1",
+  name: "Idido",
+  roasterName: "Ember",
+  origin: "Gedeb",
+  region: "Yirgacheffe",
+  altitude: "1800 masl",
+  farm: "",
+  varieties: [],
+  process: "Washed",
+  roast: "Light",
+  scaScore: 88,
+  flavors: [],
+  color: "#b07a3c",
+};
 
 beforeEach(() => queryMock.mockReset());
 
@@ -21,7 +43,9 @@ describe("edit/delete ownership guards", () => {
     queryMock.mockResolvedValue({ rows: [] });
     await expect(updateBrew(brew)).rejects.toThrow();
     const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
-    expect(sql).toMatch(/update tastings set[\s\S]*where id = \$1 and user_id = \$2/i);
+    expect(sql).toMatch(
+      /update tastings set[\s\S]*where id = \$1 and user_id = \$2/i,
+    );
     expect(sql).not.toMatch(/created_at|time\s*=/i);
     expect(params).toContain("t-1");
     expect(params).toContain("u-me");
@@ -35,21 +59,27 @@ describe("edit/delete ownership guards", () => {
     const t = await updateBrew(brew);
     expect(t.id).toBe("t-1");
     const [selSql, selParams] = queryMock.mock.calls[1] as [string, unknown[]];
-    expect(selSql).toMatch(/select[\s\S]*from tastings t[\s\S]*where t\.id = \$2/i);
+    expect(selSql).toMatch(
+      /select[\s\S]*from tastings t[\s\S]*where t\.id = \$2/i,
+    );
     expect(selParams).toEqual(["u-me", "t-1"]); // [viewer, id]
   });
   it("deleteBrew is ownership-guarded", async () => {
     queryMock.mockResolvedValue({ rowCount: 1, rows: [{ id: "t-1" }] });
     await deleteBrew("t-1");
     const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
-    expect(sql).toMatch(/delete from tastings where id = \$1 and user_id = \$2/i);
+    expect(sql).toMatch(
+      /delete from tastings where id = \$1 and user_id = \$2/i,
+    );
     expect(params).toEqual(["t-1", "u-me"]);
   });
   it("updateBag is ownership-guarded and validated", async () => {
     queryMock.mockResolvedValue({ rows: [{ id: "b-1" }] });
     await updateBag(bag);
     const [sql] = queryMock.mock.calls[0] as [string];
-    expect(sql).toMatch(/update beans set[\s\S]*where id = \$1 and user_id = \$2/i);
+    expect(sql).toMatch(
+      /update beans set[\s\S]*where id = \$1 and user_id = \$2/i,
+    );
   });
   it("updateBag rejects invalid input before the db", async () => {
     await expect(updateBag({ ...bag, name: "" })).rejects.toThrow();
