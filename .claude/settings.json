@@ -42,6 +42,19 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/council-on-plan.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-applied-migrations.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-secrets.sh\""
+          }
+        ]
       }
     ],
     "PostToolUse": [
