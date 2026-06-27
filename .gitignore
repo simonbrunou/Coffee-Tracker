@@ -68,3 +68,7 @@ graphify-out/.graphify_root
 # UI/UX audit scratch screenshots (working artifacts, not source)
 audit-shots/
 audit-after/
+
+# --- Nix / direnv dev environment ---
+.direnv/
+result
