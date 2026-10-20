@@ -34,7 +34,7 @@ OFFICIAL=(
   superpowers frontend-design context7 code-review code-simplifier github
   playwright feature-dev claude-md-management typescript-lsp security-guidance
   commit-commands pr-review-toolkit chrome-devtools-mcp skill-creator hookify
-  plugin-dev claude-code-setup coderabbit sentry cloudflare
+  plugin-dev claude-code-setup sentry cloudflare
 )
 
 echo "==> Installing ${#OFFICIAL[@]} official-marketplace plugins (scope: $SCOPE)"
