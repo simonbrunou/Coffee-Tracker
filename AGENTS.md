@@ -16,11 +16,8 @@ Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain
 
 ## Design checkpoints
 
-Convene the council (`council` skill) before presenting any design or plan, fold its outcome in and note `Council review: ...`; `.claude/hooks/council-on-plan.sh` enforces this on `ExitPlanMode` only.
+Before presenting a non-trivial design or plan, run the `council` skill (vendored in `.agents/skills/council/`), fold in its result and note `Council review: …` (`Council review: n/a` for trivial or mechanical work). In Claude Code, `.claude/hooks/council-on-plan.sh` blocks `ExitPlanMode` until the plan mentions the council; a design presented outside plan mode triggers no hook, so this rule is what covers it.
 
 ## Dependency holds
 
-`npm outdated` lists these two as outdated. Keep them where they are:
-
-- **eslint stays on 9** until `eslint-plugin-jsx-a11y`, `eslint-plugin-import` and `eslint-plugin-react` publish releases whose `eslint` peer range includes `^10`; their current latest releases stop at `^9`, so eslint 10 fails `npm ci` with ERESOLVE. Leave Renovate's eslint 10 PR (#72, which records the blocker scan) open: closing it makes Renovate stop proposing v10.
-- **next-auth stays on the v5 beta** (`next-auth@beta`). npm's `latest` tag is the old v4 line, so a 4.x "upgrade" is a downgrade.
+Before bumping a dependency or acting on a Renovate PR, read `docs/agents/dependencies.md`: eslint, TypeScript and next-auth are held below npm `latest` on purpose.
