@@ -36,6 +36,16 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 # the app user's.
 COPY --from=build /app/.next/standalone ./
 RUN mkdir -p .next/cache && chown nextjs:nodejs .next/cache
+# The server runs node only (CMD below), and npm's bundled packages held every
+# HIGH or CRITICAL Trivy finding in the image (#106), so delete the package
+# managers the base ships: npm, corepack, yarn and their links. The deps and
+# build stages keep npm for `npm ci` and `npm run build`. Yarn's folder is named
+# after its version, so `/opt/yarn-v*` is a glob that still matches after a base
+# bump moves yarn. rm -f passes over a path that is gone, so a base that drops
+# one of them still builds; the smoke job fails if npm, npx, corepack, yarn or
+# yarnpkg is still on PATH.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v* \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 USER nextjs
 EXPOSE 3000
 # Apply pending migrations, then replace the shell with the server so it gets
