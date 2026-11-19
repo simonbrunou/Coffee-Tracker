@@ -59,8 +59,11 @@ describe("apple-icon", () => {
 });
 
 describe("Dockerfile", () => {
-  it("copies public/ into the runner so /icons PNGs exist at runtime", () => {
-    expect(read("Dockerfile")).toMatch(/COPY --chown=nextjs:nodejs --from=build \/app\/public/);
+  // The runner gets public/ through the standalone bundle; CI's docker job fetches
+  // /icons/icon-192.png from the booted image.
+  it("copies the standalone bundle, which postbuild fills with public/, into the runner", () => {
+    expect(read("Dockerfile")).toMatch(/^COPY --from=build \/app\/\.next\/standalone \.\/$/m);
+    expect(read("scripts/postbuild-standalone.mjs")).toMatch(/^copy\("public", `\$\{SA\}\/public`\);$/m);
   });
 });
 

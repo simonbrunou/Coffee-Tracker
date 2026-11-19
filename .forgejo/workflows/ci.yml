@@ -29,8 +29,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/coffee_tracker_test
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: "npm"
@@ -56,8 +56,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: "npm"
@@ -70,3 +70,192 @@ jobs:
           # next build is force-dynamic (no prerender), pg.Pool is lazy, and auth
           # reads no env at module scope, so the build needs no DB and no real secrets.
           AUTH_SECRET: "ci-build-placeholder-not-a-secret"
+
+  docker:
+    name: Docker build (smoke test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coffee_tracker_smoke
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # The job drives the runner CT's Docker daemon, shared by every job on the
+      # runner. Names carry the run id so two concurrent runs never collide, and
+      # the attempt so a re-run never shares them with an earlier attempt of its
+      # run: an attempt the runner lost runs no cleanup step and leaves its
+      # container and image behind, and one cut off from the forge can still be
+      # running when the re-run starts. Forgejo numbers run_attempt per job, not
+      # per run: re-running only this job makes it 2 while the other jobs stay
+      # at 1. Copied from diversif's `docker-build` job (diversif#697).
+      SMOKE_IMAGE: coffee-tracker:ci-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      SMOKE_CONTAINER: coffee-tracker-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Remove what earlier attempts of this run left behind, by name. The names
+      # are this attempt's with its number swapped out. Each check matches the
+      # exact name: Docker's name filter matches a substring, so attempt 1's
+      # check would also list attempt 10's. The image goes by tag, never by ID:
+      # a push run and a pull_request run of one SHA build the same image ID.
+      # `shell: bash` runs the text as `bash --noprofile --norc -e -o pipefail`,
+      # so a failed docker call fails the step once the ERR trap has named the
+      # attempt. test/ci-docker-smoke.test.ts runs this text against a stub docker.
+      - name: Remove earlier attempts' container and image
+        shell: bash
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          case "$RUN_ATTEMPT" in
+            '' | 0* | *[!0-9]*)
+              echo "::error::github.run_attempt is '$RUN_ATTEMPT', not a positive integer, so the smoke container and image names do not tell this run's attempts apart"
+              exit 1
+              ;;
+          esac
+          container_base=${SMOKE_CONTAINER%-"$RUN_ATTEMPT"}
+          image_base=${SMOKE_IMAGE%-"$RUN_ATTEMPT"}
+          if [ "$container_base" = "$SMOKE_CONTAINER" ] || [ "$image_base" = "$SMOKE_IMAGE" ]; then
+            echo "::error::SMOKE_CONTAINER ($SMOKE_CONTAINER) and SMOKE_IMAGE ($SMOKE_IMAGE) must both end in -$RUN_ATTEMPT"
+            exit 1
+          fi
+          if [ "$RUN_ATTEMPT" = 1 ]; then
+            echo "This is attempt 1: no earlier attempt to clean up"
+          fi
+          trap 'echo "::error::a docker call failed while removing what attempt $n of this run left"' ERR
+          for ((n = 1; n < RUN_ATTEMPT; n++)); do
+            container="$container_base-$n"
+            image="$image_base-$n"
+            found=$(docker ps --all --quiet --filter "name=^/$container\$")
+            if [ -n "$found" ]; then
+              docker rm --force "$container" >/dev/null
+              container_state=removed
+            else
+              container_state=absent
+            fi
+            found=$(docker images --quiet "$image")
+            if [ -n "$found" ]; then
+              docker image rm --force "$image" >/dev/null
+              image_state=removed
+            else
+              image_state=absent
+            fi
+            echo "Attempt $n: container $container $container_state, image $image $image_state"
+          done
+      - run: docker build --check .
+      - run: docker build --tag "$SMOKE_IMAGE" .
+      # The container joins this job container's network namespace instead of
+      # publishing a port: a published port would land on the runner CT, not
+      # here. Sharing the namespace keeps 127.0.0.1:3000 local, and the
+      # `postgres` service name resolves as it does in this job. The secret and
+      # URL are CI-only placeholders that the production env check requires.
+      - name: Start the built image against the job's Postgres
+        run: |
+          echo "Starting container $SMOKE_CONTAINER from image $SMOKE_IMAGE"
+          docker run --detach --name "$SMOKE_CONTAINER" --network "container:$(hostname)" \
+            -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/coffee_tracker_smoke \
+            -e AUTH_SECRET=ci-only-not-a-real-auth-secret \
+            -e AUTH_URL=http://127.0.0.1:3000/ \
+            "$SMOKE_IMAGE"
+      # The container runs the migrations, then the server. The probe waits up
+      # to 60 tries, 1 s apart, for /api/health, and fails at once if the
+      # container stops (a failed migration exits it). Then it checks that the
+      # database holds every migration of the bundled journal, and fetches a PWA
+      # icon from public/ and a script that /login links under /_next/static,
+      # which /api/health alone would not miss. test/ci-docker-smoke.test.ts
+      # runs this text against a stub docker and curl.
+      - name: Probe /api/health, the migrations and the static assets
+        shell: bash
+        run: |
+          base=http://127.0.0.1:3000
+          body=
+          for ((try = 1; try <= 60; try++)); do
+            running=$(docker inspect --format '{{.State.Running}}' "$SMOKE_CONTAINER")
+            if [ "$running" != true ]; then
+              echo "::error::container $SMOKE_CONTAINER stopped before /api/health answered"
+              exit 1
+            fi
+            if body=$(curl --fail --silent --max-time 5 "$base/api/health"); then
+              break
+            fi
+            body=
+            sleep 1
+          done
+          if [ -z "$body" ]; then
+            echo "::error::/api/health did not answer within 60 tries"
+            exit 1
+          fi
+          if [ "$body" != '{"ok":true}' ]; then
+            echo "::error::/api/health answered '$body', not {\"ok\":true}"
+            exit 1
+          fi
+          echo "/api/health answered $body after $try tries"
+          # The server started, so the migrations ran first. Prove they all
+          # landed: drizzle's migrations table holds one row per entry of the
+          # bundled journal. The image's own node and pg read both, as the app
+          # user. `timeout` bounds it as --max-time bounds each curl: pg sets no
+          # connect or query timeout of its own.
+          if ! applied=$(timeout 30 docker exec "$SMOKE_CONTAINER" node -e '
+            const { Pool } = require("pg");
+            const journal = require("./drizzle/meta/_journal.json");
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            pool.query("select count(*)::int as n from drizzle.__drizzle_migrations")
+              .then((r) => { console.log(r.rows[0].n + " " + journal.entries.length); return pool.end(); })
+              .catch((e) => { console.error(e.message); process.exit(1); });
+          '); then
+            echo "::error::could not read drizzle.__drizzle_migrations in the container"
+            exit 1
+          fi
+          if ! [[ $applied =~ ^([1-9][0-9]*)\ ([1-9][0-9]*)$ ]]; then
+            echo "::error::the migration check printed '$applied', not two positive counts"
+            exit 1
+          fi
+          rows=${BASH_REMATCH[1]}
+          entries=${BASH_REMATCH[2]}
+          if [ "$rows" != "$entries" ]; then
+            echo "::error::$rows migrations applied, but the journal lists $entries"
+            exit 1
+          fi
+          echo "$rows of $entries migrations applied"
+          # curl --fail passes a 3xx, so each asset check reads the status too.
+          if ! answer=$(curl --fail --silent --max-time 10 --output /dev/null --write-out '%{http_code} %{content_type}' "$base/icons/icon-192.png"); then
+            echo "::error::/icons/icon-192.png did not answer 2xx"
+            exit 1
+          fi
+          if [ "$answer" != "200 image/png" ]; then
+            echo "::error::/icons/icon-192.png answered '$answer', not 200 image/png"
+            exit 1
+          fi
+          echo "/icons/icon-192.png answered $answer"
+          if ! html=$(curl --fail --silent --max-time 10 "$base/login"); then
+            echo "::error::/login did not answer 2xx"
+            exit 1
+          fi
+          if ! [[ $html =~ /_next/static/[^\"]+\.js ]]; then
+            echo "::error::/login links no script under /_next/static"
+            exit 1
+          fi
+          script=${BASH_REMATCH[0]}
+          if ! answer=$(curl --fail --silent --max-time 10 --output /dev/null --write-out '%{http_code} %{content_type}' "$base$script"); then
+            echo "::error::$script did not answer 2xx"
+            exit 1
+          fi
+          case "$answer" in
+            "200 application/javascript" | "200 application/javascript;"*) ;;
+            *)
+              echo "::error::$script answered '$answer', not 200 application/javascript"
+              exit 1
+              ;;
+          esac
+          echo "$script answered $answer"
+      - name: Container logs, then remove the smoke container and image
+        if: always()
+        run: |
+          docker logs "$SMOKE_CONTAINER" || true
+          docker rm --force "$SMOKE_CONTAINER" || true
+          docker image rm --force "$SMOKE_IMAGE" || true

@@ -1,9 +1,10 @@
 /* ============ Cortado — production migration runner ============
    Applies pending Drizzle migrations and exits. NO seeding, NO drops — safe to
-   run as a Railway pre-deploy command before every release.
+   run before every server start.
 
-   Local:           npm run db:migrate
-   Railway (deploy): node .next/standalone/scripts/migrate.mts   (see railpack.json)
+   Local:  npm run db:migrate
+   Image:  node scripts/migrate.mts, from /app (the standalone bundle), before
+           server.js (see the Dockerfile's CMD)
 
    Deliberately self-contained: imports ONLY runtime deps (`pg` + the zero-dep
    `drizzle-orm`), so it runs inside the trimmed standalone image where the app's
@@ -16,7 +17,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 // Resolve the migrations folder whether we run from the repo root (dev) or from
-// inside the standalone bundle (railpack copies `drizzle/` next to this script).
+// inside the standalone bundle (scripts/postbuild-standalone.mjs copies `drizzle/`
+// next to this script's folder).
 const candidates = [join(import.meta.dirname, "..", "drizzle"), join(process.cwd(), "drizzle")];
 const migrationsFolder = candidates.find(existsSync);
 if (!migrationsFolder) {

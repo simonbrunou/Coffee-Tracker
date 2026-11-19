@@ -7,7 +7,8 @@
 // by the migrate runner) are NOT traced — copy them in here.
 //
 // Runs automatically after `next build` via the npm `postbuild` lifecycle hook, i.e.
-// inside Railpack's provider build step, so every file it references is present.
+// inside the Dockerfile's build stage, where every file it references is present.
+// The runtime stage then copies only .next/standalone.
 import { cpSync, mkdirSync, existsSync } from "node:fs";
 
 const SA = ".next/standalone";
