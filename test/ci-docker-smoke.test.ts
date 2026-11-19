@@ -150,12 +150,19 @@ describe("the docker job", () => {
     expect(steps[check]!.shell).toBe("bash");
   });
 
-  it("runs every step but the cleanup unconditionally", () => {
-    const steps = dockerJob().steps;
-    const conditional = steps
-      .filter((s) => s.name !== CLEANUP && s.if !== undefined)
-      .map((s) => `${label(s)}: if ${String(s.if)}`);
-    expect(conditional).toEqual([]);
+  // An `if` or a `continue-on-error` on the job or a step would let it pass while a
+  // check is skipped or fails, so the job and its steps may use only the keys they
+  // use today, and only the cleanup an `if`. A new key fails here by name.
+  it("runs the job and every step but the cleanup unconditionally, with no key it does not use today", () => {
+    const job = dockerJob();
+    expect(Object.keys(job).filter((k) => !["name", "runs-on", "services", "env", "steps"].includes(k))).toEqual([]);
+    const stepKeys = ["name", "uses", "with", "shell", "env", "run"];
+    const extra = job.steps.flatMap((s) =>
+      Object.keys(s)
+        .filter((k) => !stepKeys.includes(k) && !(k === "if" && s.name === CLEANUP))
+        .map((k) => `${label(s)}: ${k}`),
+    );
+    expect(extra).toEqual([]);
   });
 });
 
