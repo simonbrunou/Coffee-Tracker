@@ -198,8 +198,9 @@ jobs:
           # The server started, so the migrations ran first. Prove they all
           # landed: drizzle's migrations table holds one row per entry of the
           # bundled journal. The image's own node and pg read both, as the app
-          # user.
-          if ! applied=$(docker exec "$SMOKE_CONTAINER" node -e '
+          # user. `timeout` bounds it as --max-time bounds each curl: pg sets no
+          # connect or query timeout of its own.
+          if ! applied=$(timeout 30 docker exec "$SMOKE_CONTAINER" node -e '
             const { Pool } = require("pg");
             const journal = require("./drizzle/meta/_journal.json");
             const pool = new Pool({ connectionString: process.env.DATABASE_URL });

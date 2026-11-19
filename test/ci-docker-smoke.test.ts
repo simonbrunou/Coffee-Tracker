@@ -240,6 +240,15 @@ exit 0
 
 const SLEEP_STUB = String.raw`printf 'sleep %s\n' "$*" >>"$STUB_STATE/calls"`;
 
+// Logs its limit, then runs the command with no limit. Exits 124, as coreutils
+// timeout does at its limit, when $STUB_STATE/timeout-expires exists.
+const TIMEOUT_STUB = String.raw`
+printf 'timeout %s\n' "$1" >>"$STUB_STATE/calls"
+if [ -e "$STUB_STATE/timeout-expires" ]; then exit 124; fi
+shift
+exec "$@"
+`;
+
 const bash = execFileSync("sh", ["-c", "command -v bash"], { encoding: "utf8" }).trim();
 if (!bash) throw new Error("bash is not on PATH");
 const base = mkdtempSync(path.join(tmpdir(), "ci-docker-smoke-"));
@@ -295,6 +304,7 @@ function stub(
     ["docker", DOCKER_STUB],
     ["curl", CURL_STUB],
     ["sleep", SLEEP_STUB],
+    ["timeout", TIMEOUT_STUB],
   ]) {
     writeFileSync(path.join(s.bin, cmd!), `#!${bash}\n${text}`);
     chmodSync(path.join(s.bin, cmd!), 0o755);
@@ -503,7 +513,25 @@ describe("the probe step", () => {
         "curl /login max-time=10",
         `curl ${SCRIPT} max-time=10`,
       ]);
-      expect(calls(s).filter((c) => c.startsWith("exec "))).toEqual([`exec ${container(1)} node -e <script>`]);
+      expect(calls(s).filter((c) => /^(timeout|exec) /.test(c))).toEqual([
+        "timeout 30",
+        `exec ${container(1)} node -e <script>`,
+      ]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "fails when the migration check reaches its 30 s limit",
+    () => {
+      const s = stub({ containers: running(), http: HEALTHY });
+      writeFileSync(path.join(s.state, "timeout-expires"), "");
+      const r = runProbe(s);
+      expect(r.code).toBe(1);
+      expect(r.out.split("\n").filter(Boolean).at(-1)).toBe(
+        "::error::could not read drizzle.__drizzle_migrations in the container",
+      );
+      expect(calls(s).filter((c) => c.startsWith("exec "))).toEqual([]);
     },
     TIMEOUT,
   );
@@ -536,7 +564,7 @@ describe("the probe step", () => {
     TIMEOUT,
   );
 
-  it.each(["", "10", "10 10 10", "0 0", "10 0", "01 01", "a b", "10  10", " 10 10"])(
+  it.each(["", "10", "10 10 10", "0 0", "0 10", "10 0", "01 01", "a b", "10  10", " 10 10"])(
     "fails when the migration check prints %j",
     (out) => {
       const s = stub({ containers: running(), http: HEALTHY, migrations: { out: `${out}\n` } });
