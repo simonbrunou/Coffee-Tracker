@@ -15,8 +15,9 @@ Target: **Coolify** (self-hosted PaaS) building the committed **Dockerfile**
 - Every stage uses `node:24-alpine` pinned by digest. Renovate's digest PRs move the
   pin; the repo pins **Node 24** for local work too (`.nvmrc`, `engines`).
 - CI's `Docker build (smoke test)` job builds the image on every PR to `main` and every
-  push to `main`, boots it against a Postgres and probes `/api/health`, a PWA icon and
-  a `/_next/static` script.
+  push to `main`, boots it against a Postgres and probes `/api/health`, checks that
+  every migration in `drizzle/meta/_journal.json` was applied, then fetches a PWA icon
+  and a `/_next/static` script.
 
 ## Required environment variables (set in Coolify → Environment)
 - `AUTH_SECRET` — generate with `npx auth secret`. **Required in production** (the

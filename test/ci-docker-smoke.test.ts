@@ -25,7 +25,7 @@ const CI = ".forgejo/workflows/ci.yml";
 const JOB = "docker";
 const REMOVAL = "Remove earlier attempts' container and image";
 const START = "Start the built image against the job's Postgres";
-const PROBE = "Probe /api/health and the static assets";
+const PROBE = "Probe /api/health, the migrations and the static assets";
 const CLEANUP = "Container logs, then remove the smoke container and image";
 const RUN_ID = "4011";
 const IMAGE_ID = "0123456789ab";
@@ -140,7 +140,11 @@ describe("the docker job", () => {
 const DOCKER_STUB = String.raw`
 # Answers the docker calls the removal and probe steps make, and fails on any other.
 state=$STUB_STATE
-printf '%s\n' "$*" >>"$state/calls"
+# An exec's last argument is a multi-line script: log it as one line, without it.
+case "$1" in
+  exec) printf 'exec %s %s %s <script>\n' "$2" "$3" "$4" >>"$state/calls" ;;
+  *) printf '%s\n' "$*" >>"$state/calls" ;;
+esac
 call=$1
 case "$1" in image) call="$1 $2" ;; esac
 if [ "$call" = "${"${DOCKER_STUB_FAIL:-}"}" ]; then
@@ -182,6 +186,11 @@ case "$1 $2 $3 $4" in
       tail -n +2 "$f" >"$f.next"
       mv "$f.next" "$f"
     fi
+    ;;
+  "exec "*" node -e")
+    # The migration check: answers $state/exec-out and exits $state/exec-status.
+    cat "$state/exec-out"
+    exit "$(cat "$state/exec-status")"
     ;;
   *)
     echo "docker stub: unexpected call: $*" >&2
@@ -250,9 +259,16 @@ const HEALTHY: Http = {
 };
 
 // A fresh stub. `containers` maps each container's name to the lines its
-// `docker inspect` answers in turn.
+// `docker inspect` answers in turn. `migrations` is what the migration check's
+// `docker exec` prints (the applied rows, then the journal's entries) and its exit.
 function stub(
-  opts: { containers?: Record<string, string>; images?: string[]; http?: Http; healthDown?: number } = {},
+  opts: {
+    containers?: Record<string, string>;
+    images?: string[];
+    http?: Http;
+    healthDown?: number;
+    migrations?: { out: string; status?: number };
+  } = {},
 ): Stub {
   stubCount += 1;
   const dir = path.join(base, String(stubCount));
@@ -272,6 +288,9 @@ function stub(
     writeFileSync(path.join(d, "body"), r.body ?? "");
   }
   if (opts.healthDown !== undefined) writeFileSync(path.join(s.state, "health-down"), String(opts.healthDown));
+  const migrations = opts.migrations ?? { out: "10 10\n" };
+  writeFileSync(path.join(s.state, "exec-out"), migrations.out);
+  writeFileSync(path.join(s.state, "exec-status"), String(migrations.status ?? 0));
   for (const [cmd, text] of [
     ["docker", DOCKER_STUB],
     ["curl", CURL_STUB],
@@ -473,6 +492,7 @@ describe("the probe step", () => {
         code: 0,
         out:
           '/api/health answered {"ok":true} after 1 tries\n' +
+          "10 of 10 migrations applied\n" +
           "/icons/icon-192.png answered 200 image/png\n" +
           `${SCRIPT} answered 200 application/javascript; charset=UTF-8\n`,
         err: "",
@@ -483,6 +503,49 @@ describe("the probe step", () => {
         "curl /login max-time=10",
         `curl ${SCRIPT} max-time=10`,
       ]);
+      expect(calls(s).filter((c) => c.startsWith("exec "))).toEqual([`exec ${container(1)} node -e <script>`]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "fails when the migration check cannot read the migrations table",
+    () => {
+      const s = stub({ containers: running(), http: HEALTHY, migrations: { out: "", status: 1 } });
+      expect(runProbe(s)).toEqual({
+        code: 1,
+        out:
+          '/api/health answered {"ok":true} after 1 tries\n' +
+          "::error::could not read drizzle.__drizzle_migrations in the container\n",
+        err: "",
+      });
+      expect(curls(s)).toEqual([HEALTH]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "fails when fewer migrations were applied than the journal lists",
+    () => {
+      const s = stub({ containers: running(), http: HEALTHY, migrations: { out: "9 10\n" } });
+      const r = runProbe(s);
+      expect(r.code).toBe(1);
+      expect(r.out.split("\n").filter(Boolean).at(-1)).toBe("::error::9 migrations applied, but the journal lists 10");
+      expect(curls(s)).toEqual([HEALTH]);
+    },
+    TIMEOUT,
+  );
+
+  it.each(["", "10", "10 10 10", "0 0", "10 0", "01 01", "a b", "10  10", " 10 10"])(
+    "fails when the migration check prints %j",
+    (out) => {
+      const s = stub({ containers: running(), http: HEALTHY, migrations: { out: `${out}\n` } });
+      const r = runProbe(s);
+      expect(r.code).toBe(1);
+      expect(r.out.split("\n").filter(Boolean).at(-1)).toBe(
+        `::error::the migration check printed '${out}', not two positive counts`,
+      );
+      expect(curls(s)).toEqual([HEALTH]);
     },
     TIMEOUT,
   );

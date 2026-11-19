@@ -164,11 +164,12 @@ jobs:
             "$SMOKE_IMAGE"
       # The container runs the migrations, then the server. The probe waits up
       # to 60 tries, 1 s apart, for /api/health, and fails at once if the
-      # container stops (a failed migration exits it). Then it fetches a PWA
+      # container stops (a failed migration exits it). Then it checks that the
+      # database holds every migration of the bundled journal, and fetches a PWA
       # icon from public/ and a script that /login links under /_next/static,
       # which /api/health alone would not miss. test/ci-docker-smoke.test.ts
       # runs this text against a stub docker and curl.
-      - name: Probe /api/health and the static assets
+      - name: Probe /api/health, the migrations and the static assets
         shell: bash
         run: |
           base=http://127.0.0.1:3000
@@ -194,6 +195,32 @@ jobs:
             exit 1
           fi
           echo "/api/health answered $body after $try tries"
+          # The server started, so the migrations ran first. Prove they all
+          # landed: drizzle's migrations table holds one row per entry of the
+          # bundled journal. The image's own node and pg read both, as the app
+          # user.
+          if ! applied=$(docker exec "$SMOKE_CONTAINER" node -e '
+            const { Pool } = require("pg");
+            const journal = require("./drizzle/meta/_journal.json");
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            pool.query("select count(*)::int as n from drizzle.__drizzle_migrations")
+              .then((r) => { console.log(r.rows[0].n + " " + journal.entries.length); return pool.end(); })
+              .catch((e) => { console.error(e.message); process.exit(1); });
+          '); then
+            echo "::error::could not read drizzle.__drizzle_migrations in the container"
+            exit 1
+          fi
+          if ! [[ $applied =~ ^([1-9][0-9]*)\ ([1-9][0-9]*)$ ]]; then
+            echo "::error::the migration check printed '$applied', not two positive counts"
+            exit 1
+          fi
+          rows=${BASH_REMATCH[1]}
+          entries=${BASH_REMATCH[2]}
+          if [ "$rows" != "$entries" ]; then
+            echo "::error::$rows migrations applied, but the journal lists $entries"
+            exit 1
+          fi
+          echo "$rows of $entries migrations applied"
           # curl --fail passes a 3xx, so each asset check reads the status too.
           if ! answer=$(curl --fail --silent --max-time 10 --output /dev/null --write-out '%{http_code} %{content_type}' "$base/icons/icon-192.png"); then
             echo "::error::/icons/icon-192.png did not answer 2xx"
