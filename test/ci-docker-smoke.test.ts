@@ -13,6 +13,10 @@
 // did for diversif#697: the `name` filter is an unanchored regex, matched against a
 // container's name with and without its leading slash; `rm --force` and
 // `image rm --force` exit 0 on a missing name, `image rm` printing an error for it.
+// A `docker exec <container> sh -c <script>` runs the step's own in-container script
+// under the host's sh, with PATH set to a folder that stands for the image's (#106),
+// and with `command -v` looking up only its first name, as the image's busybox 1.37
+// sh does: there `command -v nope npm` prints nothing and exits 127.
 import { afterAll, describe, expect, it } from "vitest";
 import { spawnSync, execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -26,6 +30,7 @@ const JOB = "docker";
 const REMOVAL = "Remove earlier attempts' container and image";
 const START = "Start the built image against the job's Postgres";
 const PROBE = "Probe /api/health, the migrations and the static assets";
+const PACKAGE_MANAGERS = "Check the image ships no package manager";
 const CLEANUP = "Container logs, then remove the smoke container and image";
 const RUN_ID = "4011";
 const IMAGE_ID = "0123456789ab";
@@ -135,6 +140,15 @@ describe("the docker job", () => {
     expect(run).toContain('docker rm --force "$SMOKE_CONTAINER"');
     expect(run).toContain('docker image rm --force "$SMOKE_IMAGE"');
   });
+
+  it("looks for package managers under bash after the probe, before the cleanup", () => {
+    const steps = dockerJob().steps;
+    const probe = steps.findIndex((s) => s.name === PROBE);
+    const check = steps.findIndex((s) => s.name === PACKAGE_MANAGERS);
+    expect(check).toBeGreaterThan(probe);
+    expect(check).toBe(steps.length - 2);
+    expect(steps[check]!.shell).toBe("bash");
+  });
 });
 
 const DOCKER_STUB = String.raw`
@@ -191,6 +205,16 @@ case "$1 $2 $3 $4" in
     # The migration check: answers $state/exec-out and exits $state/exec-status.
     cat "$state/exec-out"
     exit "$(cat "$state/exec-status")"
+    ;;
+  "exec "*" sh -c")
+    # The package manager check: runs its script with $state/image-bin as PATH,
+    # under a command -v that, like busybox 1.37's, looks up only its first name.
+    lookup='command() {
+      if [ "$1" != -v ]; then echo "sh stub: unexpected command $*" >&2; return 2; fi
+      if [ -x "$PATH/$2" ]; then echo "$PATH/$2"; else return 127; fi
+    }'
+    PATH="$state/image-bin" exec "$STUB_SH" -c "$lookup
+$5"
     ;;
   *)
     echo "docker stub: unexpected call: $*" >&2
@@ -251,6 +275,9 @@ exec "$@"
 
 const bash = execFileSync("sh", ["-c", "command -v bash"], { encoding: "utf8" }).trim();
 if (!bash) throw new Error("bash is not on PATH");
+// Absolute, as the docker stub runs it with PATH set to the image's folder.
+const sh = execFileSync("sh", ["-c", "command -v sh"], { encoding: "utf8" }).trim();
+if (!sh.startsWith("/")) throw new Error(`sh resolves to '${sh}', not an absolute path`);
 const base = mkdtempSync(path.join(tmpdir(), "ci-docker-smoke-"));
 let stubCount = 0;
 afterAll(() => rmSync(base, { recursive: true, force: true }));
@@ -270,6 +297,7 @@ const HEALTHY: Http = {
 // A fresh stub. `containers` maps each container's name to the lines its
 // `docker inspect` answers in turn. `migrations` is what the migration check's
 // `docker exec` prints (the applied rows, then the journal's entries) and its exit.
+// `imageCommands` are the executables on the image's PATH.
 function stub(
   opts: {
     containers?: Record<string, string>;
@@ -277,12 +305,17 @@ function stub(
     http?: Http;
     healthDown?: number;
     migrations?: { out: string; status?: number };
+    imageCommands?: string[];
   } = {},
 ): Stub {
   stubCount += 1;
   const dir = path.join(base, String(stubCount));
   const s = { dir, state: path.join(dir, "state"), bin: path.join(dir, "bin") };
-  for (const sub of ["containers", "images", "http"]) mkdirSync(path.join(s.state, sub), { recursive: true });
+  for (const sub of ["containers", "images", "http", "image-bin"]) mkdirSync(path.join(s.state, sub), { recursive: true });
+  for (const cmd of opts.imageCommands ?? []) {
+    writeFileSync(path.join(s.state, "image-bin", cmd), "#!/bin/sh\n");
+    chmodSync(path.join(s.state, "image-bin", cmd), 0o755);
+  }
   mkdirSync(s.bin);
   writeFileSync(path.join(s.state, "calls"), "");
   for (const [name, lines] of Object.entries(opts.containers ?? {})) {
@@ -320,6 +353,7 @@ function runStep(s: Stub, name: string, env: Record<string, string>) {
   const stepEnv = {
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
     STUB_STATE: s.state,
+    STUB_SH: sh,
     DOCKER_STUB_IMAGE_ID: IMAGE_ID,
     ...env,
   } as unknown as NodeJS.ProcessEnv;
@@ -342,6 +376,8 @@ function runRemoval(
 }
 
 const runProbe = (s: Stub) => runStep(s, PROBE, { SMOKE_CONTAINER: container(1) });
+const runPackageManagerCheck = (s: Stub, env: Record<string, string> = {}) =>
+  runStep(s, PACKAGE_MANAGERS, { SMOKE_CONTAINER: container(1), ...env });
 
 const calls = (s: Stub) => readFileSync(path.join(s.state, "calls"), "utf8").split("\n").filter(Boolean);
 const removals = (s: Stub) => calls(s).filter((c) => /^(image )?rm /.test(c));
@@ -699,6 +735,64 @@ describe("the probe step", () => {
       expect(r.code).toBe(1);
       expect(r.out.split("\n").filter(Boolean).at(-1)).toBe(error);
       expect(r.err).toBe("");
+    },
+    TIMEOUT,
+  );
+});
+
+describe("the package manager check", () => {
+  const PACKAGE_MANAGER_NAMES = ["npm", "npx", "corepack", "yarn", "yarnpkg"];
+  const execs = (s: Stub) => calls(s).filter((c) => c.startsWith("exec "));
+
+  it(
+    "passes on an image that ships only node, printing one line",
+    () => {
+      const s = stub({ imageCommands: ["node", "nodejs", "docker-entrypoint.sh"] });
+      expect(runPackageManagerCheck(s)).toEqual({
+        code: 0,
+        out: "The image ships none of npm, npx, corepack, yarn and yarnpkg\n",
+        err: "",
+      });
+      expect(execs(s)).toEqual([`exec ${container(1)} sh -c <script>`]);
+    },
+    TIMEOUT,
+  );
+
+  it.each(PACKAGE_MANAGER_NAMES)(
+    "fails when the image ships %s",
+    (name) => {
+      const s = stub({ imageCommands: ["node", name] });
+      expect(runPackageManagerCheck(s)).toEqual({
+        code: 1,
+        out: `::error::the image ships these package managers: ${s.state}/image-bin/${name}\n`,
+        err: "",
+      });
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "names every package manager the image ships, on one line",
+    () => {
+      const s = stub({ imageCommands: ["node", ...PACKAGE_MANAGER_NAMES] });
+      const r = runPackageManagerCheck(s);
+      expect(r.code).toBe(1);
+      expect(r.out).toBe(
+        `::error::the image ships these package managers: ${PACKAGE_MANAGER_NAMES.map((n) => `${s.state}/image-bin/${n}`).join(" ")}\n`,
+      );
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "fails when docker exec fails",
+    () => {
+      const s = stub({ imageCommands: ["node"] });
+      expect(runPackageManagerCheck(s, { DOCKER_STUB_FAIL: "exec" })).toEqual({
+        code: 1,
+        out: `::error::could not look for package managers in container ${container(1)}\n`,
+        err: "Error response from daemon: stub failure on exec\n",
+      });
     },
     TIMEOUT,
   );

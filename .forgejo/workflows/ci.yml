@@ -253,6 +253,22 @@ jobs:
               ;;
           esac
           echo "$script answered $answer"
+      # The image runs node only, so it ships no package manager (#106). Each
+      # name gets its own `command -v`: given several names, busybox sh prints
+      # only the first it finds. test/ci-docker-smoke.test.ts runs this text
+      # against a stub docker.
+      - name: Check the image ships no package manager
+        shell: bash
+        run: |
+          if ! found=$(docker exec "$SMOKE_CONTAINER" sh -c 'for c in npm npx corepack yarn yarnpkg; do command -v "$c" || true; done'); then
+            echo "::error::could not look for package managers in container $SMOKE_CONTAINER"
+            exit 1
+          fi
+          if [ -n "$found" ]; then
+            echo "::error::the image ships these package managers: ${found//$'\n'/ }"
+            exit 1
+          fi
+          echo "The image ships none of npm, npx, corepack, yarn and yarnpkg"
       - name: Container logs, then remove the smoke container and image
         if: always()
         run: |
