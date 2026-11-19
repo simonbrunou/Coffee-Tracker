@@ -1,16 +1,17 @@
 # syntax=docker/dockerfile:1
 
-# Every stage starts from one node:24-alpine image, pinned by digest so a rebuild
-# gets the same base. Renovate's digest PRs move the pin.
+# --- base: the one node:24-alpine image every stage starts from, pinned by digest
+# so a rebuild gets the same base. Renovate's digest PRs move the pin. ---
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS base
 
 # --- deps: install all deps (dev deps are needed to build) ---
-FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS deps
+FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # --- build: compile the Next.js app ---
-FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS build
+FROM base AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -23,7 +24,7 @@ COPY . .
 RUN AUTH_SECRET=ci-build-placeholder-not-a-secret npm run build
 
 # --- runner: the standalone server, with no build-stage node_modules ---
-FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS runner
+FROM base AS runner
 WORKDIR /app
 # HOSTNAME: Docker sets it to the container ID, and server.js binds to it, so
 # pin it to all interfaces. server.js reads PORT and defaults to 3000.

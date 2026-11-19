@@ -194,15 +194,16 @@ jobs:
             exit 1
           fi
           echo "/api/health answered $body after $try tries"
-          if ! type=$(curl --fail --silent --max-time 10 --output /dev/null --write-out '%{content_type}' "$base/icons/icon-192.png"); then
+          # curl --fail passes a 3xx, so each asset check reads the status too.
+          if ! answer=$(curl --fail --silent --max-time 10 --output /dev/null --write-out '%{http_code} %{content_type}' "$base/icons/icon-192.png"); then
             echo "::error::/icons/icon-192.png did not answer 2xx"
             exit 1
           fi
-          if [ "$type" != image/png ]; then
-            echo "::error::/icons/icon-192.png answered content type '$type', not image/png"
+          if [ "$answer" != "200 image/png" ]; then
+            echo "::error::/icons/icon-192.png answered '$answer', not 200 image/png"
             exit 1
           fi
-          echo "/icons/icon-192.png answered $type"
+          echo "/icons/icon-192.png answered $answer"
           if ! html=$(curl --fail --silent --max-time 10 "$base/login"); then
             echo "::error::/login did not answer 2xx"
             exit 1
@@ -212,11 +213,18 @@ jobs:
             exit 1
           fi
           script=${BASH_REMATCH[0]}
-          if ! curl --fail --silent --max-time 10 --output /dev/null "$base$script"; then
+          if ! answer=$(curl --fail --silent --max-time 10 --output /dev/null --write-out '%{http_code} %{content_type}' "$base$script"); then
             echo "::error::$script did not answer 2xx"
             exit 1
           fi
-          echo "$script answered"
+          case "$answer" in
+            "200 application/javascript" | "200 application/javascript;"*) ;;
+            *)
+              echo "::error::$script answered '$answer', not 200 application/javascript"
+              exit 1
+              ;;
+          esac
+          echo "$script answered $answer"
       - name: Container logs, then remove the smoke container and image
         if: always()
         run: |

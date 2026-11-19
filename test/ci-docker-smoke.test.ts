@@ -104,6 +104,14 @@ describe("the docker job", () => {
     expect(steps[removal]!.env).toEqual({ RUN_ATTEMPT: "${{ github.run_attempt }}" });
   });
 
+  it("lints the Dockerfile with docker build --check before it builds the image", () => {
+    const runs = dockerJob().steps.map((s) => s.run ?? "");
+    const check = runs.indexOf("docker build --check .");
+    const build = runs.indexOf('docker build --tag "$SMOKE_IMAGE" .');
+    expect(check).toBeGreaterThanOrEqual(0);
+    expect(build).toBeGreaterThan(check);
+  });
+
   it("prints both names before the start step runs docker run", () => {
     const lines = step(START).run!.split("\n");
     const echo = lines.findIndex(
@@ -183,23 +191,25 @@ esac
 `;
 
 // Serves http://127.0.0.1:3000 from $STUB_STATE/http/<path with / as _>/{status,type,body}.
-// A missing path answers 404. $STUB_STATE/health-down holds how many more
-// /api/health calls fail to connect (curl exit 7) before the server answers.
+// A missing path answers 404. Like curl --fail, it exits 22 on a status of 400 or
+// more and 0 on a 3xx. $STUB_STATE/health-down holds how many more /api/health
+// calls fail to connect (curl exit 7) before the server answers. Each call is
+// logged with its --max-time, empty when the step passed none.
 const CURL_STUB = String.raw`
 state=$STUB_STATE
-output= writeout= url=
+output= writeout= url= maxtime=
 while [ $# -gt 0 ]; do
   case "$1" in
     --output) output=$2; shift 2 ;;
     --write-out) writeout=$2; shift 2 ;;
-    --max-time) shift 2 ;;
+    --max-time) maxtime=$2; shift 2 ;;
     --fail | --silent) shift ;;
     http://*) url=$1; shift ;;
     *) echo "curl stub: unexpected argument: $1" >&2; exit 2 ;;
   esac
 done
 p=${"${url#http://127.0.0.1:3000}"}
-printf 'curl %s\n' "$p" >>"$state/calls"
+printf 'curl %s max-time=%s\n' "$p" "$maxtime" >>"$state/calls"
 if [ "$p" = /api/health ] && [ -s "$state/health-down" ]; then
   left=$(cat "$state/health-down")
   if [ "$left" -gt 0 ]; then
@@ -211,7 +221,11 @@ dir="$state/http/$(printf %s "$p" | tr / _)"
 if [ ! -d "$dir" ]; then exit 22; fi
 if [ "$(cat "$dir/status")" -ge 400 ]; then exit 22; fi
 if [ -z "$output" ]; then cat "$dir/body"; fi
-if [ "$writeout" = '%{content_type}' ]; then cat "$dir/type"; fi
+case "$writeout" in
+  '') ;;
+  '%{http_code} %{content_type}') printf '%s %s' "$(cat "$dir/status")" "$(cat "$dir/type")" ;;
+  *) echo "curl stub: unexpected --write-out: $writeout" >&2; exit 2 ;;
+esac
 exit 0
 `;
 
@@ -232,7 +246,7 @@ const HEALTHY: Http = {
   "/api/health": { type: "application/json", body: '{"ok":true}' },
   "/icons/icon-192.png": { type: "image/png", body: "PNG" },
   "/login": { type: "text/html", body: `<html><script src="${SCRIPT}" async=""></script></html>` },
-  [SCRIPT]: { type: "application/javascript", body: "js" },
+  [SCRIPT]: { type: "application/javascript; charset=UTF-8", body: "js" },
 };
 
 // A fresh stub. `containers` maps each container's name to the lines its
@@ -304,6 +318,8 @@ const calls = (s: Stub) => readFileSync(path.join(s.state, "calls"), "utf8").spl
 const removals = (s: Stub) => calls(s).filter((c) => /^(image )?rm /.test(c));
 const left = (s: Stub, kind: "containers" | "images") => readdirSync(path.join(s.state, kind)).sort();
 const count = (s: Stub, call: string) => calls(s).filter((c) => c === call).length;
+const curls = (s: Stub) => calls(s).filter((c) => c.startsWith("curl "));
+const HEALTH = "curl /api/health max-time=5";
 
 // Names that contain attempt 1's name without being it.
 const decoys = (name: string) => [`${name}0`, `${name}x`, `pre-${name}`];
@@ -450,23 +466,34 @@ describe("the probe step", () => {
   const running = () => ({ [container(1)]: "true\n" });
 
   it(
-    "passes on a booted image, printing what each probe answered",
+    "passes on a booted image, printing what each probe answered, each request under its --max-time",
     () => {
       const s = stub({ containers: running(), http: HEALTHY });
       expect(runProbe(s)).toEqual({
         code: 0,
         out:
           '/api/health answered {"ok":true} after 1 tries\n' +
-          "/icons/icon-192.png answered image/png\n" +
-          `${SCRIPT} answered\n`,
+          "/icons/icon-192.png answered 200 image/png\n" +
+          `${SCRIPT} answered 200 application/javascript; charset=UTF-8\n`,
         err: "",
       });
-      expect(calls(s).filter((c) => c.startsWith("curl "))).toEqual([
-        "curl /api/health",
-        "curl /icons/icon-192.png",
-        "curl /login",
-        `curl ${SCRIPT}`,
+      expect(curls(s)).toEqual([
+        HEALTH,
+        "curl /icons/icon-192.png max-time=10",
+        "curl /login max-time=10",
+        `curl ${SCRIPT} max-time=10`,
       ]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "accepts a script served as application/javascript with no parameters",
+    () => {
+      const s = stub({ containers: running(), http: { ...HEALTHY, [SCRIPT]: { type: "application/javascript" } } });
+      const r = runProbe(s);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain(`${SCRIPT} answered 200 application/javascript\n`);
     },
     TIMEOUT,
   );
@@ -478,7 +505,7 @@ describe("the probe step", () => {
       const r = runProbe(s);
       expect(r.code).toBe(0);
       expect(r.out).toContain('/api/health answered {"ok":true} after 60 tries\n');
-      expect(count(s, "curl /api/health")).toBe(60);
+      expect(count(s, HEALTH)).toBe(60);
       expect(count(s, "sleep 1")).toBe(59);
     },
     TIMEOUT,
@@ -493,7 +520,7 @@ describe("the probe step", () => {
         out: "::error::/api/health did not answer within 60 tries\n",
         err: "",
       });
-      expect(count(s, "curl /api/health")).toBe(60);
+      expect(count(s, HEALTH)).toBe(60);
       expect(count(s, "sleep 1")).toBe(60);
     },
     TIMEOUT,
@@ -508,7 +535,7 @@ describe("the probe step", () => {
         out: `::error::container ${container(1)} stopped before /api/health answered\n`,
         err: "",
       });
-      expect(count(s, "curl /api/health")).toBe(2);
+      expect(count(s, HEALTH)).toBe(2);
     },
     TIMEOUT,
   );
@@ -520,7 +547,7 @@ describe("the probe step", () => {
       const r = runProbe(s);
       expect(r.code).toBe(1);
       expect(r.err).toBe(`Error: No such object: ${container(1)}\n`);
-      expect(calls(s).filter((c) => c.startsWith("curl "))).toEqual([]);
+      expect(curls(s)).toEqual([]);
     },
     TIMEOUT,
   );
@@ -543,7 +570,13 @@ describe("the probe step", () => {
     [
       "the icon is not a PNG",
       { "/icons/icon-192.png": { type: "text/html" } },
-      "::error::/icons/icon-192.png answered content type 'text/html', not image/png",
+      "::error::/icons/icon-192.png answered '200 text/html', not 200 image/png",
+    ],
+    // curl --fail exits 0 on a 3xx, so only the status check catches a redirect.
+    [
+      "the icon redirects",
+      { "/icons/icon-192.png": { status: 302, type: "image/png" } },
+      "::error::/icons/icon-192.png answered '302 image/png', not 200 image/png",
     ],
     ["/login answers 500", { "/login": { status: 500 } }, "::error::/login did not answer 2xx"],
     [
@@ -552,6 +585,21 @@ describe("the probe step", () => {
       "::error::/login links no script under /_next/static",
     ],
     ["the linked script answers 404", { [SCRIPT]: { status: 404 } }, `::error::${SCRIPT} did not answer 2xx`],
+    [
+      "the linked script redirects",
+      { [SCRIPT]: { status: 302, type: "application/javascript" } },
+      `::error::${SCRIPT} answered '302 application/javascript', not 200 application/javascript`,
+    ],
+    [
+      "the linked script is served as HTML",
+      { [SCRIPT]: { type: "text/html; charset=utf-8" } },
+      `::error::${SCRIPT} answered '200 text/html; charset=utf-8', not 200 application/javascript`,
+    ],
+    [
+      "the linked script's type only starts with application/javascript",
+      { [SCRIPT]: { type: "application/javascriptx" } },
+      `::error::${SCRIPT} answered '200 application/javascriptx', not 200 application/javascript`,
+    ],
   ] as const)(
     "fails when %s",
     (_case, override, error) => {
