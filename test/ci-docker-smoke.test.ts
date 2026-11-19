@@ -149,6 +149,14 @@ describe("the docker job", () => {
     expect(check).toBe(steps.length - 2);
     expect(steps[check]!.shell).toBe("bash");
   });
+
+  it("runs every step but the cleanup unconditionally", () => {
+    const steps = dockerJob().steps;
+    const conditional = steps
+      .filter((s) => s.name !== CLEANUP && s.if !== undefined)
+      .map((s) => `${label(s)}: if ${String(s.if)}`);
+    expect(conditional).toEqual([]);
+  });
 });
 
 const DOCKER_STUB = String.raw`
@@ -203,12 +211,14 @@ case "$1 $2 $3 $4" in
     ;;
   "exec "*" node -e")
     # The migration check: answers $state/exec-out and exits $state/exec-status.
+    if [ $# -ne 5 ]; then echo "docker stub: unexpected call: $*" >&2; exit 2; fi
     cat "$state/exec-out"
     exit "$(cat "$state/exec-status")"
     ;;
   "exec "*" sh -c")
     # The package manager check: runs its script with $state/image-bin as PATH,
     # under a command -v that, like busybox 1.37's, looks up only its first name.
+    if [ $# -ne 5 ]; then echo "docker stub: unexpected call: $*" >&2; exit 2; fi
     lookup='command() {
       if [ "$1" != -v ]; then echo "sh stub: unexpected command $*" >&2; return 2; fi
       if [ -x "$PATH/$2" ]; then echo "$PATH/$2"; else return 127; fi

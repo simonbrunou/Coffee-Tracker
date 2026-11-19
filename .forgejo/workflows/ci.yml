@@ -253,10 +253,12 @@ jobs:
               ;;
           esac
           echo "$script answered $answer"
-      # The image runs node only, so it ships no package manager (#106). Each
-      # name gets its own `command -v`: given several names, busybox sh prints
-      # only the first it finds. test/ci-docker-smoke.test.ts runs this text
-      # against a stub docker.
+      # The server runs node only, and the runner stage deletes the package
+      # managers the base ships (#106). This step looks up npm, npx, corepack,
+      # yarn and yarnpkg on the container's PATH, as the app user, and fails
+      # naming each one it finds. Each name gets its own `command -v`: busybox
+      # 1.37 sh looks up only the first name it is given.
+      # test/ci-docker-smoke.test.ts runs this text against a stub docker.
       - name: Check the image ships no package manager
         shell: bash
         run: |
