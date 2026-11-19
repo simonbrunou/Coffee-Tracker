@@ -156,7 +156,7 @@ describe("the docker job", () => {
   it("runs the job and every step but the cleanup unconditionally, with no key it does not use today", () => {
     const job = dockerJob();
     expect(Object.keys(job).filter((k) => !["name", "runs-on", "services", "env", "steps"].includes(k))).toEqual([]);
-    const stepKeys = ["name", "uses", "with", "shell", "env", "run"];
+    const stepKeys = ["name", "uses", "shell", "env", "run"];
     const extra = job.steps.flatMap((s) =>
       Object.keys(s)
         .filter((k) => !stepKeys.includes(k) && !(k === "if" && s.name === CLEANUP))
