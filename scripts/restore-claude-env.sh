@@ -54,9 +54,8 @@ done
 cat <<'NOTES'
 
 ==> Done.
-  • 29 skills are already vendored in .agents/skills/ — no reinstall needed.
+  • 28 skills are already vendored in .agents/skills/ — no reinstall needed.
   • Approve the shadcn + postgres MCP servers when Claude Code prompts (.mcp.json).
-  • The `graphify` skill needs the `graphify` CLI installed separately to actually run.
   • The postgres MCP also needs Docker + a Postgres reachable at the .mcp.json DATABASE_URI.
   • Restart Claude Code so the newly installed plugins load.
 NOTES

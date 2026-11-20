@@ -38,12 +38,6 @@ audit-shots/
 audit-shots-before/
 .claude/scheduled_tasks.lock
 
-# --- graphify (commit the graph artifacts, but not caches / machine paths) ---
-graphify-out/.graphify_python
-graphify-out/.graphify_root
-graphify-out/cache/
-graphify-out/20*/
-
 # --- OS / editor junk ---
 .DS_Store
 Thumbs.db
@@ -57,13 +51,6 @@ Thumbs.db
 #   .claude/hooks/           block-secrets / format-edited / code-review-on-push
 #   .claude/skills/          /migration and /gen-test project skills
 #   .claude/agents/          security-reviewer subagent
-
-# graphify knowledge graph: keep the deliverables (graph.html/json, report,
-# manifest, memory), ignore the regenerable AST cache and the machine-specific
-# absolute-path files.
-graphify-out/cache/
-graphify-out/.graphify_python
-graphify-out/.graphify_root
 
 # UI/UX audit scratch screenshots (working artifacts, not source)
 audit-shots/
