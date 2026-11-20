@@ -3,7 +3,7 @@
 # Restore this repo's Claude Code dev environment on a new machine.
 #
 # WHAT TRAVELS HOW
-#   • Skills  -> vendored as files in .agents/skills/ (29 skills). Nothing to do;
+#   • Skills  -> vendored as files in .agents/skills/ (28 skills). Nothing to do;
 #                they are present the moment you clone.
 #   • Plugins -> NOT file-vendorable. This script registers their marketplaces and
 #                installs each one (they are also listed in .claude/settings.json
