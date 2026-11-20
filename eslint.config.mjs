@@ -8,7 +8,7 @@ import tseslint from "typescript-eslint";
 // @typescript-eslint plugins.
 export default tseslint.config(
   // Global ignores MUST be a standalone object (flat config; .eslintignore is dead).
-  // The vendored trees (.agents ~197 files, .claude, .playwright-mcp) must be excluded
+  // The vendored trees (.agents ~195 files, .claude, .playwright-mcp) must be excluded
   // or `eslint .` would crawl thousands of non-app files.
   {
     ignores: [

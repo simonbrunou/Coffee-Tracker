@@ -3,7 +3,7 @@
 # Restore this repo's Claude Code dev environment on a new machine.
 #
 # WHAT TRAVELS HOW
-#   • Skills  -> vendored as files in .agents/skills/ (29 skills). Nothing to do;
+#   • Skills  -> vendored as files in .agents/skills/ (28 skills). Nothing to do;
 #                they are present the moment you clone.
 #   • Plugins -> NOT file-vendorable. This script registers their marketplaces and
 #                installs each one (they are also listed in .claude/settings.json
@@ -54,9 +54,8 @@ done
 cat <<'NOTES'
 
 ==> Done.
-  • 29 skills are already vendored in .agents/skills/ — no reinstall needed.
+  • 28 skills are already vendored in .agents/skills/ — no reinstall needed.
   • Approve the shadcn + postgres MCP servers when Claude Code prompts (.mcp.json).
-  • The `graphify` skill needs the `graphify` CLI installed separately to actually run.
   • The postgres MCP also needs Docker + a Postgres reachable at the .mcp.json DATABASE_URI.
   • Restart Claude Code so the newly installed plugins load.
 NOTES
