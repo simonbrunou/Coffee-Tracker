@@ -24,10 +24,6 @@ Before bumping a dependency or acting on a Renovate PR, read `docs/agents/depend
 
 ## Merge authority
 
-An AI agent merges its own PR, or a Renovate PR that moves no package off its hold in `docs/agents/dependencies.md`, with `fj pr -R origin merge <n> -d`. It does so once a code review ran on the diff (the `code-review` skill), its real findings are fixed, nits aside, every CI check is green on the pushed SHA and the PR has no conflict with `origin/main`. No Coolify app builds this repo (read from Coolify's database on 2026-11-23), so a merge deploys nothing. `docs/DEPLOY.md` names Coolify as the target: when an app is created, add its deploy check here.
+An AI agent merges its own PR, or a Renovate PR that moves no package off its hold in `docs/agents/dependencies.md`, with `fj pr -R origin merge <n> -d`, when every changed path is under `components/`, `public/`, `test/` or `docs/` outside `docs/agents/`, or is `README.md`, `package.json` or `package-lock.json`. It does so once a code review ran on the diff (the `code-review` skill), its real findings are fixed, nits aside, every CI check is green on the pushed SHA and the PR has no conflict with `origin/main`. A PR that touches any other path (`app/`, `lib/`, `drizzle/`, `scripts/`, `.forgejo/`, `docs/agents/`, the `Dockerfile`, `renovate.json`, this file) waits for the user to merge it.
 
-A PR waits for the user to merge it when it changes any of these:
-
-- Stored data: `drizzle/`, `lib/db/schema.ts`.
-- Sign-in and request security: `auth.ts`, `proxy.ts`, `app/auth-actions.ts`, `app/api/auth/`, and in `lib/` the files `auth.ts`, `auth-guard.ts`, `reauth.ts`, `oauth-email.ts`, `passwords.ts`, `verification-tokens.ts`, `link-tokens.ts`, `rate-limit.ts` and `security-headers.ts`.
-- The rules an agent is judged by: `.forgejo/`, `renovate.json`, `docs/agents/dependencies.md`, `AGENTS.md`, `CLAUDE.md`.
+No Coolify app builds this repo (read from Coolify's database on 2026-11-23), so a merge deploys nothing. `docs/DEPLOY.md` names Coolify as the target: when an app is created, add its deploy check here.
