@@ -21,3 +21,9 @@ Before presenting a non-trivial design or plan, run the `council` skill (vendore
 ## Dependency holds
 
 Before bumping a dependency or acting on a Renovate PR, read `docs/agents/dependencies.md`: eslint, TypeScript and next-auth are held below npm `latest` on purpose.
+
+## Merge authority
+
+An AI agent merges its own PR (`fj pr -R origin merge <n> -d`) once a code review ran on the diff (the `code-review` skill), its real findings are fixed, and every CI check is green on the pushed SHA. No Coolify app builds this repo (read from Coolify's database on 2026-11-23), so a merge deploys nothing. The PR that adds a deployment also adds its deploy check here.
+
+A PR waits for the user to merge it when it changes `drizzle/`, `auth.ts`, `proxy.ts`, `lib/security-headers.ts`, a file under `lib/` whose name contains `auth`, `.forgejo/` or this file. A Renovate PR for a package that `docs/agents/dependencies.md` holds also waits.
